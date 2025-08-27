@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tresillo Online — Canvas Client</title>
+  <title>Rocambor - The Game of Ombre</title>
   <style>
     body { margin:0; background:#0c1912; color:#e8f0ff; font-family: system-ui, -apple-system, sans-serif; }
     header { display:flex; gap:12px; align-items:center; padding:10px 12px; background:#13251b; border-bottom:1px solid #234; position:sticky; top:0; flex-wrap:wrap; }
@@ -31,14 +31,14 @@
 <body>
   <header>
     <div class="group">
-      <strong>🃏 Tresillo Online</strong>
+      <strong>🃏 Rocambor Online</strong>
       <label>Modo
         <select id="mode">
-          <option value="quadrille" selected>Quadrille (4 players)</option>
+          <option value="quadrille" selected>Cuarteto (4 players)</option>
           <option value="tresillo">Tresillo (3 players)</option>
         </select>
       </label>
-      <button id="join">Join Game</button>
+      <button id="join">Unirse</button>
     </div>
     <span class="pill">Turno: <b id="turn">-</b></span>
     <span class="pill">Triunfo: <b id="trump">-</b></span>
@@ -128,17 +128,13 @@
   window.addEventListener("resize", fit); 
   fit();
 
-  function getWebSocketUrl() {
+ function getWebSocketUrl() {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
     
     // Production detection
     if (location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
-      // Try to detect Railway deployment
-      if (location.hostname.includes('.railway.app')) {
-        return `${protocol}//${location.hostname}`;
-      }
-      // For custom domains, assume they point to Railway
-      return `${protocol}//${location.hostname}`;
+      // Your Railway WebSocket URL
+      return "wss://rocambor-production.up.railway.app";
     }
     
     // Local development
