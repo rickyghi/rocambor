@@ -16,20 +16,22 @@ export function initRedis() {
   }
   
   try {
+    // Simple, compatible Redis configuration
     client = new IORedis(url, { 
-      lazyConnect: true, 
+      lazyConnect: true,
       maxRetriesPerRequest: 3,
       enableReadyCheck: false,
-      connectTimeout: 10000,
-      retryDelayOnReconnect: (times) => Math.min(times * 50, 2000)
+      connectTimeout: 10000
     });
     
     client.on("error", (e) => {
       console.error("[redis] error:", e);
+      client = null;
     });
     
     client.on("end", () => {
       console.warn("[redis] connection ended");
+      client = null;
     });
     
     client.on("connect", () => {
@@ -59,5 +61,5 @@ export async function closeRedis() {
   }
 }
 
-// Export redis for lobby.ts - this will be updated when client changes
+// Export redis for lobby.ts
 export { client as redis };
