@@ -18,20 +18,18 @@ export function initRedis() {
   try {
     client = new IORedis(url, { 
       lazyConnect: true, 
-      maxRetriesPerRequest: 2,
-      retryDelayOnFailover: 100,
+      maxRetriesPerRequest: 3,
       enableReadyCheck: false,
-      maxRetriesPerRequest: null
+      connectTimeout: 10000,
+      retryDelayOnReconnect: (times) => Math.min(times * 50, 2000)
     });
     
     client.on("error", (e) => {
       console.error("[redis] error:", e);
-      client = null;
     });
     
     client.on("end", () => {
       console.warn("[redis] connection ended");
-      client = null;
     });
     
     client.on("connect", () => {
