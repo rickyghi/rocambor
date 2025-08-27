@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tresillo Online — Canvas Client</title>
+  <style>
+    body { margin:0; background:#0c1912; color:#e8f0ff; font-family: system-ui, -apple-system, sans-serif; }
+    header { display:flex; gap:12px; align-items:center; padding:10px 12px; background:#13251b; border-bottom:1px solid #234; position:sticky; top:0; flex-wrap:wrap; }
+    button, select { background:#1c2f24; color:#def; border:1px solid #345; border-radius:8px; padding:8px 12px; font-weight:600; cursor: pointer; font-size:14px; }
+    button:disabled { opacity:.5; cursor: not-allowed; }
+    button:hover:not(:disabled) { background:#2a3f32; }
+    .group { display:flex; gap:8px; align-items:center; }
+    #status { margin-left:auto; font-weight:700; color:#fbbf24; }
+    #c { display:block; width:100vw; height:calc(100vh - 104px); cursor: pointer; }
+    #controls { display:flex; gap:12px; align-items:center; padding:6px 12px; background:#0f1f17; border-top:1px solid #234; flex-wrap:wrap; }
+    .pill { padding:4px 8px; border:1px solid #456; border-radius:999px; font-size:12px; }
+    #msg { font-size:12px; opacity:.9; }
+    .sel { outline:2px solid #4ade80; }
+    .error { color: #ff6b6b; background: #2d1b1b; padding: 8px; border-radius: 4px; margin: 4px 0; }
+    .success { color: #51cf66; background: #1b2d1b; padding: 8px; border-radius: 4px; margin: 4px 0; }
+    .info { color: #74c0fc; background: #1b1f2d; padding: 8px; border-radius: 4px; margin: 4px 0; }
+    .control-group { display: flex; gap: 8px; align-items: center; }
+    @media (max-width: 768px) {
+      header { flex-direction: column; align-items: flex-start; gap: 8px; }
+      #controls { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .control-group { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="group">
+      <strong>🃏 Tresillo Online</strong>
+      <label>Modo
+        <select id="mode">
+          <option value="quadrille" selected>Quadrille (4 players)</option>
+          <option value="tresillo">Tresillo (3 players)</option>
+        </select>
+      </label>
+      <button id="join">Join Game</button>
+    </div>
+    <span class="pill">Turno: <b id="turn">-</b></span>
+    <span class="pill">Triunfo: <b id="trump">-</b></span>
+    <span class="pill">Descansa: <b id="rest">-</b></span>
+    <span id="status">connecting...</span>
+  </header>
+
+  <canvas id="c" width="1024" height="720"></canvas>
+
+  <div id="controls">
+    <div class="control-group" id="auction">
+      <span>Auction:</span>
+      <button id="bidEntrada">Entrada</button>
+      <button id="bidVolteo">Volteo</button>
+      <button id="bidSolo">Solo</button>
+      <button id="pass">Pass</button>
+    </div>
+    <div class="control-group" id="trumpChoice" style="display:none">
+      <span>Triunfo:</span>
+      <button data-suit="oros">♦ Oros</button>
+      <button data-suit="copas">♥ Copas</button>
+      <button data-suit="espadas">♠ Espadas</button>
+      <button data-suit="bastos">♣ Bastos</button>
+    </div>
+    <div class="control-group" id="exchange" style="display:none">
+      <span>Intercambio:</span>
+      <button id="exConfirm">Cambiar</button>
+      <button id="exSkip">Pasar</button>
+      <span id="msg"></span>
+    </div>
+    <div id="notifications"></div>
+  </div>
+
+  <script>
+  const modeSel = document.getElementById("mode");
+  const btnJoin = document.getElementById("join");
+  const status = document.getElementById("status");
+  const turnEl = document.getElementById("turn");
+  const trumpEl = document.getElementById("trump");
+  const restEl = document.getElementById("rest");
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+  const auctionDiv = document.getElementById("auction");
+  const trumpDiv = document.getElementById("trumpChoice");
+  const exDiv = document.getElementById("exchange");
+  const exMsg = document.getElementById("msg");
+  const notifications = document.getElementById("notifications");
+
+  let ws;
+  let reconnectAttempts = 0;
+  let maxReconnectAttempts = 5;
+  let reconnectDelay = 1000;
+  let heartbeatInterval;
+  let state = { 
+    phase:"lobby", 
+    turn:null, 
+    trump:null, 
+    table:[], 
+    playOrder:[], 
+    handsCount:{}, 
+    resting:null, 
+    auction:{}, 
+    exchange:{} 
+  };
+  let selfHand = [];
+  let selected = new Set();
+
+  function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = type;
+    notification.textContent = message;
+    notifications.appendChild(notification);
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.remove();
+      }
+    }, 5000);
+  }
+
+  function fit(){
+    const w = window.innerWidth;
+    const h = window.innerHeight - 104;
+    const scale = Math.min(w/1024, h/720, 1); // Don't scale up beyond 1:1
+    canvas.style.width = (1024*scale) + "px";
+    canvas.style.height = (720*scale) + "px";
+  }
+  window.addEventListener("resize", fit); 
+  fit();
+
+  function getWebSocketUrl() {
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    
+    // Production detection
+    if (location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+      // Try to detect Railway deployment
+      if (location.hostname.includes('.railway.app')) {
+        return `${protocol}//${location.hostname}`;
+      }
+      // For custom domains, assume they point to Railway
+      return `${protocol}//${location.hostname}`;
+    }
+    
+    // Local development
+    return `${protocol}//localhost:8080`;
+  }
+
+  function startHeartbeat() {
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    heartbeatInterval = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        // Send a ping-like message
+        try {
+          ws.send(JSON.stringify({ type: "PING" }));
+        } catch (error) {
+          console.error("Failed to send heartbeat:", error);
+        }
+      }
+    }, 30000); // Every 30 seconds
+  }
+
+  function stopHeartbeat() {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+  }
+
+  function connect(){
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) return;
+
+    const resume = localStorage.getItem("clientId");
+    const baseUrl = getWebSocketUrl();
+    const url = resume ? `${baseUrl}/?resume=${resume}` : baseUrl;
+
+    status.textContent = "connecting...";
+    
+    try {
+      ws = new WebSocket(url);
+    } catch (error) {
+      console.error("Failed to create WebSocket:", error);
+      status.textContent = "connection failed";
+      showNotification("Failed to create WebSocket connection", "error");
+      setTimeout(connect, reconnectDelay * Math.pow(2, reconnectAttempts));
+      return;
+    }
+
+    ws.onopen = () => {
+      status.textContent = "connected";
+      reconnectAttempts = 0;
+      reconnectDelay = 1000;
+      startHeartbeat();
+      showNotification("Connected to game server", "success");
+    };
+
+    ws.onclose = (event) => {
+      status.textContent = "disconnected";
+      stopHeartbeat();
+      
+      console.log(`WebSocket closed: ${event.code} ${event.reason}`);
+      
+      // Only attempt to reconnect on certain close codes
+      if (event.code === 1006 || event.code === 1011 || event.code === 1001) {
+        if (reconnectAttempts < maxReconnectAttempts) {
+          reconnectAttempts++;
+          const delay = reconnectDelay * Math.pow(2, reconnectAttempts - 1);
+          status.textContent = `reconnecting in ${delay/1000}s... (${reconnectAttempts}/${maxReconnectAttempts})`;
+          setTimeout(connect, delay);
+        } else {
+          status.textContent = "connection failed";
+          showNotification("Unable to connect to server. Please refresh the page.", "error");
+        }
+      }
+    };
+
+    ws.onmessage = ev => {
+      try {
+        const msg = JSON.parse(ev.data);
+        
+        if (msg.type === "WELCOME"){
+          if (msg.clientId) localStorage.setItem("clientId", msg.clientId);
+        }
+        else if (msg.type === "STATE"){
+          Object.assign(state, msg.patch);
+          if (msg.selfHand) selfHand = msg.selfHand;
+          turnEl.textContent = state.turn || "-";
+          trumpEl.textContent = state.trump || "-";
+          restEl.textContent = state.resting || "-";
+          updateControls();
+          render();
+        }
+        else if (msg.type === "EVENT"){
+          handleGameEvent(msg.name, msg.payload);
+        }
+        else if (msg.type === "ERROR"){ 
+          status.textContent = "ERR: " + msg.code; 
+          showNotification(`Error: ${msg.code}${msg.why ? ' - ' + msg.why : ''}`, "error");
+        }
+        else if (msg.type === "PING") {
+          // Respond to server ping
+          send({ type: "PONG" });
+        }
+      } catch (error) {
+        console.error("Failed to parse message:", error);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      status.textContent = "connection error";
+      stopHeartbeat();
+    };
+  }
+
+  function handleGameEvent(name, payload) {
+    switch(name) {
+      case "AUCTION_WIN":
+        showNotification(`${payload.ombre} won auction with ${payload.bid}`, "success");
+        break;
+      case "TRUMP_SET":
+        showNotification(`Trump set to ${payload.suit}`, "info");
+        break;
+      case "TRICK_TAKEN":
+        showNotification(`${payload.winner} won the trick`, "info");
+        break;
+      case "HAND_RESULT":
+        showNotification(`Hand result: ${payload.result} (${payload.points} points)`, "success");
+        break;
+      case "SEATED":
+        if (payload.id !== localStorage.getItem("clientId")) {
+          showNotification(`Player joined: ${payload.seat}`, "info");
+        }
+        break;
+    }
+  }
+
+  // Initialize connection
+  connect();
+
+  btnJoin.onclick = () => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      send({ type:"JOIN", mode: modeSel.value });
+      btnJoin.disabled = true;
+      setTimeout(() => btnJoin.disabled = false, 2000);
+    } else {
+      showNotification("Not connected to server", "error");
+      connect(); // Attempt to reconnect
+    }
+  };
+
+  // Auction buttons
+  document.getElementById("bidEntrada").onclick = () => send({ type:"BID", value:"entrada" });
+  document.getElementById("bidVolteo").onclick = () => send({ type:"BID", value:"volteo" });
+  document.getElementById("bidSolo").onclick   = () => send({ type:"BID", value:"solo" });
+  document.getElementById("pass").onclick       = () => send({ type:"BID", value:"pass" });
+
+  // Trump buttons
+  Array.from(trumpDiv.querySelectorAll("button")).forEach(b => {
+    b.onclick = () => send({ type:"CHOOSE_TRUMP", suit: b.dataset.suit });
+  });
+
+  // Exchange buttons
+  document.getElementById("exConfirm").onclick = () => {
+    const ids = Array.from(selected);
+    send({ type:"EXCHANGE", discardIds: ids });
+    selected.clear(); 
+    exMsg.textContent = "";
+    render();
+  };
+  document.getElementById("exSkip").onclick = () => {
+    send({ type:"EXCHANGE", discardIds: [] });
+  };
+
+  function send(msg) { 
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify(msg));
+      } catch (error) {
+        console.error("Failed to send message:", error);
+        showNotification("Failed to send message", "error");
+      }
+    } else {
+      showNotification("Not connected to server", "error");
+      connect(); // Attempt to reconnect
+    }
+  }
+
+  // Card click for play or select for exchange
+  canvas.addEventListener("click", ev => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = 1024 / rect.width;
+    const sy = 720 / rect.height;
+    const x = (ev.clientX - rect.left) * sx;
+    const y = (ev.clientY - rect.top) * sy;
+    const card = hitCard(x,y);
+    if (!card) return;
+
+    if (state.phase === "exchange" && state.turn === "you"){
+      if (selected.has(card.id)) selected.delete(card.id); 
+      else selected.add(card.id);
+      exMsg.textContent = `Selected: ${selected.size}`;
+      render();
+      return;
+    }
+    if (state.phase === "play" && state.turn === "you"){
+      send({ type:"PLAY", cardId: card.id });
+    }
+  });
+
+  function hitCard(x,y){
+    const W=76,H=108; 
+    const yBase=560;
+    const spread = Math.min(86, 600 / Math.max(1, selfHand.length - 1));
+    const n = selfHand.length;
+    const startX = 512 - ((n-1)*spread)/2;
+    for(let i=n-1;i>=0;i--){
+      const cx = startX + i*spread;
+      if (x>=cx-W/2 && x<=cx+W/2 && y>=yBase-H/2 && y<=yBase+H/2) return selfHand[i];
+    }
+    return null;
+  }
+
+  function card(x,y,cardObj,face=true,selected=false){
+    const W=76,H=108;
+    ctx.save();
+    ctx.translate(x,y);
+    
+    // Card background
+    ctx.fillStyle = face ? "#fff" : "#2d1b4a";
+    ctx.fillRect(-W/2,-H/2,W,H);
+    
+    // Card border
+    ctx.strokeStyle = selected ? "#4ade80" : (face ? "#ddd" : "#ffd700");
+    ctx.lineWidth = selected ? 4 : (face ? 2 : 3);
+    ctx.strokeRect(-W/2,-H/2,W,H);
+    
+    if (face && cardObj){
+      const sym = { oros:"♦", copas:"♥", espadas:"♠", bastos:"♣" }[cardObj.s];
+      const color = { oros:"#FFD700", copas:"#FF4444", espadas:"#eee", bastos:"#eee" }[cardObj.s];
+      const disp = {1:"A",2:"2",3:"3",4:"4",5:"5",6:"6",7:"7",10:"S",11:"C",12:"R"}[cardObj.r];
+      
+      ctx.fillStyle = color;
+      ctx.font = "bold 16px Arial";
+      ctx.textAlign = "center";
+      
+      // Top left corner
+      ctx.fillText(disp, -W/2+14, -H/2+18);
+      
+      // Bottom right corner (rotated)
+      ctx.save();
+      ctx.translate(W/2-14, H/2-8);
+      ctx.rotate(Math.PI);
+      ctx.fillText(disp, 0, 0);
+      ctx.restore();
+      
+      // Center symbol
+      ctx.font = "bold 36px Arial";
+      ctx.fillText(sym, 0, 10);
+    }
+    ctx.restore();
+  }
+
+  function render(){
+    ctx.clearRect(0,0,1024,720);
+    
+    // Background gradient
+    const gradient = ctx.createRadialGradient(512, 360, 0, 512, 360, 400);
+    gradient.addColorStop(0, "#1a3b2e");
+    gradient.addColorStop(1, "#0c1912");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1024, 720);
+
+    // Table cards
+    const t = state.table || [];
+    for(let i=0;i<t.length;i++){
+      const ang = (i-1)*(Math.PI/3);
+      const x = 512 + Math.cos(ang)*84;
+      const y = 360 + Math.sin(ang)*54;
+      card(x,y,t[i],true,false);
+    }
+
+    // Self hand
+    const spread = Math.min(86, 600 / Math.max(1, selfHand.length - 1));
+    const n = selfHand.length;
+    const startX = 512 - ((n-1)*spread)/2;
+    for(let i=0;i<n;i++){
+      const x = startX + i*spread, y = 560;
+      const sel = selected.has(selfHand[i].id);
+      const cardY = sel ? y - 10 : y;
+      card(x, cardY, selfHand[i], true, sel);
+    }
+
+    // Other players' cards (face down)
+    const counts = state.handsCount || {};
+    const left = counts.left||0, across = counts.across||0, right = counts.right||0;
+    
+    for(let i=0;i<left;i++) card(140, 270 + i*8, {}, false, false);
+    for(let i=0;i<across;i++) card(512 - ((across-1)*20)/2 + i*20, 110, {}, false, false);
+    for(let i=0;i<right;i++) card(884, 270 + i*8, {}, false, false);
+
+    // Turn indicator
+    if (state.turn){
+      ctx.fillStyle="rgba(0,0,0,.8)"; 
+      ctx.fillRect(450, 590, 140, 32);
+      ctx.strokeStyle="#fbbf24";
+      ctx.strokeRect(450, 590, 140, 32);
+      ctx.fillStyle="#fbbf24"; 
+      ctx.font="bold 18px Arial"; 
+      ctx.textAlign="center";
+      ctx.fillText(`Turn: ${state.turn}`, 520, 612);
+    }
+
+    // Phase indicator
+    if (state.phase && state.phase !== 'lobby') {
+      ctx.fillStyle="rgba(0,0,0,.6)"; 
+      ctx.fillRect(20, 20, 200, 40);
+      ctx.fillStyle="#e8f0ff"; 
+      ctx.font="bold 16px Arial"; 
+      ctx.textAlign="left";
+      ctx.fillText(`Phase: ${state.phase}`, 30, 45);
+    }
+
+    // Scores display
+    if (state.scores) {
+      const scores = state.scores;
+      const positions = [
+        { seat: 'you', x: 512, y: 650 },
+        { seat: 'left', x: 80, y: 360 },
+        { seat: 'across', x: 512, y: 50 },
+        { seat: 'right', x: 944, y: 360 }
+      ];
+
+      positions.forEach(pos => {
+        const score = scores[pos.seat] || 0;
+        ctx.fillStyle = "rgba(0,0,0,.7)";
+        ctx.fillRect(pos.x - 25, pos.y - 12, 50, 24);
+        ctx.fillStyle = "#e8f0ff";
+        ctx.font = "bold 14px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(score.toString(), pos.x, pos.y + 4);
+      });
+    }
+  }
+
+  function updateControls(){
+    const myTurn = state.turn === "you";
+    
+    // Show/hide control groups based on phase
+    auctionDiv.style.display = state.phase === "auction" ? "flex" : "none";
+    trumpDiv.style.display = state.phase === "trump_choice" && myTurn ? "flex" : "none";
+    exDiv.style.display = state.phase === "exchange" && myTurn ? "flex" : "none";
+    
+    // Enable/disable buttons
+    auctionDiv.querySelectorAll('button').forEach(btn => { 
+      btn.disabled = !myTurn || state.phase !== "auction"; 
+    });
+    trumpDiv.querySelectorAll('button').forEach(btn => { 
+      btn.disabled = !myTurn || state.phase !== "trump_choice"; 
+    });
+    exDiv.querySelectorAll('button').forEach(btn => { 
+      btn.disabled = !myTurn || state.phase !== "exchange"; 
+    });
+  }
+
+  // Initial setup
+  updateControls();
+  render();
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', () => {
+    stopHeartbeat();
+    if (ws) {
+      ws.close(1000, 'Page unload');
+    }
+  });
+  </script>
+</body>
+</html>

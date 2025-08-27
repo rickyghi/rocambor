@@ -1,0 +1,27 @@
+[build]
+  publish = "."
+  command = ""
+
+[[redirects]]
+  from = "/healthz"
+  to = "/"
+  status = 200
+
+  [[headers]]
+  for = "/*"
+  [headers.values]
+  Content-Security-Policy = "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';"
+  Referrer-Policy = "strict-origin-when-cross-origin"
+  X-Content-Type-Options = "nosniff"
+  X-Frame-Options = "DENY"
+  Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+[[headers]]
+  for = "/client.js"
+  [headers.values]
+  Cache-Control = "public, max-age=300"
+
+[[headers]]
+  for = "/logo.png"
+  [headers.values]
+  Cache-Control = "public, max-age=86400, immutable"
