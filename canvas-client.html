@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rocambor - The Game of Ombre</title>
+  <title>Tresillo Online – Canvas Client</title>
   <style>
     body { margin:0; background:#0c1912; color:#e8f0ff; font-family: system-ui, -apple-system, sans-serif; }
     header { display:flex; gap:12px; align-items:center; padding:10px 12px; background:#13251b; border-bottom:1px solid #234; position:sticky; top:0; flex-wrap:wrap; }
@@ -31,14 +31,14 @@
 <body>
   <header>
     <div class="group">
-      <strong>🃏 Rocambor Online</strong>
+      <strong>🃏 Tresillo Online</strong>
       <label>Modo
         <select id="mode">
-          <option value="quadrille" selected>Cuarteto (4 players)</option>
+          <option value="quadrille" selected>Quadrille (4 players)</option>
           <option value="tresillo">Tresillo (3 players)</option>
         </select>
       </label>
-      <button id="join">Unirse</button>
+      <button id="join">Join Game</button>
     </div>
     <span class="pill">Turno: <b id="turn">-</b></span>
     <span class="pill">Triunfo: <b id="trump">-</b></span>
@@ -121,38 +121,36 @@
   function fit(){
     const w = window.innerWidth;
     const h = window.innerHeight - 104;
-    const scale = Math.min(w/1024, h/720, 1); // Don't scale up beyond 1:1
+    const scale = Math.min(w/1024, h/720, 1);
     canvas.style.width = (1024*scale) + "px";
     canvas.style.height = (720*scale) + "px";
   }
   window.addEventListener("resize", fit); 
   fit();
 
- function getWebSocketUrl() {
-    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    
-    // Production detection
-    if (location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
-      // Your Railway WebSocket URL
+  function getWebSocketUrl() {
+    // FIXED: Always use Railway backend for production
+    if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+      // Local development
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      return `${protocol}//localhost:8080`;
+    } else {
+      // Production - always use Railway backend
       return "wss://rocambor-production.up.railway.app";
     }
-    
-    // Local development
-    return `${protocol}//localhost:8080`;
   }
 
   function startHeartbeat() {
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        // Send a ping-like message
         try {
           ws.send(JSON.stringify({ type: "PING" }));
         } catch (error) {
           console.error("Failed to send heartbeat:", error);
         }
       }
-    }, 30000); // Every 30 seconds
+    }, 30000);
   }
 
   function stopHeartbeat() {
@@ -169,6 +167,7 @@
     const baseUrl = getWebSocketUrl();
     const url = resume ? `${baseUrl}/?resume=${resume}` : baseUrl;
 
+    console.log("Connecting to WebSocket:", url); // Debug log
     status.textContent = "connecting...";
     
     try {
@@ -182,6 +181,7 @@
     }
 
     ws.onopen = () => {
+      console.log("WebSocket connected successfully!"); // Debug log
       status.textContent = "connected";
       reconnectAttempts = 0;
       reconnectDelay = 1000;
@@ -195,7 +195,6 @@
       
       console.log(`WebSocket closed: ${event.code} ${event.reason}`);
       
-      // Only attempt to reconnect on certain close codes
       if (event.code === 1006 || event.code === 1011 || event.code === 1001) {
         if (reconnectAttempts < maxReconnectAttempts) {
           reconnectAttempts++;
@@ -232,9 +231,8 @@
           status.textContent = "ERR: " + msg.code; 
           showNotification(`Error: ${msg.code}${msg.why ? ' - ' + msg.why : ''}`, "error");
         }
-        else if (msg.type === "PING") {
-          // Respond to server ping
-          send({ type: "PONG" });
+        else if (msg.type === "PONG") {
+          // Handle pong response
         }
       } catch (error) {
         console.error("Failed to parse message:", error);
@@ -280,7 +278,7 @@
       setTimeout(() => btnJoin.disabled = false, 2000);
     } else {
       showNotification("Not connected to server", "error");
-      connect(); // Attempt to reconnect
+      connect();
     }
   };
 
@@ -317,7 +315,7 @@
       }
     } else {
       showNotification("Not connected to server", "error");
-      connect(); // Attempt to reconnect
+      connect();
     }
   }
 
@@ -361,11 +359,9 @@
     ctx.save();
     ctx.translate(x,y);
     
-    // Card background
     ctx.fillStyle = face ? "#fff" : "#2d1b4a";
     ctx.fillRect(-W/2,-H/2,W,H);
     
-    // Card border
     ctx.strokeStyle = selected ? "#4ade80" : (face ? "#ddd" : "#ffd700");
     ctx.lineWidth = selected ? 4 : (face ? 2 : 3);
     ctx.strokeRect(-W/2,-H/2,W,H);
@@ -379,17 +375,14 @@
       ctx.font = "bold 16px Arial";
       ctx.textAlign = "center";
       
-      // Top left corner
       ctx.fillText(disp, -W/2+14, -H/2+18);
       
-      // Bottom right corner (rotated)
       ctx.save();
       ctx.translate(W/2-14, H/2-8);
       ctx.rotate(Math.PI);
       ctx.fillText(disp, 0, 0);
       ctx.restore();
       
-      // Center symbol
       ctx.font = "bold 36px Arial";
       ctx.fillText(sym, 0, 10);
     }
@@ -399,14 +392,12 @@
   function render(){
     ctx.clearRect(0,0,1024,720);
     
-    // Background gradient
     const gradient = ctx.createRadialGradient(512, 360, 0, 512, 360, 400);
     gradient.addColorStop(0, "#1a3b2e");
     gradient.addColorStop(1, "#0c1912");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 1024, 720);
 
-    // Table cards
     const t = state.table || [];
     for(let i=0;i<t.length;i++){
       const ang = (i-1)*(Math.PI/3);
@@ -415,7 +406,6 @@
       card(x,y,t[i],true,false);
     }
 
-    // Self hand
     const spread = Math.min(86, 600 / Math.max(1, selfHand.length - 1));
     const n = selfHand.length;
     const startX = 512 - ((n-1)*spread)/2;
@@ -426,7 +416,6 @@
       card(x, cardY, selfHand[i], true, sel);
     }
 
-    // Other players' cards (face down)
     const counts = state.handsCount || {};
     const left = counts.left||0, across = counts.across||0, right = counts.right||0;
     
@@ -434,7 +423,6 @@
     for(let i=0;i<across;i++) card(512 - ((across-1)*20)/2 + i*20, 110, {}, false, false);
     for(let i=0;i<right;i++) card(884, 270 + i*8, {}, false, false);
 
-    // Turn indicator
     if (state.turn){
       ctx.fillStyle="rgba(0,0,0,.8)"; 
       ctx.fillRect(450, 590, 140, 32);
@@ -446,7 +434,6 @@
       ctx.fillText(`Turn: ${state.turn}`, 520, 612);
     }
 
-    // Phase indicator
     if (state.phase && state.phase !== 'lobby') {
       ctx.fillStyle="rgba(0,0,0,.6)"; 
       ctx.fillRect(20, 20, 200, 40);
@@ -456,7 +443,6 @@
       ctx.fillText(`Phase: ${state.phase}`, 30, 45);
     }
 
-    // Scores display
     if (state.scores) {
       const scores = state.scores;
       const positions = [
@@ -481,12 +467,10 @@
   function updateControls(){
     const myTurn = state.turn === "you";
     
-    // Show/hide control groups based on phase
     auctionDiv.style.display = state.phase === "auction" ? "flex" : "none";
     trumpDiv.style.display = state.phase === "trump_choice" && myTurn ? "flex" : "none";
     exDiv.style.display = state.phase === "exchange" && myTurn ? "flex" : "none";
     
-    // Enable/disable buttons
     auctionDiv.querySelectorAll('button').forEach(btn => { 
       btn.disabled = !myTurn || state.phase !== "auction"; 
     });
@@ -498,11 +482,9 @@
     });
   }
 
-  // Initial setup
   updateControls();
   render();
 
-  // Cleanup on page unload
   window.addEventListener('beforeunload', () => {
     stopHeartbeat();
     if (ws) {
