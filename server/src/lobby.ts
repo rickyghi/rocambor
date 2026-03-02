@@ -1,0 +1,83 @@
+import { Mode, SeatIndex } from "../../shared/types";
+import { MaybeRedis } from "./redis";
+import { RoomRouter } from "./room-router";
+import { Room, Conn } from "./room";
+import { WebSocket } from "ws";
+
+interface QueueEntry {
+  clientId: string;
+  ws: WebSocket;
+  joinedAt: number;
+}
+
+export class Lobby {
+  private queues: Record<Mode, QueueEntry[]> = {
+    tresillo: [],
+    quadrille: [],
+  };
+
+  constructor(
+    private redis: MaybeRedis,
+    private router: RoomRouter
+  ) {}
+
+  joinQueue(
+    clientId: string,
+    ws: WebSocket,
+    mode: Mode
+  ): { status: "queued"; position: number } | { status: "matched"; roomId: string; code: string; room: Room } {
+    // Remove if already in queue
+    this.leaveQueue(clientId, mode);
+
+    const queue = this.queues[mode];
+    queue.push({ clientId, ws, joinedAt: Date.now() });
+
+    // Clean stale entries (disconnected WebSockets)
+    this.cleanQueue(mode);
+
+    const need = mode === "tresillo" ? 3 : 4;
+
+    if (queue.length >= need) {
+      const matched = queue.splice(0, need);
+      const { roomId, code, room } = this.router.createRoom(mode, matched[0].clientId);
+
+      // Seat all matched players
+      const seats = room.allSeats();
+      for (let i = 0; i < matched.length; i++) {
+        const entry = matched[i];
+        const conn = room.attach(entry.ws, entry.clientId);
+        conn.seat = seats[i];
+      }
+
+      // Auto-start with bots for remaining seats
+      room.startGame();
+
+      return { status: "matched", roomId, code, room };
+    }
+
+    return { status: "queued", position: queue.length };
+  }
+
+  leaveQueue(clientId: string, mode?: Mode): void {
+    const modes: Mode[] = mode ? [mode] : ["tresillo", "quadrille"];
+    for (const m of modes) {
+      this.queues[m] = this.queues[m].filter((e) => e.clientId !== clientId);
+    }
+  }
+
+  getQueueSize(mode: Mode): number {
+    this.cleanQueue(mode);
+    return this.queues[mode].length;
+  }
+
+  private cleanQueue(mode: Mode): void {
+    const now = Date.now();
+    this.queues[mode] = this.queues[mode].filter((e) => {
+      // Remove entries older than 5 minutes
+      if (now - e.joinedAt > 300_000) return false;
+      // Remove disconnected WebSockets
+      if (e.ws.readyState !== WebSocket.OPEN) return false;
+      return true;
+    });
+  }
+}

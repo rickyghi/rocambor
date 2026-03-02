@@ -1,27 +1,32 @@
 [build]
-  publish = "."
-  command = ""
+  base = "client"
+  publish = "dist"
+  command = "npm run build"
 
+# SPA fallback - serve index.html for all routes
 [[redirects]]
-  from = "/healthz"
-  to = "/"
+  from = "/*"
+  to = "/index.html"
   status = 200
 
-  [[headers]]
+# Security headers
+[[headers]]
   for = "/*"
   [headers.values]
-  Content-Security-Policy = "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';"
-  Referrer-Policy = "strict-origin-when-cross-origin"
-  X-Content-Type-Options = "nosniff"
-  X-Frame-Options = "DENY"
-  Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Content-Security-Policy = "default-src 'self'; connect-src 'self' wss: ws: https:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
+# Cache static assets aggressively
 [[headers]]
-  for = "/client.js"
+  for = "/assets/*"
   [headers.values]
-  Cache-Control = "public, max-age=300"
+    Cache-Control = "public, max-age=31536000, immutable"
 
+# Favicon and icons
 [[headers]]
-  for = "/logo.png"
+  for = "/favicon.*"
   [headers.values]
-  Cache-Control = "public, max-age=86400, immutable"
+    Cache-Control = "public, max-age=86400"

@@ -1,6 +1,9 @@
 [build]
   builder = "NIXPACKS"
+
 [deploy]
   numReplicas = 1
-  startCommand = "npm start"
+  startCommand = "cd server && npm run build && npm start"
   restartPolicyType = "ON_FAILURE"
+  healthcheckPath = "/healthz"
+  healthcheckTimeout = 10

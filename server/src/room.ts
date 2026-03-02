@@ -1,0 +1,1107 @@
+import { WebSocket } from "ws";
+import {
+  Card,
+  Suit,
+  SeatIndex,
+  ALL_SEATS,
+  GameState,
+  Bid,
+  BID_VAL,
+  Contract,
+  Mode,
+  PlayerInfo,
+  S2CMessage,
+} from "../../shared/types";
+import { makeDeck, legalPlays, trickWinner, generateSeed } from "./engine";
+import { botAct, BotContext } from "./bot";
+import { saveHandResult, saveMatchResult, createRoomRecord } from "./persistence";
+
+const TURN_MS = 25_000;
+const BOT_DELAY_MIN = 600;
+const BOT_DELAY_MAX = 1200;
+const POST_HAND_DELAY = 3000;
+
+export interface Conn {
+  id: string;
+  ws: WebSocket;
+  seat: SeatIndex | null;
+  handle: string;
+  isBot: boolean;
+  playerId: string | null;
+  isSpectator: boolean;
+  connected: boolean;
+  lastSeen: number;
+}
+
+export interface RoomConfig {
+  mode: Mode;
+  code: string;
+  gameTarget?: number;
+  creatorId: string;
+}
+
+export class Room {
+  id: string;
+  code: string;
+  conns: Conn[] = [];
+  state: GameState;
+  hands: Record<number, Card[]> = { 0: [], 1: [], 2: [], 3: [] };
+  original: Record<number, Card[]> = { 0: [], 1: [], 2: [], 3: [] };
+  talon: Card[] = [];
+  table: Card[] = [];
+  playOrder: SeatIndex[] = [];
+  timer: NodeJS.Timeout | null = null;
+  restIndex = 0;
+  lastActivity: number = Date.now();
+  private seed: string = "";
+
+  constructor(id: string, config: RoomConfig) {
+    this.id = id;
+    this.code = config.code;
+    this.state = {
+      roomId: id,
+      roomCode: config.code,
+      mode: config.mode,
+      phase: "lobby",
+      turn: null,
+      ombre: null,
+      trump: null,
+      contract: null,
+      resting: null,
+      handNo: 1,
+      table: [],
+      playOrder: [],
+      handsCount: { 0: 0, 1: 0, 2: 0, 3: 0 },
+      scores: { 0: 0, 1: 0, 2: 0, 3: 0 },
+      tricks: { 0: 0, 1: 0, 2: 0, 3: 0 },
+      auction: { currentBid: "pass", currentBidder: null, passed: [], order: [] },
+      exchange: { current: null, order: [], talonSize: 0, completed: [] },
+      players: {},
+      gameTarget: config.gameTarget || 12,
+      seq: 0,
+      rules: { espadaObligatoria: true, penetroEnabled: true },
+    };
+
+    createRoomRecord(id, config.mode).catch(() => {});
+  }
+
+  // ---- Helpers ----
+  private send(conn: Conn, msg: S2CMessage): void {
+    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
+      try {
+        conn.ws.send(JSON.stringify(msg));
+      } catch (error) {
+        console.error(`[room] Failed to send to ${conn.id}:`, error);
+      }
+    }
+  }
+
+  broadcastState(): void {
+    this.updatePlayersInfo();
+    for (const c of this.conns) {
+      const hand = c.seat !== null && !c.isSpectator ? this.hands[c.seat] || null : null;
+      this.send(c, { type: "STATE", state: this.state, hand });
+    }
+  }
+
+  private patch(p: Partial<GameState>): void {
+    Object.assign(this.state, p);
+    this.state.seq++;
+    this.lastActivity = Date.now();
+    this.broadcastState();
+  }
+
+  private event(name: string, payload: Record<string, unknown>): void {
+    this.conns.forEach((c) => this.send(c, { type: "EVENT", name, payload }));
+  }
+
+  private updatePlayersInfo(): void {
+    const players: Partial<Record<number, PlayerInfo>> = {};
+    for (const c of this.conns) {
+      if (c.seat !== null && !c.isSpectator) {
+        players[c.seat] = {
+          handle: c.handle,
+          isBot: c.isBot,
+          connected: c.connected,
+          playerId: c.playerId,
+        };
+      }
+    }
+    this.state.players = players;
+  }
+
+  private errorSeat(seat: SeatIndex, code: string, message?: string): void {
+    const c = this.conns.find((x) => x.seat === seat);
+    if (c) this.send(c, { type: "ERROR", code, message });
+  }
+
+  humanCount(): number {
+    return this.conns.filter((c) => !c.isBot && !c.isSpectator && c.seat !== null).length;
+  }
+
+  // ---- Seat management ----
+  restSeat(): SeatIndex {
+    if (this.state.mode === "quadrille") {
+      return (this.restIndex % 4) as SeatIndex;
+    }
+    return 3 as SeatIndex; // In tresillo, seat 3 always rests
+  }
+
+  /** All seats that need a player (for lobby/seating). Quadrille: 4 seats, Tresillo: 3. */
+  allSeats(): SeatIndex[] {
+    if (this.state.mode === "quadrille") return ALL_SEATS.slice() as SeatIndex[];
+    return [0, 1, 2] as SeatIndex[];
+  }
+
+  /** Seats actively playing the current hand (excludes resting seat). */
+  seatsActive(): SeatIndex[] {
+    if (this.state.contract === "penetro") return ALL_SEATS.slice() as SeatIndex[];
+    const rest = this.restSeat();
+    return (ALL_SEATS.filter((s) => s !== rest) as SeatIndex[]).slice(0, 3);
+  }
+
+  nextActive(seat: SeatIndex): SeatIndex {
+    const a = this.seatsActive();
+    const i = a.indexOf(seat);
+    return a[(i + 1) % a.length];
+  }
+
+  // ---- Connection management ----
+  attach(ws: WebSocket, clientId?: string): Conn {
+    const conn: Conn = {
+      id: clientId || Math.random().toString(36).slice(2),
+      ws,
+      seat: null,
+      handle: `Player ${Math.floor(Math.random() * 999)}`,
+      isBot: false,
+      playerId: null,
+      isSpectator: false,
+      connected: true,
+      lastSeen: Date.now(),
+    };
+
+    this.conns.push(conn);
+    this.send(conn, {
+      type: "WELCOME",
+      clientId: conn.id,
+      playerId: null,
+    });
+
+    console.log(`[room] Client ${conn.id} attached to room ${this.id}`);
+    return conn;
+  }
+
+  detach(conn: Conn): void {
+    if (conn.seat !== null) {
+      console.log(`[room] Player ${conn.handle} (seat ${conn.seat}) left room ${this.id}`);
+      conn.connected = false;
+      this.event("PLAYER_LEFT", { seat: conn.seat, handle: conn.handle });
+    }
+    this.conns = this.conns.filter((c) => c !== conn);
+    this.lastActivity = Date.now();
+  }
+
+  tryReconnect(clientId: string, ws: WebSocket, seat: SeatIndex): Conn | null {
+    // Check if seat is still occupied by a disconnected connection
+    const existing = this.conns.find(
+      (c) => c.seat === seat && !c.connected && !c.isBot
+    );
+
+    if (existing) {
+      // Restore the old connection with new WebSocket
+      existing.ws = ws;
+      existing.connected = true;
+      existing.lastSeen = Date.now();
+      existing.id = clientId;
+
+      this.send(existing, {
+        type: "WELCOME",
+        clientId: existing.id,
+        playerId: existing.playerId,
+      });
+      this.send(existing, {
+        type: "ROOM_JOINED",
+        roomId: this.id,
+        code: this.code,
+        seat: existing.seat,
+      });
+
+      // Send full state
+      const hand = existing.seat !== null ? this.hands[existing.seat] || null : null;
+      this.send(existing, { type: "STATE", state: this.state, hand });
+
+      this.event("PLAYER_RECONNECTED", { seat, handle: existing.handle });
+      console.log(`[room] Client ${clientId} reconnected to seat ${seat}`);
+      return existing;
+    }
+
+    // Check if seat has a bot we can replace
+    const botConn = this.conns.find((c) => c.seat === seat && c.isBot);
+    if (botConn) {
+      this.conns = this.conns.filter((c) => c !== botConn);
+      const conn = this.attach(ws, clientId);
+      this.seatPlayer(conn, seat);
+      return conn;
+    }
+
+    return null;
+  }
+
+  addSpectator(ws: WebSocket): Conn {
+    const conn: Conn = {
+      id: Math.random().toString(36).slice(2),
+      ws,
+      seat: null,
+      handle: `Spectator`,
+      isBot: false,
+      playerId: null,
+      isSpectator: true,
+      connected: true,
+      lastSeen: Date.now(),
+    };
+    this.conns.push(conn);
+    this.send(conn, { type: "WELCOME", clientId: conn.id, playerId: null });
+    this.send(conn, {
+      type: "ROOM_JOINED",
+      roomId: this.id,
+      code: this.code,
+      seat: null,
+    });
+    // Send state without hand
+    this.send(conn, { type: "STATE", state: this.state, hand: null });
+    return conn;
+  }
+
+  private seatPlayer(conn: Conn, seat: SeatIndex): void {
+    conn.seat = seat;
+    conn.isSpectator = false;
+    this.event("SEATED", { seat, id: conn.id, handle: conn.handle, bot: conn.isBot });
+    this.send(conn, {
+      type: "ROOM_JOINED",
+      roomId: this.id,
+      code: this.code,
+      seat,
+    });
+    console.log(`[room] ${conn.handle} seated at ${seat} in room ${this.id}`);
+  }
+
+  // ---- Bot management ----
+  private makeBot(): Conn {
+    const fake = {
+      readyState: WebSocket.OPEN,
+      send: () => {},
+      close: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    } as unknown as WebSocket;
+
+    return {
+      id: "bot-" + Math.random().toString(36).slice(2),
+      ws: fake,
+      seat: null,
+      handle: "Bot",
+      isBot: true,
+      playerId: null,
+      isSpectator: false,
+      connected: true,
+      lastSeen: Date.now(),
+    };
+  }
+
+  fillWithBots(): void {
+    const seats = this.allSeats();
+    const assigned = new Set(
+      this.conns
+        .filter((c) => c.seat !== null && !c.isSpectator)
+        .map((c) => c.seat!)
+    );
+
+    for (const s of seats) {
+      if (!assigned.has(s)) {
+        const bot = this.makeBot();
+        this.conns.push(bot);
+        this.seatPlayer(bot, s);
+      }
+    }
+  }
+
+  canStart(): boolean {
+    const seats = this.allSeats();
+    const humans = this.conns.filter(
+      (c) => !c.isBot && !c.isSpectator && c.seat !== null && seats.includes(c.seat!)
+    );
+    return humans.length >= 1; // At least 1 human, rest can be bots
+  }
+
+  // ---- Game lifecycle ----
+  startGame(): void {
+    if (this.state.phase !== "lobby") return;
+    if (!this.canStart()) return;
+    this.fillWithBots();
+    this.newHand();
+  }
+
+  newHand(): void {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+
+    if (this.state.mode === "quadrille") {
+      this.restIndex = (this.restIndex + 1) % 4;
+    }
+
+    // Remove bots from non-active seats, ensure active seats filled
+    this.cleanBots();
+    this.fillWithBots();
+
+    // Reset hand data
+    for (const s of ALL_SEATS) {
+      this.hands[s] = [];
+      this.original[s] = [];
+    }
+    this.talon = [];
+    this.table = [];
+    this.playOrder = [];
+
+    // Reset state
+    this.state.ombre = null;
+    this.state.trump = null;
+    this.state.contract = null;
+    this.state.tricks = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    this.state.table = [];
+    this.state.playOrder = [];
+    this.state.phase = "dealing";
+    this.state.resting = this.restSeat();
+
+    // Deal cards with seed
+    this.seed = generateSeed();
+    const active = this.seatsActive();
+    const deck = makeDeck(this.seed);
+
+    // Deal in 3 rounds of 3
+    for (let r = 0; r < 3; r++) {
+      for (const p of active) {
+        for (let i = 0; i < 3; i++) {
+          this.hands[p].push(deck.pop()!);
+        }
+      }
+    }
+
+    for (const s of active) {
+      this.original[s] = this.hands[s].slice();
+    }
+
+    this.talon = deck.splice(0, 40 - active.length * 9);
+
+    this.state.handsCount = {
+      0: this.hands[0].length,
+      1: this.hands[1].length,
+      2: this.hands[2].length,
+      3: this.hands[3].length,
+    };
+
+    // Start auction - order is left of seat 0, then next, then seat 0
+    // In the active seats, the first bidder is the one after the "dealer" (resting seat or index rotation)
+    const firstBidder = active[0];
+    const order: SeatIndex[] = [];
+    let cur = firstBidder;
+    for (let i = 0; i < active.length; i++) {
+      order.push(cur);
+      cur = this.nextActive(cur);
+    }
+
+    this.state.auction = {
+      currentBid: "pass",
+      currentBidder: null,
+      passed: [],
+      order,
+    };
+
+    this.state.phase = "auction";
+    this.state.turn = order[0];
+    this.patch(this.state);
+    this.armTimer();
+    this.botMaybeAct();
+  }
+
+  private cleanBots(): void {
+    const activeSeats = this.seatsActive();
+    this.conns = this.conns.filter(
+      (c) => !c.isBot || (c.seat !== null && activeSeats.includes(c.seat))
+    );
+  }
+
+  // ---- Timer ----
+  private armTimer(): void {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      this.onTimeout();
+    }, TURN_MS);
+  }
+
+  private onTimeout(): void {
+    const seat = this.state.turn;
+    if (seat === null) return;
+    console.log(`[room] Turn timeout for seat ${seat} in room ${this.id}`);
+    this.doBotAction(seat);
+  }
+
+  private botMaybeAct(): void {
+    const seat = this.state.turn;
+    if (seat === null) return;
+    const conn = this.conns.find((c) => c.seat === seat);
+    if (conn?.isBot) {
+      const delay = BOT_DELAY_MIN + Math.random() * (BOT_DELAY_MAX - BOT_DELAY_MIN);
+      setTimeout(() => this.doBotAction(seat), delay);
+    }
+  }
+
+  private doBotAction(seat: SeatIndex): void {
+    const ctx: BotContext = {
+      phase: this.state.phase,
+      seat,
+      hand: this.hands[seat] || [],
+      originalHand: this.original[seat] || [],
+      trump: this.state.trump,
+      contract: this.state.contract,
+      auction: this.state.auction,
+      ombre: this.state.ombre,
+      table: this.table,
+      talonLength: this.talon.length,
+    };
+
+    const action = botAct(ctx);
+    if (!action) return;
+
+    switch (action.type) {
+      case "BID":
+        this.applyBid(seat, action.payload as Bid);
+        break;
+      case "CHOOSE_TRUMP":
+        this.chooseTrump(seat, action.payload as Suit);
+        break;
+      case "EXCHANGE":
+        this.finishExchange(seat, action.payload as string[]);
+        break;
+      case "PLAY":
+        this.playCard(seat, action.payload as string);
+        break;
+    }
+  }
+
+  // ---- Auction ----
+  applyBid(seat: SeatIndex, value: Bid): void {
+    if (this.state.phase !== "auction" || this.state.turn !== seat) return;
+
+    const a = this.state.auction;
+    const allPassSoFar =
+      a.currentBid === "pass" && a.passed.length === a.order.length - 1;
+    const isLast = a.order.indexOf(seat) === a.order.length - 1;
+    const isContrabolaAllowed = value === "contrabola" && allPassSoFar && isLast;
+
+    if (!isContrabolaAllowed) {
+      if (value !== "pass" && BID_VAL[value] <= BID_VAL[a.currentBid]) {
+        return this.errorSeat(seat, "BAD_BID", "Must beat previous bid");
+      }
+    }
+
+    if (value === "pass") {
+      if (!a.passed.includes(seat)) a.passed.push(seat);
+    } else {
+      a.currentBid = value;
+      a.currentBidder = seat;
+    }
+
+    const idx = a.order.indexOf(seat);
+    const next = a.order[(idx + 1) % a.order.length];
+    const alive = a.order.filter((s) => !a.passed.includes(s));
+
+    if (alive.length === 0) return this.onPassOut();
+
+    if (alive.length === 1 && a.currentBidder !== null && alive[0] === a.currentBidder) {
+      this.state.ombre = a.currentBidder;
+      this.state.contract = this.mapBidToContract(a.currentBid);
+      this.event("AUCTION_WIN", {
+        ombre: a.currentBidder,
+        bid: a.currentBid,
+        contract: this.state.contract,
+      });
+
+      if (a.currentBid === "volteo") {
+        const top = this.talon[0];
+        this.state.trump = top.s;
+        this.event("TRUMP_SET", { method: "volteo", suit: this.state.trump });
+        this.startExchange();
+      } else if (a.currentBid === "contrabola" || a.currentBid === "bola") {
+        this.state.phase = "play";
+        this.state.turn = this.nextActive(this.state.ombre!);
+        this.patch(this.state);
+        this.armTimer();
+        this.botMaybeAct();
+      } else {
+        this.state.phase = "trump_choice";
+        this.state.turn = this.state.ombre;
+        this.patch(this.state);
+        this.armTimer();
+        this.botMaybeAct();
+      }
+      return;
+    }
+
+    this.state.turn = next;
+    this.patch(this.state);
+    this.armTimer();
+    this.botMaybeAct();
+  }
+
+  private mapBidToContract(b: Bid): Contract {
+    switch (b) {
+      case "entrada": return "entrada";
+      case "oros": return "oros";
+      case "volteo": return "volteo";
+      case "solo": return "solo";
+      case "solo_oros": return "solo_oros";
+      case "bola": return "bola";
+      case "contrabola": return "contrabola";
+      default: return "entrada";
+    }
+  }
+
+  private onPassOut(): void {
+    if (this.state.mode === "quadrille" && this.state.rules.penetroEnabled) {
+      return this.startPenetro();
+    }
+
+    if (this.state.rules.espadaObligatoria) {
+      const forced = this.findSpadilleHolder();
+      if (forced !== null) {
+        this.state.ombre = forced;
+        this.state.contract = "entrada";
+        this.state.phase = "trump_choice";
+        this.state.turn = forced;
+        this.event("ESPADA_OBLIGATORIA", { ombre: forced });
+        this.patch(this.state);
+        this.armTimer();
+        this.botMaybeAct();
+        return;
+      }
+    }
+
+    this.event("AUCTION_PASS_OUT", {});
+    this.newHand();
+  }
+
+  private findSpadilleHolder(): SeatIndex | null {
+    for (const s of this.seatsActive()) {
+      if (this.hands[s].some((c) => c.s === "espadas" && c.r === 1)) return s;
+    }
+    return null;
+  }
+
+  // ---- Trump choice ----
+  chooseTrump(seat: SeatIndex, suit: Suit): void {
+    if (this.state.phase !== "trump_choice") {
+      return this.errorSeat(seat, "WRONG_PHASE");
+    }
+    if (this.state.ombre !== seat) {
+      return this.errorSeat(seat, "NOT_OMBRE");
+    }
+    if (this.state.contract === "contrabola" || this.state.contract === "bola") {
+      return this.errorSeat(seat, "NO_TRUMP_FOR_CONTRACT");
+    }
+    if (
+      (this.state.contract === "oros" || this.state.contract === "solo_oros") &&
+      suit !== "oros"
+    ) {
+      return this.errorSeat(seat, "TRUMP_MUST_BE_OROS");
+    }
+
+    this.state.trump = suit;
+    this.event("TRUMP_SET", { method: "choice", suit });
+    this.startExchange();
+  }
+
+  // ---- Exchange ----
+  private startExchange(): void {
+    if (this.state.contract === "bola" || this.state.contract === "contrabola") {
+      this.state.phase = "play";
+      this.state.turn = this.nextActive(this.state.ombre!);
+      this.patch(this.state);
+      this.armTimer();
+      this.botMaybeAct();
+      return;
+    }
+
+    this.state.phase = "exchange";
+    const order = this.seatsActive().slice();
+    let ex: SeatIndex[];
+
+    if (
+      this.state.auction.currentBid === "solo" ||
+      this.state.contract === "solo_oros"
+    ) {
+      // Solo: ombre doesn't exchange
+      ex = order.filter((s) => s !== this.state.ombre);
+    } else {
+      // Normal: ombre first, then others
+      ex = [
+        this.state.ombre!,
+        ...order.filter((s) => s !== this.state.ombre),
+      ];
+    }
+
+    this.state.exchange = {
+      current: ex[0] || null,
+      order: ex,
+      talonSize: this.talon.length,
+      completed: [],
+    };
+
+    this.state.turn = this.state.exchange.current;
+    this.patch(this.state);
+    this.armTimer();
+    this.botMaybeAct();
+  }
+
+  finishExchange(seat: SeatIndex, discardIds: string[]): void {
+    if (this.state.phase !== "exchange" || this.state.turn !== seat) return;
+
+    const isOmbre = seat === this.state.ombre;
+    const isSolo =
+      this.state.auction.currentBid === "solo" ||
+      this.state.contract === "solo_oros";
+    const isOros =
+      this.state.contract === "oros" || this.state.contract === "solo_oros";
+    const max = isOmbre ? (isSolo ? 0 : isOros ? 6 : 8) : 5;
+
+    const hand = this.hands[seat];
+    const ids = new Set(discardIds);
+    const toDiscard: Card[] = [];
+
+    for (let i = hand.length - 1; i >= 0; i--) {
+      if (ids.has(hand[i].id)) {
+        toDiscard.push(hand[i]);
+      }
+    }
+
+    const count = Math.min(toDiscard.length, this.talon.length, max);
+
+    for (let i = 0; i < count; i++) {
+      const k = hand.findIndex((c) => c.id === toDiscard[i].id);
+      if (k >= 0) hand.splice(k, 1);
+    }
+
+    for (let i = 0; i < count; i++) {
+      if (this.talon.length) hand.push(this.talon.shift()!);
+    }
+
+    this.state.handsCount[seat] = hand.length;
+    this.state.exchange.completed.push(seat);
+    this.state.exchange.talonSize = this.talon.length;
+
+    const ex = this.state.exchange;
+    const curIdx = ex.order.indexOf(seat);
+    let next: SeatIndex | undefined;
+
+    for (let k = 1; k < ex.order.length; k++) {
+      const cand = ex.order[(curIdx + k) % ex.order.length];
+      if (!ex.completed.includes(cand)) {
+        next = cand;
+        break;
+      }
+    }
+
+    if (next !== undefined) {
+      ex.current = next;
+      this.state.turn = next;
+      this.patch(this.state);
+      this.armTimer();
+      this.botMaybeAct();
+    } else {
+      this.state.phase = "play";
+      this.state.turn = this.nextActive(this.state.ombre!);
+      this.patch(this.state);
+      this.armTimer();
+      this.botMaybeAct();
+    }
+  }
+
+  // ---- Card play ----
+  playCard(seat: SeatIndex, cardId: string): void {
+    if (this.state.phase !== "play" || this.state.turn !== seat) return;
+
+    const hand = this.hands[seat];
+    const idx = hand.findIndex((c) => c.id === cardId);
+    if (idx < 0) return;
+
+    const card = hand[idx];
+    const led = this.table.length ? this.table[0] : null;
+    const legal = legalPlays(this.state.trump, hand, led);
+
+    if (!legal.find((c) => c.id === card.id)) {
+      return this.errorSeat(seat, "ILLEGAL_PLAY", "Card is not a legal play");
+    }
+
+    hand.splice(idx, 1);
+    this.table.push(card);
+    this.playOrder.push(seat);
+    this.state.handsCount[seat] = hand.length;
+
+    // Update visible state
+    this.state.table = this.table.slice();
+    this.state.playOrder = this.playOrder.slice();
+
+    const needed = this.state.contract === "penetro" ? 4 : 3;
+
+    if (this.table.length === needed) {
+      const winIdx = trickWinner(this.state.trump, this.table[0].s, this.table);
+      const winner = this.playOrder[winIdx];
+      this.state.tricks[winner]++;
+
+      this.event("TRICK_TAKEN", { winner, cards: this.table });
+
+      this.table = [];
+      this.playOrder = [];
+      this.state.table = [];
+      this.state.playOrder = [];
+      this.state.turn = winner;
+      this.patch(this.state);
+      this.armTimer();
+
+      const everyone =
+        this.state.contract === "penetro"
+          ? (ALL_SEATS.slice() as SeatIndex[])
+          : this.seatsActive();
+      const empty = everyone.every((p) => this.hands[p].length === 0);
+
+      if (empty) {
+        this.finishHand();
+      } else {
+        this.botMaybeAct();
+      }
+    } else {
+      this.state.turn = this.nextActive(seat);
+      this.patch(this.state);
+      this.armTimer();
+      this.botMaybeAct();
+    }
+  }
+
+  // ---- Scoring ----
+  private finishHand(): void {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+
+    const om = this.state.ombre!;
+    const active =
+      this.state.contract === "penetro"
+        ? (ALL_SEATS.slice() as SeatIndex[])
+        : this.seatsActive();
+    const t = this.state.tricks;
+
+    if (this.state.contract === "penetro") {
+      let maxTricks = -1;
+      let winner: SeatIndex = 0;
+      for (const s of ALL_SEATS) {
+        if (t[s] > maxTricks) {
+          maxTricks = t[s];
+          winner = s as SeatIndex;
+        }
+      }
+      this.state.scores[winner] += 2;
+      this.event("PENETRO_RESULT", { winner, tricks: this.state.tricks });
+
+      saveHandResult({
+        roomId: this.id,
+        handNo: this.state.handNo,
+        trump: this.state.trump,
+        ombre: om,
+        resting: this.state.resting,
+        result: "penetro",
+        points: 2,
+        award: [winner],
+        tricks: this.state.tricks,
+        scores: this.state.scores,
+      }).catch(() => {});
+
+      return this.nextHand();
+    }
+
+    const omTricks = t[om];
+    let result = "";
+    let points = 0;
+    let award: SeatIndex[] = [];
+
+    switch (this.state.contract) {
+      case "bola": {
+        const ok = omTricks === 9;
+        result = ok ? "bola_made" : "bola_failed";
+        if (ok) {
+          points = 6;
+          this.state.scores[om] += points;
+          award = [om];
+        } else {
+          for (const d of active.filter((s) => s !== om)) {
+            this.state.scores[d] += 2;
+          }
+          award = active.filter((s) => s !== om);
+        }
+        break;
+      }
+
+      case "contrabola": {
+        const ok = omTricks === 0;
+        result = ok ? "contrabola_made" : "contrabola_failed";
+        if (ok) {
+          points = 4;
+          this.state.scores[om] += points;
+          award = [om];
+        } else {
+          for (const d of active.filter((s) => s !== om)) {
+            this.state.scores[d] += 1;
+          }
+          award = active.filter((s) => s !== om);
+        }
+        break;
+      }
+
+      default: {
+        if (omTricks >= 5) {
+          result = "sacada";
+          points = omTricks === 9 ? 4 : omTricks >= 7 ? 2 : 1;
+          if (this.state.contract === "oros") points += 1;
+          if (this.state.contract === "solo_oros") points += 1;
+          this.state.scores[om] += points;
+          award = [om];
+        } else {
+          const defenders = active.filter((s) => s !== om);
+          const maxDef = Math.max(...defenders.map((s) => t[s]));
+          if (maxDef >= 5) {
+            result = "codille";
+            points = 2;
+            const w = defenders.find((s) => t[s] === maxDef)!;
+            this.state.scores[w] += points;
+            award = [w];
+          } else {
+            result = "puesta";
+            points = 1;
+            for (const d of defenders) {
+              this.state.scores[d] += 1;
+            }
+            award = defenders;
+          }
+        }
+      }
+    }
+
+    this.event("HAND_RESULT", { result, points, award, tricks: this.state.tricks });
+
+    saveHandResult({
+      roomId: this.id,
+      handNo: this.state.handNo,
+      trump: this.state.trump,
+      ombre: om,
+      resting: this.state.resting,
+      result,
+      points,
+      award,
+      tricks: this.state.tricks,
+      scores: this.state.scores,
+    }).catch(() => {});
+
+    this.nextHand();
+  }
+
+  private nextHand(): void {
+    const target = this.state.gameTarget;
+    let winner: SeatIndex | null = null;
+
+    for (const s of ALL_SEATS) {
+      if (this.state.scores[s] >= target) {
+        winner = s as SeatIndex;
+        break;
+      }
+    }
+
+    if (winner !== null) {
+      this.state.phase = "match_end";
+      this.patch(this.state);
+
+      this.event("GAME_END", {
+        winner,
+        finalScores: this.state.scores,
+      });
+
+      // Save match result
+      const playerIds = ALL_SEATS.map((s) => {
+        const c = this.conns.find((conn) => conn.seat === s);
+        return c?.playerId || null;
+      });
+
+      saveMatchResult({
+        roomId: this.id,
+        mode: this.state.mode,
+        winner,
+        finalScores: this.state.scores,
+        totalHands: this.state.handNo,
+        playerIds,
+      }).catch(() => {});
+    } else {
+      // Show post-hand briefly then deal next
+      this.state.phase = "post_hand";
+      this.patch(this.state);
+
+      setTimeout(() => {
+        this.state.handNo += 1;
+        this.newHand();
+      }, POST_HAND_DELAY);
+    }
+  }
+
+  // ---- Penetro ----
+  private startPenetro(): void {
+    const rest = this.restSeat();
+    const can = Math.min(9, this.talon.length);
+
+    for (let i = 0; i < can; i++) {
+      this.hands[rest].push(this.talon.shift()!);
+    }
+
+    this.state.handsCount[rest] = this.hands[rest].length;
+    this.state.contract = "penetro";
+    this.state.ombre = rest; // Set ombre to resting player for scoring reference
+    this.state.phase = "play";
+    this.state.turn = (ALL_SEATS[0]) as SeatIndex;
+
+    this.event("PENETRO_START", { restingPlayer: rest });
+    this.patch(this.state);
+    this.armTimer();
+    this.botMaybeAct();
+  }
+
+  // ---- Rematch ----
+  handleRematch(): void {
+    if (this.state.phase !== "match_end") return;
+    this.state.scores = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    this.state.handNo = 1;
+    this.state.phase = "lobby";
+    this.newHand();
+  }
+
+  // ---- Message handler ----
+  handle(conn: Conn, msg: { type: string; [key: string]: unknown }): void {
+    try {
+      this.lastActivity = Date.now();
+
+      switch (msg.type) {
+        case "TAKE_SEAT": {
+          const seat = msg.seat as SeatIndex;
+          const validSeats = this.allSeats();
+          if (!validSeats.includes(seat)) {
+            return this.send(conn, {
+              type: "ERROR",
+              code: "INVALID_SEAT",
+              message: "Seat is not active",
+            });
+          }
+          // Check if seat is taken by a human
+          const occupant = this.conns.find(
+            (c) => c.seat === seat && !c.isBot && !c.isSpectator
+          );
+          if (occupant && occupant !== conn) {
+            return this.send(conn, {
+              type: "ERROR",
+              code: "SEAT_TAKEN",
+              message: "Seat is occupied",
+            });
+          }
+          // Remove bot from seat if present
+          const bot = this.conns.find((c) => c.seat === seat && c.isBot);
+          if (bot) {
+            this.conns = this.conns.filter((c) => c !== bot);
+          }
+          this.seatPlayer(conn, seat);
+          this.broadcastState();
+          return;
+        }
+
+        case "START_GAME": {
+          this.startGame();
+          return;
+        }
+
+        case "REMATCH": {
+          this.handleRematch();
+          return;
+        }
+
+        case "PING": {
+          this.send(conn, { type: "PONG" });
+          return;
+        }
+
+        case "LEAVE_ROOM": {
+          this.detach(conn);
+          this.send(conn, { type: "ROOM_LEFT" });
+          this.broadcastState();
+          return;
+        }
+      }
+
+      // Game actions require a seat
+      if (conn.seat === null) {
+        return this.send(conn, { type: "ERROR", code: "NO_SEAT" });
+      }
+
+      switch (msg.type) {
+        case "BID":
+          return this.applyBid(conn.seat, msg.value as Bid);
+        case "CHOOSE_TRUMP":
+          return this.chooseTrump(conn.seat, msg.suit as Suit);
+        case "EXCHANGE":
+          return this.finishExchange(conn.seat, (msg.discardIds as string[]) || []);
+        case "PLAY":
+          return this.playCard(conn.seat, msg.cardId as string);
+        default:
+          console.warn(`[room] Unknown message type: ${msg.type}`);
+      }
+    } catch (error) {
+      console.error(`[room] Error handling message from ${conn.id}:`, error);
+      this.send(conn, {
+        type: "ERROR",
+        code: "INTERNAL_ERROR",
+        message: "An internal error occurred",
+      });
+    }
+  }
+
+  // ---- Cleanup ----
+  cleanup(): void {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+
+    this.event("ROOM_CLOSING", {});
+
+    for (const conn of this.conns) {
+      if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
+        try {
+          conn.ws.close(1000, "Room closing");
+        } catch (error) {
+          console.error(`Failed to close connection ${conn.id}:`, error);
+        }
+      }
+    }
+
+    this.conns = [];
+    console.log(`[room] Room ${this.id} cleaned up`);
+  }
+}
