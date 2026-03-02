@@ -64,9 +64,51 @@ The simulation tests (`simulation.test.ts`) use Vitest fake timers to run full b
 5. Clean up with `vi.clearAllTimers()`
 
 ## Deployment
-- **Server**: Railway (`railway.toml`)
-- **Client**: Netlify (`netlify.toml`)
-- Server uses PostgreSQL (via `pg`) and Redis (via `ioredis`) with graceful degradation — runs fine without either
+
+### Live URLs
+- **Client**: https://rocambor-game.netlify.app (Netlify)
+- **Server**: https://rocambor-server-production.up.railway.app (Railway)
+- **GitHub**: https://github.com/rickyghi/rocambor
+
+### Railway (Server)
+- Config: `railway.toml` — NIXPACKS builder, start: `cd server && npm start`
+- Healthcheck: `/healthz` (120s timeout)
+- CLI: `railway up -d` to deploy, `railway logs` to view logs
+- The NIXPACKS build phase runs `npm run build` (root script builds both server + client). The start command only runs the server.
+
+### Netlify (Client)
+- Config: `netlify.toml` — builds from `client/`, publishes `dist/`, SPA fallback, security headers
+- CLI: `netlify deploy --prod --dir=client/dist --site=b1b0f56c-fad3-401a-b2eb-ef23cd2ab33a --no-build --filter rocambor-client`
+- Must use `--filter rocambor-client` due to monorepo workspace detection
+- Client is built locally with `VITE_WS_URL=wss://rocambor-server-production.up.railway.app` baked in
+
+### WebSocket URL (cross-domain)
+`client/src/connection.ts` uses `VITE_WS_URL` env var for split deployments. Set this when building the client:
+```bash
+cd client && VITE_WS_URL=wss://rocambor-server-production.up.railway.app npm run build
+```
+If not set, falls back to `location.hostname` (works when server/client share domain).
+
+### Build output paths
+The server tsconfig uses `rootDir: ".."` so tsc outputs preserve the full directory structure:
+- `server/src/server.ts` → `server/dist/server/src/server.js`
+- `shared/types.ts` → `server/dist/shared/types.js`
+
+**Important**: The `start` script in `server/package.json` must point to `dist/server/src/server.js`, NOT `dist/src/server.js`.
+
+### Environment Variables
+| Variable | Platform | Required | Description |
+|----------|----------|----------|-------------|
+| `PORT` | Railway | Auto-set | Server listen port (default 8080) |
+| `NODE_ENV` | Railway | Optional | `production` for SSL on DB connections |
+| `DATABASE_URL` | Railway | Optional | PostgreSQL connection — server runs fine without it |
+| `REDIS_URL` | Railway | Optional | Redis connection — server runs fine without it |
+| `VITE_WS_URL` | Build-time | Required for split deploy | WebSocket URL baked into client at build time |
+
+### CI/CD
+GitHub Actions (`.github/workflows/ci.yml`) runs on push to `main`:
+- Server job: install → type-check → test (78 tests) → build
+- Client job: install → type-check → build
 
 ## File Structure
 ```

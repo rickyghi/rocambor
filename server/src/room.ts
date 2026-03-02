@@ -136,7 +136,25 @@ export class Room {
   }
 
   humanCount(): number {
-    return this.conns.filter((c) => !c.isBot && !c.isSpectator && c.seat !== null).length;
+    return this.conns.filter((c) => !c.isBot && !c.isSpectator && c.seat !== null && c.connected).length;
+  }
+
+  /** Remove disconnected human players whose reconnect TTL has expired. */
+  cleanDisconnected(): void {
+    const now = Date.now();
+    const TTL = 120_000;
+    const before = this.conns.length;
+    this.conns = this.conns.filter((c) => {
+      if (!c.connected && !c.isBot && c.seat !== null && (now - c.lastSeen) > TTL) {
+        console.log(`[room] Removing stale disconnected player ${c.handle} from seat ${c.seat}`);
+        return false;
+      }
+      return true;
+    });
+    if (this.conns.length !== before) {
+      this.updatePlayersInfo();
+      this.broadcastState();
+    }
   }
 
   // ---- Seat management ----
@@ -1055,8 +1073,8 @@ export class Room {
         }
       }
 
-      // Game actions require a seat
-      if (conn.seat === null) {
+      // Game actions require an active seated connection
+      if (conn.seat === null || !this.conns.includes(conn)) {
         return this.send(conn, { type: "ERROR", code: "NO_SEAT" });
       }
 

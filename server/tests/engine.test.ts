@@ -122,10 +122,29 @@ describe("legalPlays", () => {
     expect(legal.length).toBe(2);
   });
 
-  it("any card legal when void in led suit", () => {
+  it("must trump when void in led suit and holding trump", () => {
+    // Void in copas, but holding oros-5 which is trump
     const hand = [card("oros", 5), card("espadas", 3)];
     const legal = legalPlays(trump, hand, card("copas", 7));
+    // Must play trump (oros-5), not free choice
+    expect(legal.length).toBe(1);
+    expect(legal[0].id).toBe("o5");
+  });
+
+  it("any card legal when void in both led suit and trump", () => {
+    // Void in copas AND void in trump (oros) — free to play anything
+    const hand = [card("espadas", 3), card("bastos", 5)];
+    const legal = legalPlays(trump, hand, card("copas", 7));
     expect(legal.length).toBe(2);
+  });
+
+  it("must trump includes matadors when void in led suit", () => {
+    // Void in copas, but holding spadille (espadas-1 = matador = trump)
+    const hand = [card("espadas", 1), card("bastos", 5)];
+    const legal = legalPlays(trump, hand, card("copas", 7));
+    // Must play spadille (it's a matador = trump)
+    expect(legal.length).toBe(1);
+    expect(legal[0].id).toBe("e1");
   });
 
   it("must follow with trump when trump led", () => {

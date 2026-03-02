@@ -411,6 +411,12 @@ function setupWsHandlers(
       }
 
       room.handle(conn, parsed.data);
+
+      // If the client left the room, detach the message handler
+      if (parsed.data.type === "LEAVE_ROOM") {
+        ws.removeListener("message", onMessage);
+        connToRoom.delete(ws);
+      }
     } catch (error) {
       console.error("[message] Parse error:", error);
       wsSend(ws, {
@@ -432,6 +438,7 @@ function setupWsHandlers(
         .catch(() => {});
       // Mark as disconnected but don't remove
       conn.connected = false;
+      conn.lastSeen = Date.now();
       room.broadcastState();
       console.log(
         `[connection] Client ${conn.id} disconnected from room ${roomId} seat ${conn.seat}`

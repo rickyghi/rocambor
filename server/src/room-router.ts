@@ -102,6 +102,8 @@ export class RoomRouter {
   private cleanStaleRooms(): void {
     const now = Date.now();
     for (const [id, room] of this.rooms) {
+      // Purge disconnected players past their reconnect TTL
+      room.cleanDisconnected();
       // Remove rooms that have been empty (no humans) for > 2 minutes
       if (room.humanCount() === 0 && now - room.lastActivity > 120_000) {
         this.removeRoom(id);

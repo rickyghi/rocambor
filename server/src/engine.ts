@@ -87,7 +87,10 @@ export function legalPlays(
     (c) => c.s === led.s && isMatador(tr, c)
   );
   const combined = [...must, ...matadorsOfSuit];
-  return combined.length ? combined : hand.slice();
+  if (combined.length) return combined;
+  // Void in led suit: must play trump if holding any
+  const trumps = hand.filter((c) => isTrump(tr, c));
+  return trumps.length ? trumps : hand.slice();
 }
 
 // ---- Trick winner ----
