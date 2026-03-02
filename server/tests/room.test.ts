@@ -127,6 +127,25 @@ describe("Room - auction", () => {
     expect(room.state.contract).toBe("entrada");
     expect(room.state.phase).toBe("trump_choice");
   });
+
+  it("quadrille all-pass with active spadille holder does not start penetro", () => {
+    const qRoom = makeRoom("quadrille");
+    addHuman(qRoom, 0);
+    qRoom.startGame();
+    qRoom.conns.forEach((c) => (c.isBot = false));
+
+    // Force spadille into an active player's hand
+    qRoom.hands[0] = [{ s: "espadas", r: 1, id: "e1" }];
+
+    const order = qRoom.state.auction.order.slice();
+    for (const seat of order) {
+      qRoom.applyBid(seat, "pass");
+    }
+
+    expect(qRoom.state.contract).toBe("entrada");
+    expect(qRoom.state.phase).toBe("trump_choice");
+    expect(qRoom.state.ombre).toBe(0);
+  });
 });
 
 describe("Room - trump choice", () => {
@@ -222,6 +241,49 @@ describe("Room - exchange", () => {
     const isSolo = true;
     const max = isOmbre ? (isSolo ? 0 : 8) : 5;
     expect(max).toBe(0);
+  });
+
+  it("human ombre exchanges first in non-solo contracts", () => {
+    room.state.contract = "entrada";
+    room.state.ombre = 0;
+    room.state.phase = "trump_choice";
+    room.state.turn = 0;
+
+    room.chooseTrump(0, "copas");
+
+    expect(room.state.phase).toBe("exchange");
+    expect(room.state.exchange.order[0]).toBe(0);
+    expect(room.state.turn).toBe(0);
+  });
+
+  it("human-vs-bots bola via auction gives ombre exchange turn before play", () => {
+    const qRoom = makeRoom("quadrille");
+    addHuman(qRoom, 0);
+    qRoom.startGame();
+
+    // Keep seat 0 as human, rest as bots (from fillWithBots)
+    // Disable bot auto-act so we can drive the auction manually
+    const origBotMaybeAct = (qRoom as any).botMaybeAct.bind(qRoom);
+    (qRoom as any).botMaybeAct = () => {};
+
+    const order = qRoom.state.auction.order.slice();
+    const seat0Idx = order.indexOf(0 as SeatIndex);
+
+    // All players before seat 0 pass
+    for (let i = 0; i < seat0Idx; i++) {
+      qRoom.applyBid(order[i], "pass");
+    }
+    // Seat 0 bids bola
+    qRoom.applyBid(0 as SeatIndex, "bola");
+    // Remaining players pass
+    for (let i = seat0Idx + 1; i < order.length; i++) {
+      qRoom.applyBid(order[i], "pass");
+    }
+
+    // Human-vs-bots bola should route through startExchange and give human a turn
+    expect(qRoom.state.phase).toBe("exchange");
+    expect(qRoom.state.exchange.order[0]).toBe(0);
+    expect(qRoom.state.turn).toBe(0);
   });
 });
 

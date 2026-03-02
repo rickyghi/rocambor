@@ -14,7 +14,11 @@ import {
 } from "../../shared/types";
 import { makeDeck, legalPlays, trickWinner, generateSeed } from "./engine";
 import { botAct, BotContext } from "./bot";
-import { saveHandResult, saveMatchResult, createRoomRecord } from "./persistence";
+import {
+  saveHandResult,
+  saveMatchResult,
+  createRoomRecord,
+} from "./persistence";
 
 const TURN_MS = 25_000;
 const BOT_DELAY_MIN = 600;
@@ -185,14 +189,14 @@ export class Room {
   }
 
   // ---- Connection management ----
-  attach(ws: WebSocket, clientId?: string): Conn {
+  attach(ws: WebSocket, clientId?: string, playerId?: string | null): Conn {
     const conn: Conn = {
       id: clientId || Math.random().toString(36).slice(2),
       ws,
       seat: null,
       handle: `Player ${Math.floor(Math.random() * 999)}`,
       isBot: false,
-      playerId: null,
+      playerId: playerId || null,
       isSpectator: false,
       connected: true,
       lastSeen: Date.now(),
@@ -202,7 +206,7 @@ export class Room {
     this.send(conn, {
       type: "WELCOME",
       clientId: conn.id,
-      playerId: null,
+      playerId: conn.playerId,
     });
 
     console.log(`[room] Client ${conn.id} attached to room ${this.id}`);
@@ -219,7 +223,12 @@ export class Room {
     this.lastActivity = Date.now();
   }
 
-  tryReconnect(clientId: string, ws: WebSocket, seat: SeatIndex): Conn | null {
+  tryReconnect(
+    clientId: string,
+    ws: WebSocket,
+    seat: SeatIndex,
+    playerId?: string | null
+  ): Conn | null {
     // Check if seat is still occupied by a disconnected connection
     const existing = this.conns.find(
       (c) => c.seat === seat && !c.connected && !c.isBot
@@ -257,7 +266,7 @@ export class Room {
     const botConn = this.conns.find((c) => c.seat === seat && c.isBot);
     if (botConn) {
       this.conns = this.conns.filter((c) => c !== botConn);
-      const conn = this.attach(ws, clientId);
+      const conn = this.attach(ws, clientId, playerId || null);
       this.seatPlayer(conn, seat);
       return conn;
     }
@@ -474,9 +483,39 @@ export class Room {
     if (seat === null) return;
     const conn = this.conns.find((c) => c.seat === seat);
     if (conn?.isBot) {
-      const delay = BOT_DELAY_MIN + Math.random() * (BOT_DELAY_MAX - BOT_DELAY_MIN);
+      const delay = this.botDelayMs(seat);
       setTimeout(() => this.doBotAction(seat), delay);
     }
+  }
+
+  private botDelayMs(seat: SeatIndex): number {
+    const hand = this.hands[seat] || [];
+    let min = BOT_DELAY_MIN;
+    let max = BOT_DELAY_MAX;
+
+    switch (this.state.phase) {
+      case "auction":
+        min = 500;
+        max = 1400;
+        break;
+      case "trump_choice":
+        min = 700;
+        max = 1700;
+        break;
+      case "exchange":
+        min = 900;
+        max = 2100;
+        break;
+      case "play": {
+        const led = this.table.length ? this.table[0] : null;
+        const options = legalPlays(this.state.trump, hand, led).length;
+        min = 600 + Math.min(800, options * 90);
+        max = min + 700;
+        break;
+      }
+    }
+
+    return min + Math.random() * (max - min);
   }
 
   private doBotAction(seat: SeatIndex): void {
@@ -489,6 +528,9 @@ export class Room {
       contract: this.state.contract,
       auction: this.state.auction,
       ombre: this.state.ombre,
+      playOrder: this.playOrder.slice(),
+      handsCount: { ...this.state.handsCount },
+      tricks: { ...this.state.tricks },
       table: this.table,
       talonLength: this.talon.length,
     };
@@ -556,11 +598,7 @@ export class Room {
         this.event("TRUMP_SET", { method: "volteo", suit: this.state.trump });
         this.startExchange();
       } else if (a.currentBid === "contrabola" || a.currentBid === "bola") {
-        this.state.phase = "play";
-        this.state.turn = this.nextActive(this.state.ombre!);
-        this.patch(this.state);
-        this.armTimer();
-        this.botMaybeAct();
+        this.startExchange();
       } else {
         this.state.phase = "trump_choice";
         this.state.turn = this.state.ombre;
@@ -591,23 +629,24 @@ export class Room {
   }
 
   private onPassOut(): void {
+    const spadilleHolder = this.findSpadilleHolder();
+
     if (this.state.mode === "quadrille" && this.state.rules.penetroEnabled) {
-      return this.startPenetro();
+      if (spadilleHolder === null) {
+        return this.startPenetro();
+      }
     }
 
-    if (this.state.rules.espadaObligatoria) {
-      const forced = this.findSpadilleHolder();
-      if (forced !== null) {
-        this.state.ombre = forced;
-        this.state.contract = "entrada";
-        this.state.phase = "trump_choice";
-        this.state.turn = forced;
-        this.event("ESPADA_OBLIGATORIA", { ombre: forced });
-        this.patch(this.state);
-        this.armTimer();
-        this.botMaybeAct();
-        return;
-      }
+    if (this.state.rules.espadaObligatoria && spadilleHolder !== null) {
+      this.state.ombre = spadilleHolder;
+      this.state.contract = "entrada";
+      this.state.phase = "trump_choice";
+      this.state.turn = spadilleHolder;
+      this.event("ESPADA_OBLIGATORIA", { ombre: spadilleHolder });
+      this.patch(this.state);
+      this.armTimer();
+      this.botMaybeAct();
+      return;
     }
 
     this.event("AUCTION_PASS_OUT", {});
@@ -646,7 +685,18 @@ export class Room {
 
   // ---- Exchange ----
   private startExchange(): void {
-    if (this.state.contract === "bola" || this.state.contract === "contrabola") {
+    const isSolo =
+      this.state.contract === "solo" || this.state.contract === "solo_oros";
+    const ombreConn = this.conns.find((c) => c.seat === this.state.ombre);
+    const humanVsBotsOmbre =
+      !!ombreConn && !ombreConn.isBot && this.humanCount() === 1;
+
+    // Preserve classic fast path for bola/contrabola except in human-vs-bots play,
+    // where the human declarer should still get an exchange turn.
+    if (
+      (this.state.contract === "bola" || this.state.contract === "contrabola") &&
+      !humanVsBotsOmbre
+    ) {
       this.state.phase = "play";
       this.state.turn = this.nextActive(this.state.ombre!);
       this.patch(this.state);
@@ -659,10 +709,7 @@ export class Room {
     const order = this.seatsActive().slice();
     let ex: SeatIndex[];
 
-    if (
-      this.state.auction.currentBid === "solo" ||
-      this.state.contract === "solo_oros"
-    ) {
+    if (isSolo) {
       // Solo: ombre doesn't exchange
       ex = order.filter((s) => s !== this.state.ombre);
     } else {
@@ -674,7 +721,7 @@ export class Room {
     }
 
     this.state.exchange = {
-      current: ex[0] || null,
+      current: ex[0] ?? null,
       order: ex,
       talonSize: this.talon.length,
       completed: [],
@@ -691,7 +738,7 @@ export class Room {
 
     const isOmbre = seat === this.state.ombre;
     const isSolo =
-      this.state.auction.currentBid === "solo" ||
+      this.state.contract === "solo" ||
       this.state.contract === "solo_oros";
     const isOros =
       this.state.contract === "oros" || this.state.contract === "solo_oros";
@@ -962,6 +1009,10 @@ export class Room {
         const c = this.conns.find((conn) => conn.seat === s);
         return c?.playerId || null;
       });
+      const playerHandles = ALL_SEATS.map((s) => {
+        const c = this.conns.find((conn) => conn.seat === s);
+        return c?.handle || null;
+      });
 
       saveMatchResult({
         roomId: this.id,
@@ -970,6 +1021,7 @@ export class Room {
         finalScores: this.state.scores,
         totalHands: this.state.handNo,
         playerIds,
+        playerHandles,
       }).catch(() => {});
     } else {
       // Show post-hand briefly then deal next
