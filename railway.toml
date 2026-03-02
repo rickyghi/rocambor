@@ -3,7 +3,7 @@
 
 [deploy]
   numReplicas = 1
-  startCommand = "cd server && npm run build && npm start"
+  startCommand = "cd server && npm start"
   restartPolicyType = "ON_FAILURE"
   healthcheckPath = "/healthz"
-  healthcheckTimeout = 10
+  healthcheckTimeout = 120
