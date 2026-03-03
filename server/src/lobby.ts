@@ -6,6 +6,7 @@ import { WebSocket } from "ws";
 
 interface QueueEntry {
   clientId: string;
+  playerId: string;
   ws: WebSocket;
   joinedAt: number;
 }
@@ -23,14 +24,15 @@ export class Lobby {
 
   joinQueue(
     clientId: string,
+    playerId: string,
     ws: WebSocket,
     mode: Mode
   ): { status: "queued"; position: number } | { status: "matched"; roomId: string; code: string; room: Room } {
-    // Remove if already in queue
-    this.leaveQueue(clientId, mode);
+    // Remove if already in any queue (prevents cross-mode duplicate entries)
+    this.leaveQueue(clientId);
 
     const queue = this.queues[mode];
-    queue.push({ clientId, ws, joinedAt: Date.now() });
+    queue.push({ clientId, playerId, ws, joinedAt: Date.now() });
 
     // Clean stale entries (disconnected WebSockets)
     this.cleanQueue(mode);
@@ -45,7 +47,7 @@ export class Lobby {
       const seats = room.allSeats();
       for (let i = 0; i < matched.length; i++) {
         const entry = matched[i];
-        const conn = room.attach(entry.ws, entry.clientId);
+        const conn = room.attach(entry.ws, entry.clientId, entry.playerId);
         conn.seat = seats[i];
       }
 

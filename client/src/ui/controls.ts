@@ -79,9 +79,9 @@ export class GameControls {
 
     return `
       <div class="control-group">
-        <span class="control-label">Auction:</span>
+        <span class="control-label">Auction</span>
         ${btns}
-        <button class="bid-btn" data-bid="pass">Pass</button>
+        <button class="bid-btn pass-btn" data-bid="pass">Pass</button>
       </div>
     `;
   }
@@ -90,23 +90,23 @@ export class GameControls {
     const contract = this.state.game!.contract;
     const orosOnly = contract === "oros" || contract === "solo_oros";
 
-    const suits: Array<{ value: Suit; label: string; symbol: string }> = [
-      { value: "oros", label: "Oros", symbol: "\u2666" },
-      { value: "copas", label: "Copas", symbol: "\u2665" },
-      { value: "espadas", label: "Espadas", symbol: "\u2660" },
-      { value: "bastos", label: "Bastos", symbol: "\u2663" },
+    const suits: Array<{ value: Suit; label: string; symbol: string; color: string }> = [
+      { value: "oros", label: "Oros", symbol: "\u2666", color: "#C8A651" },
+      { value: "copas", label: "Copas", symbol: "\u2665", color: "#B02E2E" },
+      { value: "espadas", label: "Espadas", symbol: "\u2660", color: "#0D0D0D" },
+      { value: "bastos", label: "Bastos", symbol: "\u2663", color: "#2A4D41" },
     ];
 
     const btns = suits
       .map(
         (s) =>
-          `<button class="trump-btn" data-suit="${s.value}" ${orosOnly && s.value !== "oros" ? "disabled" : ""}>${s.symbol} ${s.label}</button>`
+          `<button class="trump-btn" data-suit="${s.value}" style="--suit-color: ${s.color}" ${orosOnly && s.value !== "oros" ? "disabled" : ""}>${s.symbol} ${s.label}</button>`
       )
       .join("");
 
     return `
       <div class="control-group">
-        <span class="control-label">Choose Trump:</span>
+        <span class="control-label">Choose Trump</span>
         ${btns}
       </div>
     `;
@@ -116,9 +116,9 @@ export class GameControls {
     const selected = this.state.selectedCards.size;
     return `
       <div class="control-group">
-        <span class="control-label">Exchange (${selected} selected):</span>
+        <span class="control-label">Exchange (${selected} selected)</span>
         <button class="exchange-btn primary" data-action="confirm">Exchange ${selected} card${selected !== 1 ? "s" : ""}</button>
-        <button class="exchange-btn" data-action="skip">Keep All</button>
+        <button class="exchange-btn secondary" data-action="skip">Keep All</button>
       </div>
     `;
   }

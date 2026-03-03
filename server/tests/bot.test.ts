@@ -21,6 +21,9 @@ function makeCtx(overrides: Partial<BotContext> = {}): BotContext {
       order: [0, 1, 2] as SeatIndex[],
     },
     ombre: null,
+    playOrder: [],
+    handsCount: { 0: 9, 1: 9, 2: 9, 3: 0 },
+    tricks: { 0: 0, 1: 0, 2: 0, 3: 0 },
     table: [],
     talonLength: 13,
     ...overrides,
@@ -167,5 +170,33 @@ describe("decidePlay", () => {
     });
     const id = decidePlay(ctx);
     expect(id).toBeNull();
+  });
+
+  it("defender avoids overtaking a teammate already winning", () => {
+    const ctx = makeCtx({
+      phase: "play",
+      seat: 2 as SeatIndex,
+      ombre: 0 as SeatIndex,
+      trump: "oros",
+      table: [card("oros", 10), card("oros", 11)],
+      playOrder: [0 as SeatIndex, 1 as SeatIndex],
+      hand: [card("oros", 12), card("oros", 3)],
+    });
+    const id = decidePlay(ctx);
+    expect(id).toBe("o3");
+  });
+
+  it("defender uses the weakest winning trump when ombre is winning", () => {
+    const ctx = makeCtx({
+      phase: "play",
+      seat: 2 as SeatIndex,
+      ombre: 0 as SeatIndex,
+      trump: "oros",
+      table: [card("copas", 10), card("bastos", 4)],
+      playOrder: [0 as SeatIndex, 1 as SeatIndex],
+      hand: [card("oros", 12), card("oros", 3), card("bastos", 5)],
+    });
+    const id = decidePlay(ctx);
+    expect(id).toBe("o3");
   });
 });

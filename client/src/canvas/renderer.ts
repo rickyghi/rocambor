@@ -3,16 +3,21 @@ import type { SettingsManager } from "../ui/settings";
 import type { Card } from "../protocol";
 import { computeLayout, cardSpread, type Layout } from "./layout";
 import { drawTableBackground } from "./table";
-import { drawCard } from "./cards";
+import { drawCard, type CardSkin } from "./cards";
 import { drawPlayers } from "./players";
-import { AnimationManager } from "./animations";
+import { AnimationManager, type Animation } from "./animations";
+import { getCardSkinDefinition } from "./card-skin-registry";
+import { preloadSkinImages } from "./card-image-loader";
+
+const FONT_SANS = '"Inter", system-ui, sans-serif';
 
 export class GameRenderer {
   private animationId: number | null = null;
   private dirty = true;
   private layout: Layout;
-  private animations = new AnimationManager();
+  readonly animations = new AnimationManager();
   private hoveredCardIndex = -1;
+  private currentSkin = "";
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -23,6 +28,7 @@ export class GameRenderer {
     this.layout = computeLayout(1024, 720);
     this.canvas.width = 1024;
     this.canvas.height = 720;
+    this.preloadCurrentSkin();
     this.startLoop();
   }
 
@@ -37,8 +43,31 @@ export class GameRenderer {
     }
   }
 
+  addAnimation(anim: Animation): void {
+    this.animations.add(anim);
+  }
+
+  private preloadCurrentSkin(): void {
+    const skinId = this.settings.get("cardSkin");
+    if (skinId === this.currentSkin) return;
+    this.currentSkin = skinId;
+    const skin = getCardSkinDefinition(skinId);
+    if (skin.imageMode && skin.imagePath) {
+      preloadSkinImages(skinId, skin.imagePath).then(() => {
+        this.dirty = true;
+      });
+    }
+  }
+
   private startLoop(): void {
     const loop = () => {
+      // Check if skin changed
+      const skinId = this.settings.get("cardSkin");
+      if (skinId !== this.currentSkin) {
+        this.preloadCurrentSkin();
+        this.dirty = true;
+      }
+
       if (this.dirty || this.animations.hasActive()) {
         this.render();
         this.dirty = false;
@@ -51,6 +80,7 @@ export class GameRenderer {
   private render(): void {
     const { width, height } = this.layout;
     this.ctx.clearRect(0, 0, width, height);
+    const cardSkin = this.settings.get("cardSkin");
 
     // 1. Table background
     drawTableBackground(
@@ -62,13 +92,13 @@ export class GameRenderer {
 
     // 2. Players (names, scores, opponent cards)
     const colorblind = this.settings.get("colorblindMode");
-    drawPlayers(this.ctx, this.state, this.layout, colorblind);
+    drawPlayers(this.ctx, this.state, this.layout, colorblind, cardSkin);
 
     // 3. Table cards (center)
-    this.drawTableCards(colorblind);
+    this.drawTableCards(colorblind, cardSkin);
 
     // 4. Player's hand (bottom)
-    this.drawHand(colorblind);
+    this.drawHand(colorblind, cardSkin);
 
     // 5. Animations overlay
     this.animations.draw(this.ctx);
@@ -77,7 +107,7 @@ export class GameRenderer {
     this.drawHUD();
   }
 
-  private drawTableCards(colorblind: boolean): void {
+  private drawTableCards(colorblind: boolean, cardSkin: CardSkin): void {
     const game = this.state.game;
     if (!game || !game.table.length) return;
 
@@ -96,12 +126,13 @@ export class GameRenderer {
         this.layout.cardW,
         this.layout.cardH,
         cards[i],
-        colorblind
+        colorblind,
+        { skin: cardSkin }
       );
     }
   }
 
-  private drawHand(colorblind: boolean): void {
+  private drawHand(colorblind: boolean, cardSkin: CardSkin): void {
     const hand = this.state.hand;
     if (!hand.length) return;
 
@@ -119,19 +150,42 @@ export class GameRenderer {
       const isHovered = i === this.hoveredCardIndex;
       const yOffset = isSelected ? -12 : isHovered ? -6 : 0;
 
-      drawCard(
-        this.ctx,
-        x,
-        this.layout.handY + yOffset,
-        this.layout.cardW,
-        this.layout.cardH,
-        hand[i],
-        colorblind,
-        {
-          selected: isSelected,
-          hovered: isHovered && (isExchange || isPlay),
-        }
-      );
+      // Hover scale effect
+      if (isHovered && (isExchange || isPlay)) {
+        this.ctx.save();
+        this.ctx.translate(x, this.layout.handY + yOffset);
+        this.ctx.scale(1.03, 1.03);
+        drawCard(
+          this.ctx,
+          0,
+          0,
+          this.layout.cardW,
+          this.layout.cardH,
+          hand[i],
+          colorblind,
+          {
+            selected: isSelected,
+            hovered: true,
+            skin: cardSkin,
+          }
+        );
+        this.ctx.restore();
+      } else {
+        drawCard(
+          this.ctx,
+          x,
+          this.layout.handY + yOffset,
+          this.layout.cardW,
+          this.layout.cardH,
+          hand[i],
+          colorblind,
+          {
+            selected: isSelected,
+            hovered: false,
+            skin: cardSkin,
+          }
+        );
+      }
     }
   }
 
@@ -141,11 +195,11 @@ export class GameRenderer {
 
     // Phase indicator (top-left)
     this.ctx.save();
-    this.ctx.fillStyle = "rgba(0,0,0,0.6)";
-    this.roundRect(20, 16, 180, 36, 8);
+    this.ctx.fillStyle = "rgba(13,13,13,0.55)";
+    this.roundRect(20, 16, 180, 36, 20);
     this.ctx.fill();
-    this.ctx.fillStyle = "#e8f0ff";
-    this.ctx.font = "bold 14px Arial";
+    this.ctx.fillStyle = "#F8F6F0";
+    this.ctx.font = `bold 14px ${FONT_SANS}`;
     this.ctx.textAlign = "left";
     this.ctx.textBaseline = "middle";
 
@@ -159,17 +213,17 @@ export class GameRenderer {
       scoring: "Scoring",
       match_end: "Match Over",
     };
-    this.ctx.fillText(phaseLabels[game.phase] || game.phase, 32, 34);
+    this.ctx.fillText(phaseLabels[game.phase] || game.phase, 36, 34);
     this.ctx.restore();
 
     // Trump indicator (top-right)
     if (game.trump) {
       this.ctx.save();
-      this.ctx.fillStyle = "rgba(0,0,0,0.6)";
-      this.roundRect(this.layout.width - 160, 16, 140, 36, 8);
+      this.ctx.fillStyle = "rgba(13,13,13,0.55)";
+      this.roundRect(this.layout.width - 160, 16, 140, 36, 20);
       this.ctx.fill();
-      this.ctx.fillStyle = "#e8f0ff";
-      this.ctx.font = "14px Arial";
+      this.ctx.fillStyle = "#F8F6F0";
+      this.ctx.font = `14px ${FONT_SANS}`;
       this.ctx.textAlign = "right";
       this.ctx.textBaseline = "middle";
 
@@ -190,11 +244,11 @@ export class GameRenderer {
     // Contract indicator
     if (game.contract) {
       this.ctx.save();
-      this.ctx.fillStyle = "rgba(0,0,0,0.6)";
-      this.roundRect(20, 58, 140, 28, 8);
+      this.ctx.fillStyle = "rgba(13,13,13,0.55)";
+      this.roundRect(20, 58, 140, 28, 14);
       this.ctx.fill();
-      this.ctx.fillStyle = "#fbbf24";
-      this.ctx.font = "12px Arial";
+      this.ctx.fillStyle = "#C8A651";
+      this.ctx.font = `12px ${FONT_SANS}`;
       this.ctx.textAlign = "left";
       this.ctx.textBaseline = "middle";
       this.ctx.fillText(
@@ -209,7 +263,7 @@ export class GameRenderer {
     if (game.turn !== null && this.state.isMyTurn) {
       this.ctx.save();
       const pulseAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 500);
-      this.ctx.fillStyle = `rgba(251,191,36,${pulseAlpha * 0.15})`;
+      this.ctx.fillStyle = `rgba(200,166,81,${pulseAlpha * 0.15})`;
       this.roundRect(
         this.layout.tableCX - 80,
         this.layout.handY - 70,
@@ -218,8 +272,8 @@ export class GameRenderer {
         15
       );
       this.ctx.fill();
-      this.ctx.fillStyle = `rgba(251,191,36,${pulseAlpha})`;
-      this.ctx.font = "bold 14px Arial";
+      this.ctx.fillStyle = `rgba(200,166,81,${pulseAlpha})`;
+      this.ctx.font = `bold 14px ${FONT_SANS}`;
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
       this.ctx.fillText("Your Turn", this.layout.tableCX, this.layout.handY - 55);
@@ -228,8 +282,8 @@ export class GameRenderer {
 
     // Target score
     this.ctx.save();
-    this.ctx.fillStyle = "rgba(0,0,0,0.4)";
-    this.ctx.font = "11px Arial";
+    this.ctx.fillStyle = "rgba(248,246,240,0.35)";
+    this.ctx.font = `11px ${FONT_SANS}`;
     this.ctx.textAlign = "right";
     this.ctx.textBaseline = "top";
     this.ctx.fillText(

@@ -11,6 +11,7 @@ import { LobbyScreen } from "./screens/lobby";
 import { GameScreen } from "./screens/game";
 import { PostHandScreen } from "./screens/post-hand";
 import { MatchSummaryScreen } from "./screens/match-summary";
+import { LeaderboardScreen } from "./screens/leaderboard";
 
 function bootstrap(): void {
   const app = document.getElementById("app");
@@ -34,10 +35,11 @@ function bootstrap(): void {
   router.register("game", () => new GameScreen());
   router.register("post-hand", () => new PostHandScreen());
   router.register("match-summary", () => new MatchSummaryScreen());
+  router.register("leaderboard", () => new LeaderboardScreen());
 
   // Navigate to initial screen
   const hash = window.location.hash.slice(1);
-  if (hash && ["home", "lobby", "game"].includes(hash)) {
+  if (hash && ["home", "lobby", "game", "leaderboard"].includes(hash)) {
     router.navigate(hash);
   } else {
     router.navigate("home");

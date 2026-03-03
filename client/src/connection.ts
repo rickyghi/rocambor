@@ -6,6 +6,7 @@ type MessageHandler = (msg: S2CMessage) => void;
 export class ConnectionManager {
   private ws: WebSocket | null = null;
   private clientId: string | null;
+  private playerId: string | null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
@@ -16,6 +17,7 @@ export class ConnectionManager {
 
   constructor(private state: ClientState) {
     this.clientId = localStorage.getItem("rocambor_clientId");
+    this.playerId = localStorage.getItem("rocambor_playerId");
   }
 
   connect(): void {
@@ -28,9 +30,10 @@ export class ConnectionManager {
     }
 
     const baseUrl = this.getWebSocketUrl();
-    const url = this.clientId
-      ? `${baseUrl}/?resume=${this.clientId}`
-      : baseUrl;
+    const params = new URLSearchParams();
+    if (this.clientId) params.set("resume", this.clientId);
+    if (this.playerId) params.set("playerId", this.playerId);
+    const url = params.toString() ? `${baseUrl}/?${params.toString()}` : baseUrl;
 
     try {
       this.ws = new WebSocket(url);
@@ -125,6 +128,10 @@ export class ConnectionManager {
       case "WELCOME":
         this.clientId = msg.clientId;
         localStorage.setItem("rocambor_clientId", msg.clientId);
+        if (msg.playerId) {
+          this.playerId = msg.playerId;
+          localStorage.setItem("rocambor_playerId", msg.playerId);
+        }
         break;
 
       case "ROOM_JOINED":

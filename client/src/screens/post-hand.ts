@@ -231,7 +231,7 @@ export class PostHandScreen implements Screen {
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(12, 25, 18, 0.95);
+        background: var(--overlay);
       }
       .post-hand-overlay {
         animation: fadeInUp 0.4s ease-out;
@@ -241,17 +241,19 @@ export class PostHandScreen implements Screen {
         to { opacity: 1; transform: translateY(0); }
       }
       .post-hand-card {
-        background: var(--bg-secondary);
-        border: 1px solid var(--border);
+        background: var(--color-ivory);
+        border: 1px solid rgba(200,166,81,0.3);
         border-radius: var(--radius-lg);
         padding: 32px;
         max-width: 420px;
         width: 90vw;
         text-align: center;
+        box-shadow: var(--shadow-elevated);
       }
       .post-hand-card h2 {
+        font-family: var(--font-serif);
         color: var(--text-primary);
-        font-size: 20px;
+        font-size: 22px;
         margin-bottom: 16px;
       }
       .post-hand-result {
@@ -262,19 +264,19 @@ export class PostHandScreen implements Screen {
         margin-bottom: 20px;
       }
       .result-win {
-        color: #4ade80;
-        background: rgba(74, 222, 128, 0.1);
-        border: 1px solid rgba(74, 222, 128, 0.3);
+        color: var(--success);
+        background: rgba(31, 122, 77, 0.1);
+        border: 1px solid rgba(31, 122, 77, 0.3);
       }
       .result-loss {
-        color: #ff6b6b;
-        background: rgba(255, 107, 107, 0.1);
-        border: 1px solid rgba(255, 107, 107, 0.3);
+        color: var(--color-crimson);
+        background: rgba(176, 46, 46, 0.1);
+        border: 1px solid rgba(176, 46, 46, 0.3);
       }
       .result-neutral {
-        color: #fbbf24;
-        background: rgba(251, 191, 36, 0.1);
-        border: 1px solid rgba(251, 191, 36, 0.3);
+        color: var(--color-gold);
+        background: rgba(200, 166, 81, 0.1);
+        border: 1px solid rgba(200, 166, 81, 0.3);
       }
       .post-hand-details {
         display: flex;
@@ -323,8 +325,8 @@ export class PostHandScreen implements Screen {
         font-size: 14px;
       }
       .trick-row.ombre {
-        background: rgba(251, 191, 36, 0.1);
-        border: 1px solid rgba(251, 191, 36, 0.2);
+        background: rgba(200, 166, 81, 0.1);
+        border: 1px solid rgba(200, 166, 81, 0.2);
       }
       .trick-name, .score-name {
         color: var(--text-secondary);
@@ -334,10 +336,10 @@ export class PostHandScreen implements Screen {
         font-weight: 700;
       }
       .score-row.self {
-        background: rgba(74, 222, 128, 0.08);
+        background: rgba(200, 166, 81, 0.08);
       }
       .score-row.self .score-name {
-        color: var(--text-accent);
+        color: var(--color-gold);
       }
       .post-hand-hint {
         font-size: 13px;

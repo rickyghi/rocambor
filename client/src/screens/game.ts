@@ -3,6 +3,11 @@ import { GameRenderer } from "../canvas/renderer";
 import { GameControls } from "../ui/controls";
 import { showToast } from "../ui/toast";
 import type { S2CMessage } from "../protocol";
+import {
+  CardPlayAnimation,
+  TrickWinAnimation,
+  CardDealAnimation,
+} from "../canvas/animations";
 
 export class GameScreen implements Screen {
   private ctx!: AppContext;
@@ -45,10 +50,12 @@ export class GameScreen implements Screen {
     const controlsEl = container.querySelector("#game-controls") as HTMLElement;
     this.controls = new GameControls(controlsEl, ctx.connection, ctx.state);
 
-    // Canvas interaction: click handler
+    // Canvas interaction: mouse + touch handlers
     this.canvas.addEventListener("click", this.handleCanvasClick);
     this.canvas.addEventListener("mousemove", this.handleCanvasMouseMove);
     this.canvas.addEventListener("mouseleave", this.handleCanvasMouseLeave);
+    this.canvas.addEventListener("touchstart", this.handleTouchStart, { passive: false });
+    this.canvas.addEventListener("touchend", this.handleTouchEnd);
 
     // Subscribe to state changes
     this.unsubscribes.push(
@@ -101,6 +108,8 @@ export class GameScreen implements Screen {
     this.canvas?.removeEventListener("click", this.handleCanvasClick);
     this.canvas?.removeEventListener("mousemove", this.handleCanvasMouseMove);
     this.canvas?.removeEventListener("mouseleave", this.handleCanvasMouseLeave);
+    this.canvas?.removeEventListener("touchstart", this.handleTouchStart);
+    this.canvas?.removeEventListener("touchend", this.handleTouchEnd);
     window.removeEventListener("resize", this.handleResize);
   }
 
@@ -143,6 +152,36 @@ export class GameScreen implements Screen {
   private handleCanvasMouseLeave = (): void => {
     this.renderer.setHoveredCard(-1);
     this.canvas.style.cursor = "default";
+  };
+
+  // --- Touch interaction ---
+
+  private handleTouchStart = (e: TouchEvent): void => {
+    e.preventDefault(); // Prevent scroll
+    const touch = e.touches[0];
+    const { x, y } = this.renderer.canvasCoords(touch.clientX, touch.clientY);
+    const hit = this.renderer.hitTestCard(x, y);
+    this.renderer.setHoveredCard(hit ? hit.index : -1);
+  };
+
+  private handleTouchEnd = (e: TouchEvent): void => {
+    const touch = e.changedTouches[0];
+    const { x, y } = this.renderer.canvasCoords(touch.clientX, touch.clientY);
+    const hit = this.renderer.hitTestCard(x, y);
+    this.renderer.setHoveredCard(-1);
+
+    if (!hit) return;
+
+    const state = this.ctx.state;
+    const phase = state.phase;
+
+    if (phase === "exchange" && state.isMyTurn) {
+      state.toggleCardSelection(hit.card.id);
+      this.ctx.sounds.cardPlay();
+    } else if (phase === "play" && state.isMyTurn) {
+      this.ctx.connection.send({ type: "PLAY", cardId: hit.card.id });
+      this.ctx.sounds.cardPlay();
+    }
   };
 
   // --- Phase transition effects ---
@@ -209,7 +248,8 @@ export class GameScreen implements Screen {
 
   private handleEvent(name: string, payload: Record<string, unknown>): void {
     switch (name) {
-      case "TRICK_WON":
+      case "TRICK_TAKEN":
+      case "TRICK_WON": {
         this.ctx.sounds.trickWin();
         const winner = payload.winner as number;
         const rel = this.ctx.state.relativePosition(winner as any);
@@ -218,15 +258,59 @@ export class GameScreen implements Screen {
             ? "You"
             : this.ctx.state.game?.players[winner]?.handle || rel;
         showToast(`${label} won the trick!`, "info", 1500);
-        break;
 
-      case "CARD_PLAYED":
+        // Gold ring animation at table center
+        this.renderer.addAnimation(
+          new TrickWinAnimation(512, 340, 600)
+        );
+        break;
+      }
+
+      case "CARD_PLAYED": {
         this.ctx.sounds.cardPlay();
-        break;
 
-      case "DEAL":
-        this.ctx.sounds.cardDeal();
+        // Card flight animation toward table center
+        const seat = payload.seat as number | undefined;
+        if (seat !== undefined) {
+          const relPos = this.ctx.state.relativePosition(seat as any);
+          const positions: Record<string, { x: number; y: number }> = {
+            self: { x: 512, y: 570 },
+            left: { x: 120, y: 280 },
+            across: { x: 512, y: 100 },
+            right: { x: 904, y: 280 },
+          };
+          const from = positions[relPos] || positions.across;
+          this.renderer.addAnimation(
+            new CardPlayAnimation(from.x, from.y, 512, 340, 76, 108, 250)
+          );
+        }
         break;
+      }
+
+      case "DEAL": {
+        this.ctx.sounds.cardDeal();
+
+        // Staggered deal animation from center to all positions
+        const dealTargets = [
+          { x: 512, y: 570 },  // self
+          { x: 120, y: 280 },  // left
+          { x: 512, y: 100 },  // across
+          { x: 904, y: 280 },  // right
+        ];
+        for (let i = 0; i < dealTargets.length; i++) {
+          const target = dealTargets[i];
+          this.renderer.addAnimation(
+            new CardDealAnimation(
+              512, 340,
+              target.x, target.y,
+              76, 108,
+              i * 80,  // stagger delay
+              300
+            )
+          );
+        }
+        break;
+      }
     }
   }
 
@@ -300,57 +384,83 @@ export class GameScreen implements Screen {
       }
       .control-label {
         font-size: 13px;
+        font-family: var(--font-serif);
         color: var(--text-secondary);
         font-weight: 600;
         margin-right: 4px;
       }
       .controls-hint {
         font-size: 14px;
+        font-family: var(--font-sans);
         color: var(--text-secondary);
         font-style: italic;
       }
       .bid-btn, .trump-btn, .exchange-btn, .rematch-btn, .start-btn {
         font-size: 13px;
-        padding: 8px 14px;
-        border-radius: var(--radius-md);
+        font-family: var(--font-sans);
+        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: var(--radius-sm);
         cursor: pointer;
-        transition: all 0.15s;
-      }
-      .bid-btn {
+        transition: all 0.15s ease;
+        border: 1px solid var(--border);
         background: var(--bg-tertiary);
         color: var(--text-primary);
-        border: 1px solid var(--border);
       }
       .bid-btn:hover:not(:disabled) {
-        background: var(--bg-card);
-        color: var(--text-dark);
+        border-color: var(--color-gold);
+        background: rgba(200, 166, 81, 0.08);
       }
       .bid-btn:disabled {
-        opacity: 0.4;
+        opacity: 0.35;
         cursor: not-allowed;
       }
+      .bid-btn.pass-btn {
+        color: var(--text-secondary);
+      }
+      .bid-btn.pass-btn:hover:not(:disabled) {
+        border-color: var(--text-secondary);
+        background: rgba(90, 90, 90, 0.08);
+      }
       .trump-btn {
-        background: var(--bg-tertiary);
-        color: var(--text-primary);
-        border: 1px solid var(--border);
         font-size: 14px;
+        padding: 8px 18px;
       }
       .trump-btn:hover:not(:disabled) {
-        background: var(--bg-card);
-        color: var(--text-dark);
-        transform: scale(1.05);
+        border-color: var(--suit-color, var(--color-gold));
+        background: rgba(200, 166, 81, 0.08);
+        transform: scale(1.04);
       }
       .trump-btn:disabled {
         opacity: 0.3;
         cursor: not-allowed;
       }
+      .exchange-btn.primary, .rematch-btn.primary, .start-btn.primary {
+        background: var(--color-crimson);
+        color: #fff;
+        border-color: var(--color-crimson);
+      }
+      .exchange-btn.primary:hover, .rematch-btn.primary:hover, .start-btn.primary:hover {
+        background: #9a2626;
+        border-color: #9a2626;
+      }
+      .exchange-btn.secondary {
+        background: transparent;
+        border-color: var(--color-gold);
+        color: var(--color-gold);
+      }
+      .exchange-btn.secondary:hover {
+        background: rgba(200, 166, 81, 0.08);
+      }
       @media (max-width: 640px) {
         .game-controls-bar {
           padding: 6px 8px;
+          min-height: 48px;
         }
         .bid-btn, .trump-btn, .exchange-btn {
           font-size: 12px;
-          padding: 6px 10px;
+          padding: 6px 12px;
+          min-height: 44px;
         }
       }
     `;

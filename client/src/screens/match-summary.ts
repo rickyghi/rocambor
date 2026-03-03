@@ -137,7 +137,7 @@ export class MatchSummaryScreen implements Screen {
   private renderConfetti(): string {
     // CSS-only confetti particles
     const particles: string[] = [];
-    const colors = ["#fbbf24", "#4ade80", "#74c0fc", "#ff6b6b", "#c084fc", "#f472b6"];
+    const colors = ["#C8A651", "#B02E2E", "#2A4D41", "#F8F6F0", "#C8A651", "#B02E2E"];
     for (let i = 0; i < 30; i++) {
       const color = colors[i % colors.length];
       const left = Math.random() * 100;
@@ -159,15 +159,15 @@ export class MatchSummaryScreen implements Screen {
         display: flex;
         align-items: center;
         justify-content: center;
-        background: radial-gradient(ellipse at center, #1a2b1a 0%, #0c1912 70%);
+        background: radial-gradient(ellipse at center, #3A5D51 0%, #1A2F28 70%);
       }
       .match-summary-wrap {
         animation: fadeInUp 0.5s ease-out;
         position: relative;
       }
       .match-summary-card {
-        background: var(--bg-secondary);
-        border: 2px solid var(--border-accent);
+        background: var(--color-ivory);
+        border: 2px solid var(--color-gold);
         border-radius: var(--radius-lg);
         padding: 40px 32px;
         max-width: 480px;
@@ -175,6 +175,7 @@ export class MatchSummaryScreen implements Screen {
         text-align: center;
         position: relative;
         overflow: hidden;
+        box-shadow: var(--shadow-elevated);
       }
       .confetti-container {
         position: absolute;
@@ -196,11 +197,12 @@ export class MatchSummaryScreen implements Screen {
         100% { transform: translateY(500px) rotate(720deg); opacity: 0; }
       }
       .match-title {
+        font-family: var(--font-serif);
         font-size: 36px;
         font-weight: 700;
-        color: var(--text-accent);
+        color: var(--color-gold);
         margin-bottom: 4px;
-        text-shadow: 0 2px 12px rgba(251, 191, 36, 0.3);
+        text-shadow: 0 2px 12px rgba(200, 166, 81, 0.3);
         position: relative;
       }
       .match-subtitle {
@@ -215,8 +217,8 @@ export class MatchSummaryScreen implements Screen {
         justify-content: center;
         gap: 12px;
         padding: 16px;
-        background: rgba(251, 191, 36, 0.1);
-        border: 1px solid rgba(251, 191, 36, 0.3);
+        background: rgba(200, 166, 81, 0.1);
+        border: 1px solid rgba(200, 166, 81, 0.3);
         border-radius: var(--radius-md);
         margin-bottom: 24px;
         position: relative;
@@ -249,10 +251,10 @@ export class MatchSummaryScreen implements Screen {
         font-size: 14px;
       }
       .lb-row.winner {
-        background: rgba(251, 191, 36, 0.08);
+        background: rgba(200, 166, 81, 0.08);
       }
       .lb-row.self {
-        border: 1px solid rgba(74, 222, 128, 0.3);
+        border: 1px solid rgba(200, 166, 81, 0.3);
       }
       .lb-rank {
         width: 20px;

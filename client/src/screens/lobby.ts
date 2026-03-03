@@ -142,7 +142,7 @@ export class LobbyScreen implements Screen {
         justify-content: space-between;
         padding: 12px 16px;
         background: var(--bg-secondary);
-        border-bottom: 1px solid var(--border);
+        border-bottom: 1px solid rgba(200,166,81,0.2);
       }
       .room-info {
         display: flex;
@@ -150,10 +150,11 @@ export class LobbyScreen implements Screen {
         align-items: center;
       }
       .room-code {
+        font-family: var(--font-serif);
         font-size: 24px;
         font-weight: 700;
         letter-spacing: 6px;
-        color: var(--text-accent);
+        color: var(--color-gold);
       }
       .room-mode {
         font-size: 12px;
@@ -169,8 +170,9 @@ export class LobbyScreen implements Screen {
         gap: 32px;
       }
       .lobby-body h2 {
+        font-family: var(--font-serif);
         color: var(--text-secondary);
-        font-size: 16px;
+        font-size: 18px;
         text-transform: uppercase;
         letter-spacing: 3px;
       }

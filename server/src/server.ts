@@ -1,5 +1,6 @@
 import "dotenv/config";
 import http from "http";
+import { randomUUID } from "crypto";
 import { WebSocketServer, WebSocket } from "ws";
 import { initDB, closeDB } from "./db";
 import { initRedis, closeRedis, getRedis } from "./redis";
@@ -8,6 +9,7 @@ import { ReconnectManager } from "./reconnect";
 import { Lobby } from "./lobby";
 import { C2SMessageSchema } from "./protocol";
 import { Conn } from "./room";
+import { getLeaderboard } from "./persistence";
 import { Mode, SeatIndex, S2CMessage } from "../../shared/types";
 
 const port = Number(process.env.PORT || 8080);
@@ -97,6 +99,28 @@ function handleApi(
     return;
   }
 
+  // GET /api/leaderboard?limit=25
+  if (url.pathname === "/api/leaderboard" && req.method === "GET") {
+    const limitRaw = Number(url.searchParams.get("limit") || "25");
+    getLeaderboard(limitRaw)
+      .then((leaderboard) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            leaderboard,
+            count: leaderboard.length,
+            generatedAt: new Date().toISOString(),
+          })
+        );
+      })
+      .catch((error) => {
+        console.error("[api] leaderboard error:", error);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to load leaderboard" }));
+      });
+    return;
+  }
+
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ error: "Not found" }));
 }
@@ -110,6 +134,12 @@ function wsSend(ws: WebSocket, msg: S2CMessage): void {
       // Ignore send errors
     }
   }
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
 }
 
 // ---- WebSocket Server ----
@@ -142,6 +172,11 @@ async function startServer(): Promise<void> {
         `http://${req.headers.host || "localhost"}`
       );
       const resumeId = url.searchParams.get("resume") || undefined;
+      const requestedPlayerId = url.searchParams.get("playerId") || undefined;
+      const playerId =
+        requestedPlayerId && isUuid(requestedPlayerId)
+          ? requestedPlayerId
+          : randomUUID();
 
       // Try reconnection first
       if (resumeId) {
@@ -154,7 +189,8 @@ async function startServer(): Promise<void> {
                 const conn = room.tryReconnect(
                   resumeId,
                   ws,
-                  reservation.seat
+                  reservation.seat,
+                  reservation.playerId || playerId
                 );
                 if (conn) {
                   connToRoom.set(ws, { conn, roomId: reservation.roomId });
@@ -167,13 +203,13 @@ async function startServer(): Promise<void> {
               }
             }
             // Resume failed, treat as new connection
-            handleNewConnection(ws, resumeId);
+            handleNewConnection(ws, resumeId, playerId);
           })
           .catch(() => {
-            handleNewConnection(ws, resumeId);
+            handleNewConnection(ws, resumeId, playerId);
           });
       } else {
-        handleNewConnection(ws);
+        handleNewConnection(ws, undefined, playerId);
       }
     });
 
@@ -198,13 +234,11 @@ async function startServer(): Promise<void> {
   }
 }
 
-function handleNewConnection(ws: WebSocket, clientId?: string): void {
-  const id = clientId || Math.random().toString(36).slice(2);
-
-  // Send welcome (not attached to any room yet)
-  wsSend(ws, { type: "WELCOME", clientId: id, playerId: null });
-
-  // Set up message handling for pre-room commands
+function attachPreRoomMessageHandler(
+  ws: WebSocket,
+  id: string,
+  playerId: string
+): (raw: Buffer | string) => void {
   const onMessage = (raw: Buffer | string) => {
     try {
       const data = JSON.parse(String(raw));
@@ -223,9 +257,8 @@ function handleNewConnection(ws: WebSocket, clientId?: string): void {
 
       switch (msg.type) {
         case "QUICK_PLAY": {
-          const result = lobby.joinQueue(id, ws, msg.mode);
+          const result = lobby.joinQueue(id, playerId, ws, msg.mode);
           if (result.status === "matched") {
-            // Player is now in a room
             const room = result.room;
             const conn = room.conns.find((c) => c.id === id);
             if (conn) {
@@ -255,7 +288,7 @@ function handleNewConnection(ws: WebSocket, clientId?: string): void {
             id,
             msg.target
           );
-          const conn = room.attach(ws, id);
+          const conn = room.attach(ws, id, playerId);
 
           // Auto-seat creator at seat 0
           conn.seat = room.allSeats()[0];
@@ -285,9 +318,8 @@ function handleNewConnection(ws: WebSocket, clientId?: string): void {
             return;
           }
 
-          const conn = room.attach(ws, id);
+          const conn = room.attach(ws, id, playerId);
 
-          // Find first available seat (replace bot or empty)
           const seats = room.allSeats();
           const occupied = new Set(
             room.conns
@@ -364,6 +396,22 @@ function handleNewConnection(ws: WebSocket, clientId?: string): void {
   };
 
   ws.on("message", onMessage);
+  return onMessage;
+}
+
+function handleNewConnection(
+  ws: WebSocket,
+  clientId?: string,
+  playerId?: string
+): void {
+  const id = clientId || Math.random().toString(36).slice(2);
+  const resolvedPlayerId =
+    playerId && isUuid(playerId) ? playerId : randomUUID();
+
+  // Send welcome (not attached to any room yet)
+  wsSend(ws, { type: "WELCOME", clientId: id, playerId: resolvedPlayerId });
+
+  attachPreRoomMessageHandler(ws, id, resolvedPlayerId);
 
   // Keep-alive ping
   const pingInterval = setInterval(() => {
@@ -386,6 +434,35 @@ function setupWsHandlers(
   conn: Conn,
   roomId: string
 ): void {
+  const cleanup = () => {
+    const room = router.getById(roomId);
+    if (room && conn.seat !== null) {
+      // Reserve seat for reconnection
+      reconnectMgr
+        .reserveSeat(conn.id, roomId, conn.seat, conn.playerId)
+        .catch(() => {});
+      // Mark as disconnected but don't remove
+      conn.connected = false;
+      conn.lastSeen = Date.now();
+      room.broadcastState();
+      console.log(
+        `[connection] Client ${conn.id} disconnected from room ${roomId} seat ${conn.seat}`
+      );
+    } else if (room) {
+      room.detach(conn);
+    }
+  };
+
+  const onClose = (code: number, reason: Buffer) => {
+    console.log(`[connection] WebSocket closed: ${code} ${reason}`);
+    cleanup();
+  };
+
+  const onError = (error: Error) => {
+    console.error("[ws] Connection error:", error);
+    cleanup();
+  };
+
   const onMessage = (raw: Buffer | string) => {
     try {
       const data = JSON.parse(String(raw));
@@ -415,7 +492,13 @@ function setupWsHandlers(
       // If the client left the room, detach the message handler
       if (parsed.data.type === "LEAVE_ROOM") {
         ws.removeListener("message", onMessage);
+        ws.removeListener("close", onClose);
+        ws.removeListener("error", onError);
         connToRoom.delete(ws);
+        const resolvedPlayerId = conn.playerId && isUuid(conn.playerId)
+          ? conn.playerId
+          : randomUUID();
+        attachPreRoomMessageHandler(ws, conn.id, resolvedPlayerId);
       }
     } catch (error) {
       console.error("[message] Parse error:", error);
@@ -428,35 +511,8 @@ function setupWsHandlers(
   };
 
   ws.on("message", onMessage);
-
-  const cleanup = () => {
-    const room = router.getById(roomId);
-    if (room && conn.seat !== null) {
-      // Reserve seat for reconnection
-      reconnectMgr
-        .reserveSeat(conn.id, roomId, conn.seat, conn.playerId)
-        .catch(() => {});
-      // Mark as disconnected but don't remove
-      conn.connected = false;
-      conn.lastSeen = Date.now();
-      room.broadcastState();
-      console.log(
-        `[connection] Client ${conn.id} disconnected from room ${roomId} seat ${conn.seat}`
-      );
-    } else if (room) {
-      room.detach(conn);
-    }
-  };
-
-  ws.on("close", (code, reason) => {
-    console.log(`[connection] WebSocket closed: ${code} ${reason}`);
-    cleanup();
-  });
-
-  ws.on("error", (error) => {
-    console.error("[ws] Connection error:", error);
-    cleanup();
-  });
+  ws.on("close", onClose);
+  ws.on("error", onError);
 }
 
 // ---- Graceful shutdown ----

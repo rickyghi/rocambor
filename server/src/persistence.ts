@@ -1,6 +1,27 @@
 import { db } from "./db";
 import { Suit, SeatIndex, Mode } from "../../shared/types";
 
+export interface LeaderboardEntry {
+  playerId: string;
+  handle: string;
+  gamesPlayed: number;
+  wins: number;
+  winRate: number;
+  elo: number;
+  lastPlayed: string | null;
+}
+
+interface MemoryStats {
+  playerId: string;
+  handle: string;
+  gamesPlayed: number;
+  wins: number;
+  elo: number;
+  lastPlayed: string | null;
+}
+
+const inMemoryLeaderboard = new Map<string, MemoryStats>();
+
 export async function createRoomRecord(
   roomId: string,
   mode: Mode
@@ -48,6 +69,24 @@ export async function saveHandResult(data: {
   }
 }
 
+export async function ensurePlayerRecord(
+  playerId: string,
+  handle: string
+): Promise<void> {
+  if (!db) return;
+  try {
+    await db.query(
+      `INSERT INTO players (id, handle)
+       VALUES ($1::uuid, $2)
+       ON CONFLICT (id) DO UPDATE
+       SET handle = EXCLUDED.handle`,
+      [playerId, handle]
+    );
+  } catch (e) {
+    console.error("[persistence] ensurePlayerRecord failed:", e);
+  }
+}
+
 export async function saveMatchResult(data: {
   roomId: string;
   mode: Mode;
@@ -55,7 +94,26 @@ export async function saveMatchResult(data: {
   finalScores: Record<number, number>;
   totalHands: number;
   playerIds: (string | null)[];
+  playerHandles: (string | null)[];
 }): Promise<void> {
+  // Always track runtime stats, even when DB is unavailable.
+  for (let i = 0; i < data.playerIds.length; i++) {
+    const pid = data.playerIds[i];
+    if (!pid) continue;
+    const handle = data.playerHandles[i] || `Player ${String(pid).slice(0, 8)}`;
+    const isWinner = i === data.winner;
+    const prev = inMemoryLeaderboard.get(pid);
+    const next: MemoryStats = {
+      playerId: pid,
+      handle,
+      gamesPlayed: (prev?.gamesPlayed || 0) + 1,
+      wins: (prev?.wins || 0) + (isWinner ? 1 : 0),
+      elo: prev?.elo || 1200,
+      lastPlayed: new Date().toISOString(),
+    };
+    inMemoryLeaderboard.set(pid, next);
+  }
+
   if (!db) return;
   try {
     // Check if match_players table exists (from migration 002)
@@ -71,10 +129,13 @@ export async function saveMatchResult(data: {
       const pid = data.playerIds[i];
       if (!pid) continue; // skip bots
 
+      const handle = data.playerHandles[i] || `Player ${String(pid).slice(0, 8)}`;
       const isWinner = i === data.winner;
+      await ensurePlayerRecord(pid, handle);
+
       await db.query(
         `INSERT INTO match_players (room_id, player_id, seat, final_score, is_winner)
-         VALUES ($1, $2, $3, $4, $5)`,
+         VALUES ($1, $2::uuid, $3, $4, $5)`,
         [data.roomId, pid, i, data.finalScores[i] || 0, isWinner]
       );
 
@@ -117,4 +178,67 @@ export async function getPlayerStats(
     console.error("[persistence] getPlayerStats failed:", e);
     return null;
   }
+}
+
+export async function getLeaderboard(
+  limit = 25
+): Promise<LeaderboardEntry[]> {
+  const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, Math.floor(limit))) : 25;
+
+  if (db) {
+    try {
+      const result = await db.query(
+        `SELECT
+           id::text AS id,
+           COALESCE(handle, 'Player') AS handle,
+           COALESCE(games_played, 0) AS games_played,
+           COALESCE(wins, 0) AS wins,
+           COALESCE(elo, 1200) AS elo,
+           last_played
+         FROM players
+         WHERE COALESCE(games_played, 0) > 0
+         ORDER BY wins DESC, games_played DESC, elo DESC, last_played DESC NULLS LAST
+         LIMIT $1`,
+        [safeLimit]
+      );
+
+      if (result.rows.length > 0) {
+        return result.rows.map((row: any) => ({
+          playerId: row.id,
+          handle: row.handle,
+          gamesPlayed: Number(row.games_played) || 0,
+          wins: Number(row.wins) || 0,
+          winRate:
+            (Number(row.games_played) || 0) > 0
+              ? (Number(row.wins) || 0) / (Number(row.games_played) || 1)
+              : 0,
+          elo: Number(row.elo) || 1200,
+          lastPlayed: row.last_played ? String(row.last_played) : null,
+        }));
+      }
+    } catch (e) {
+      console.error("[persistence] getLeaderboard failed (db), using memory:", e);
+    }
+  }
+
+  return [...inMemoryLeaderboard.values()]
+    .sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
+      return b.elo - a.elo;
+    })
+    .slice(0, safeLimit)
+    .map((entry) => ({
+      playerId: entry.playerId,
+      handle: entry.handle,
+      gamesPlayed: entry.gamesPlayed,
+      wins: entry.wins,
+      winRate: entry.gamesPlayed > 0 ? entry.wins / entry.gamesPlayed : 0,
+      elo: entry.elo,
+      lastPlayed: entry.lastPlayed,
+    }));
+}
+
+export function __resetInMemoryLeaderboardForTests(): void {
+  inMemoryLeaderboard.clear();
 }

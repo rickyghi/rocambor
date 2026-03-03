@@ -5,6 +5,7 @@ export interface Settings {
   soundVolume: number;
   colorblindMode: boolean;
   tableTheme: TableTheme;
+  cardSkin: string;
   animationSpeed: "slow" | "normal" | "fast";
 }
 
@@ -15,6 +16,7 @@ const DEFAULTS: Settings = {
   soundVolume: 0.7,
   colorblindMode: false,
   tableTheme: "classic",
+  cardSkin: "rocambor",
   animationSpeed: "normal",
 };
 
@@ -51,7 +53,12 @@ export class SettingsManager {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        return { ...DEFAULTS, ...JSON.parse(raw) };
+        const parsed = JSON.parse(raw) as Partial<Settings>;
+        const merged = { ...DEFAULTS, ...parsed };
+        if (typeof merged.cardSkin !== "string" || !merged.cardSkin.trim()) {
+          merged.cardSkin = DEFAULTS.cardSkin;
+        }
+        return merged;
       }
     } catch {
       // Ignore parse errors

@@ -1,15 +1,18 @@
-import type { ClientState, } from "../state";
+import type { ClientState } from "../state";
 import type { Layout } from "./layout";
 import type { SeatIndex, PlayerInfo } from "../protocol";
-import { drawCard } from "./cards";
+import { drawCard, type CardSkin } from "./cards";
 
 type Position = "self" | "left" | "across" | "right";
+
+const FONT_SANS = '"Inter", system-ui, sans-serif';
 
 export function drawPlayers(
   ctx: CanvasRenderingContext2D,
   state: ClientState,
   layout: Layout,
-  colorblind: boolean
+  colorblind: boolean,
+  cardSkin: CardSkin
 ): void {
   if (!state.game) return;
 
@@ -37,7 +40,15 @@ export function drawPlayers(
     if (pos !== "self" && !isResting) {
       const opCoords = layout.opponentCards[pos as "left" | "across" | "right"];
       if (opCoords) {
-        drawOpponentCards(ctx, opCoords.x, opCoords.y, state.game.handsCount[seat] || 0, opCoords.vertical, layout);
+        drawOpponentCards(
+          ctx,
+          opCoords.x,
+          opCoords.y,
+          state.game.handsCount[seat] || 0,
+          opCoords.vertical,
+          layout,
+          cardSkin
+        );
       }
     }
 
@@ -50,8 +61,8 @@ export function drawPlayers(
     // Disconnected indicator
     if (player && !player.connected) {
       ctx.save();
-      ctx.fillStyle = "rgba(255,0,0,0.7)";
-      ctx.font = "bold 11px Arial";
+      ctx.fillStyle = "rgba(176,46,46,0.85)";
+      ctx.font = `bold 11px ${FONT_SANS}`;
       ctx.textAlign = "center";
       ctx.fillText("OFFLINE", coords.x, coords.y + (pos === "across" ? 58 : -8));
       ctx.restore();
@@ -75,26 +86,30 @@ function drawNameBadge(
   ctx.save();
 
   // Background pill
+  ctx.font = `${isMyTurn ? "bold " : ""}13px ${FONT_SANS}`;
   const textW = ctx.measureText(label).width || 60;
   const pillW = Math.max(textW + 20, 80);
   const pillH = 24;
 
   ctx.fillStyle = isMyTurn
-    ? "rgba(251,191,36,0.2)"
+    ? "rgba(200,166,81,0.2)"
     : "rgba(0,0,0,0.6)";
   roundRect(ctx, x - pillW / 2, y - pillH / 2, pillW, pillH, 12);
   ctx.fill();
 
   if (isMyTurn) {
-    ctx.strokeStyle = "#fbbf24";
+    ctx.strokeStyle = "#C8A651";
     ctx.lineWidth = 2;
+    // Gold glow
+    ctx.shadowColor = "#C8A651";
+    ctx.shadowBlur = 6;
     roundRect(ctx, x - pillW / 2, y - pillH / 2, pillW, pillH, 12);
     ctx.stroke();
+    ctx.shadowColor = "transparent";
   }
 
   // Name text
-  ctx.fillStyle = isMyTurn ? "#fbbf24" : isResting ? "#666" : "#e8f0ff";
-  ctx.font = `${isMyTurn ? "bold " : ""}13px Arial`;
+  ctx.fillStyle = isMyTurn ? "#C8A651" : isResting ? "#666" : "#F8F6F0";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(label, x, y);
@@ -113,8 +128,8 @@ function drawScore(
   roundRect(ctx, x - 20, y - 10, 40, 20, 10);
   ctx.fill();
 
-  ctx.fillStyle = "#e8f0ff";
-  ctx.font = "bold 13px Arial";
+  ctx.fillStyle = "#F8F6F0";
+  ctx.font = `bold 13px ${FONT_SANS}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(String(score), x, y);
@@ -129,11 +144,11 @@ function drawTricks(
 ): void {
   if (tricks === 0) return;
   ctx.save();
-  ctx.fillStyle = "rgba(74,222,128,0.15)";
+  ctx.fillStyle = "rgba(200,166,81,0.15)";
   roundRect(ctx, x - 16, y - 8, 32, 16, 8);
   ctx.fill();
-  ctx.fillStyle = "#4ade80";
-  ctx.font = "bold 11px Arial";
+  ctx.fillStyle = "#C8A651";
+  ctx.font = `bold 11px ${FONT_SANS}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(`${tricks}T`, x, y);
@@ -146,7 +161,8 @@ function drawOpponentCards(
   y: number,
   count: number,
   vertical: boolean,
-  layout: Layout
+  layout: Layout,
+  cardSkin: CardSkin
 ): void {
   const cw = layout.cardW * 0.7;
   const ch = layout.cardH * 0.7;
@@ -156,7 +172,10 @@ function drawOpponentCards(
     const cx = vertical ? x : x - ((count - 1) * 14) / 2 + offset;
     const cy = vertical ? y + offset : y;
 
-    drawCard(ctx, cx, cy, cw, ch, null, false, { faceDown: true });
+    drawCard(ctx, cx, cy, cw, ch, null, false, {
+      faceDown: true,
+      skin: cardSkin,
+    });
   }
 }
 
