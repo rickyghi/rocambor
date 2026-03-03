@@ -193,77 +193,100 @@ export class GameRenderer {
     const game = this.state.game;
     if (!game || game.phase === "lobby") return;
 
-    // Phase indicator (top-left)
-    this.ctx.save();
-    this.ctx.fillStyle = "rgba(13,13,13,0.55)";
-    this.roundRect(20, 16, 180, 36, 20);
-    this.ctx.fill();
-    this.ctx.fillStyle = "#F8F6F0";
-    this.ctx.font = `bold 14px ${FONT_SANS}`;
-    this.ctx.textAlign = "left";
-    this.ctx.textBaseline = "middle";
+    const W = this.layout.width;
 
+    // --- Unified top HUD strip ---
+    const barX = 16;
+    const barY = 12;
+    const barW = W - 32;
+    const barH = 44;
+    const barR = 12;
+
+    // Dark rounded rect bar
+    this.ctx.save();
+    this.ctx.fillStyle = "rgba(13,13,13,0.6)";
+    this.roundRect(barX, barY, barW, barH, barR);
+    this.ctx.fill();
+
+    // Subtle gold top border
+    this.ctx.strokeStyle = "rgba(200,166,81,0.2)";
+    this.ctx.lineWidth = 1;
+    this.ctx.beginPath();
+    this.ctx.moveTo(barX + barR, barY + 0.5);
+    this.ctx.lineTo(barX + barW - barR, barY + 0.5);
+    this.ctx.stroke();
+    this.ctx.restore();
+
+    const barCY = barY + barH / 2;
+
+    // Left: Phase label
+    this.ctx.save();
     const phaseLabels: Record<string, string> = {
-      dealing: "Dealing...",
+      dealing: "Dealing",
       auction: "Auction",
       trump_choice: "Choose Trump",
       exchange: "Exchange",
-      play: `Play (Hand ${game.handNo})`,
+      play: `Play — Hand ${game.handNo}`,
       post_hand: "Hand Complete",
       scoring: "Scoring",
       match_end: "Match Over",
     };
-    this.ctx.fillText(phaseLabels[game.phase] || game.phase, 36, 34);
+    this.ctx.fillStyle = "#F8F6F0";
+    this.ctx.font = `600 13px ${FONT_SANS}`;
+    this.ctx.textAlign = "left";
+    this.ctx.textBaseline = "middle";
+    this.ctx.fillText(phaseLabels[game.phase] || game.phase, barX + 16, barCY);
     this.ctx.restore();
 
-    // Trump indicator (top-right)
+    // Center: Contract + Trump
+    const centerParts: string[] = [];
+    if (game.contract) {
+      const contractLabels: Record<string, string> = {
+        entrada: "Entrada",
+        oros: "Oros",
+        volteo: "Volteo",
+        solo: "Solo",
+        solo_oros: "Solo Oros",
+        bola: "Bola",
+      };
+      centerParts.push(contractLabels[game.contract] || game.contract);
+    }
     if (game.trump) {
-      this.ctx.save();
-      this.ctx.fillStyle = "rgba(13,13,13,0.55)";
-      this.roundRect(this.layout.width - 160, 16, 140, 36, 20);
-      this.ctx.fill();
-      this.ctx.fillStyle = "#F8F6F0";
-      this.ctx.font = `14px ${FONT_SANS}`;
-      this.ctx.textAlign = "right";
-      this.ctx.textBaseline = "middle";
-
       const trumpSymbols: Record<string, string> = {
         oros: "\u2666 Oros",
         copas: "\u2665 Copas",
         espadas: "\u2660 Espadas",
         bastos: "\u2663 Bastos",
       };
-      this.ctx.fillText(
-        `Trump: ${trumpSymbols[game.trump] || game.trump}`,
-        this.layout.width - 30,
-        34
-      );
-      this.ctx.restore();
+      centerParts.push(trumpSymbols[game.trump] || game.trump);
     }
 
-    // Contract indicator
-    if (game.contract) {
+    if (centerParts.length > 0) {
       this.ctx.save();
-      this.ctx.fillStyle = "rgba(13,13,13,0.55)";
-      this.roundRect(20, 58, 140, 28, 14);
-      this.ctx.fill();
       this.ctx.fillStyle = "#C8A651";
-      this.ctx.font = `12px ${FONT_SANS}`;
-      this.ctx.textAlign = "left";
+      this.ctx.font = `bold 14px ${FONT_SANS}`;
+      this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
-      this.ctx.fillText(
-        `Contract: ${game.contract}`,
-        32,
-        72
-      );
+      this.ctx.fillText(centerParts.join("  \u00b7  "), W / 2, barCY);
       this.ctx.restore();
     }
 
-    // Turn indicator
+    // Right: Target
+    if (game.gameTarget) {
+      this.ctx.save();
+      this.ctx.fillStyle = "rgba(248,246,240,0.45)";
+      this.ctx.font = `11px ${FONT_SANS}`;
+      this.ctx.textAlign = "right";
+      this.ctx.textBaseline = "middle";
+      this.ctx.fillText(`Target: ${game.gameTarget}`, barX + barW - 16, barCY);
+      this.ctx.restore();
+    }
+
+    // --- Turn indicator (below table, near hand) ---
     if (game.turn !== null && this.state.isMyTurn) {
       this.ctx.save();
       const pulseAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 500);
-      this.ctx.fillStyle = `rgba(200,166,81,${pulseAlpha * 0.15})`;
+      this.ctx.fillStyle = `rgba(200,166,81,${pulseAlpha * 0.12})`;
       this.roundRect(
         this.layout.tableCX - 80,
         this.layout.handY - 70,
@@ -279,19 +302,6 @@ export class GameRenderer {
       this.ctx.fillText("Your Turn", this.layout.tableCX, this.layout.handY - 55);
       this.ctx.restore();
     }
-
-    // Target score
-    this.ctx.save();
-    this.ctx.fillStyle = "rgba(248,246,240,0.35)";
-    this.ctx.font = `11px ${FONT_SANS}`;
-    this.ctx.textAlign = "right";
-    this.ctx.textBaseline = "top";
-    this.ctx.fillText(
-      `Target: ${game.gameTarget}`,
-      this.layout.width - 20,
-      58
-    );
-    this.ctx.restore();
   }
 
   // ---- Hit testing ----

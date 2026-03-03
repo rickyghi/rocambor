@@ -32,15 +32,32 @@
   --bg-tertiary: #F0EDE6;
   --overlay: rgba(13,13,13,0.55);
 
+  /* Semantic surfaces */
+  --surface-parchment: #F8F6F0;
+  --surface-felt: #2A4D41;
+  --surface-felt-dark: #1A2F28;
+  --surface-card: #FFFFFF;
+
   /* Text */
   --text-primary: #0D0D0D;
   --text-secondary: #5A5A5A;
   --text-accent: #C8A651;
 
+  /* Text on surfaces */
+  --text-on-felt: #F8F6F0;
+  --text-on-felt-muted: rgba(248, 246, 240, 0.6);
+  --text-on-parchment: #0D0D0D;
+  --text-on-parchment-muted: #5A5A5A;
+
   /* Borders */
   --border: #E6E0D6;
   --border-light: #D8D2C6;
   --border-accent: #C8A651;
+
+  /* Action (semantic) */
+  --action-primary: #B02E2E;
+  --action-primary-hover: #962626;
+  --action-secondary-border: #C8A651;
 
   /* Feedback */
   --success: #1F7A4D;
@@ -51,6 +68,20 @@
   /* Shadows */
   --shadow-soft: 0 8px 24px rgba(0,0,0,0.08);
   --shadow-elevated: 0 12px 32px rgba(0,0,0,0.12);
+  --shadow-carved: inset 0 1px 2px rgba(0,0,0,0.15), 0 1px 0 rgba(255,255,255,0.06);
+  --shadow-plaque: 0 2px 8px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.12);
+
+  /* Motion */
+  --dur-micro: 120ms;
+  --dur-fast: 150ms;
+  --dur-base: 240ms;
+  --dur-slow: 400ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+
+  /* Focus */
+  --focus-ring: 0 0 0 2px var(--color-gold);
+  --focus-ring-offset: 0 0 0 4px rgba(200, 166, 81, 0.3);
 
   /* Fonts */
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
@@ -98,7 +129,10 @@ button {
   background: var(--bg-tertiary);
   color: var(--text-primary);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+  transition: background var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard),
+              transform var(--dur-micro) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard);
   user-select: none;
 }
 
@@ -117,8 +151,8 @@ button:disabled {
 }
 
 button:focus-visible {
-  outline: 2px solid var(--color-gold);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--focus-ring), var(--focus-ring-offset);
 }
 
 button.primary {
@@ -181,12 +215,18 @@ input, select {
   background: var(--bg-secondary);
   color: var(--text-primary);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard);
 }
 
 input:focus, select:focus {
   border-color: var(--color-gold);
   box-shadow: 0 0 0 3px rgba(200,166,81,0.12);
+}
+
+input:focus-visible, select:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--focus-ring-offset);
 }
 
 /* ---------- Screen base ---------- */
@@ -254,7 +294,7 @@ input:focus, select:focus {
   align-items: center;
   justify-content: center;
   z-index: 900;
-  animation: fade-in 0.2s ease-out;
+  animation: fade-in var(--dur-base) var(--ease-decelerate);
 }
 
 .modal {
@@ -265,7 +305,7 @@ input:focus, select:focus {
   min-width: 320px;
   max-width: 480px;
   box-shadow: var(--shadow-elevated);
-  animation: scale-in 0.2s ease-out;
+  animation: fadeInScale var(--dur-base) var(--ease-decelerate);
 }
 
 .modal h2 {
@@ -283,9 +323,282 @@ input:focus, select:focus {
   justify-content: flex-end;
 }
 
+/* ---------- Branded Buttons ---------- */
+
+.btn-gold-plaque {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 12px 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, #D4B95E 0%, #C8A651 40%, #B8963F 100%);
+  color: var(--color-black);
+  cursor: pointer;
+  box-shadow: var(--shadow-plaque), inset 0 1px 0 rgba(255,255,255,0.25);
+  transition: transform var(--dur-micro) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard),
+              filter var(--dur-fast) var(--ease-standard);
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-gold-plaque::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.25) 50%, transparent 60%);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+  pointer-events: none;
+}
+
+.btn-gold-plaque:hover:not(:disabled)::after {
+  transform: translateX(100%);
+}
+
+.btn-gold-plaque:hover:not(:disabled) {
+  box-shadow: 0 4px 16px rgba(200,166,81,0.35), inset 0 1px 0 rgba(255,255,255,0.25);
+  filter: brightness(1.05);
+}
+
+.btn-gold-plaque:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn-gold-plaque:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+
+.btn-gold-plaque:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--focus-ring-offset), var(--shadow-plaque);
+}
+
+.btn-ivory-engraved {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-parchment);
+  color: var(--text-primary);
+  cursor: pointer;
+  box-shadow: var(--shadow-carved);
+  transition: border-color var(--dur-fast) var(--ease-standard),
+              background var(--dur-fast) var(--ease-standard),
+              transform var(--dur-micro) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard);
+  user-select: none;
+}
+
+.btn-ivory-engraved:hover:not(:disabled) {
+  border-color: var(--color-gold);
+  background: #F5F2EA;
+  box-shadow: var(--shadow-carved), 0 0 0 1px rgba(200,166,81,0.15);
+}
+
+.btn-ivory-engraved:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn-ivory-engraved:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-ivory-engraved:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--focus-ring-offset);
+}
+
+.btn-ghost-felt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard),
+              background var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard);
+  user-select: none;
+}
+
+.btn-ghost-felt:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(0,0,0,0.03);
+  border-color: var(--border);
+}
+
+.btn-ghost-felt:active:not(:disabled) {
+  background: rgba(0,0,0,0.06);
+}
+
+.btn-ghost-felt:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-ghost-felt:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring), var(--focus-ring-offset);
+}
+
+/* ---------- Panels ---------- */
+
+.panel-parchment {
+  background: var(--surface-parchment);
+  border: 1px solid rgba(200,166,81,0.2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  padding: 24px;
+}
+
+.panel-felt {
+  background: rgba(42, 77, 65, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(200,166,81,0.15);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated);
+  padding: 24px;
+  color: var(--text-on-felt);
+}
+
+/* ---------- Ornament Divider ---------- */
+
+.ornament-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.ornament-divider::before,
+.ornament-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200,166,81,0.35), transparent);
+}
+
+.ornament-divider::before {
+  background: linear-gradient(90deg, transparent, rgba(200,166,81,0.35));
+}
+
+.ornament-divider::after {
+  background: linear-gradient(90deg, rgba(200,166,81,0.35), transparent);
+}
+
+.ornament-divider .ornament-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-gold);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+/* ---------- Form Group (for modals) ---------- */
+
+.modal-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.modal-form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.2px;
+}
+
+.modal-form-group:last-child {
+  margin-bottom: 0;
+}
+
+/* ---------- Skeleton Loading ---------- */
+
+.skel-block {
+  background: linear-gradient(90deg, var(--bg-tertiary) 25%, #E8E4DB 50%, var(--bg-tertiary) 75%);
+  background-size: 200% 100%;
+  border-radius: var(--radius-sm);
+  animation: skeletonPulse 1.5s ease-in-out infinite;
+}
+
+.skel-text {
+  height: 14px;
+  border-radius: 4px;
+}
+
+.skel-circle {
+  border-radius: 50%;
+}
+
+/* ---------- Keyframes ---------- */
+
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmerSweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200,166,81,0); }
+  50% { box-shadow: 0 0 12px 2px rgba(200,166,81,0.35); }
+}
+
+@keyframes skeletonPulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 @keyframes scale-in {
@@ -299,5 +612,21 @@ input:focus, select:focus {
   button {
     padding: 8px 14px;
     font-size: 13px;
+    min-height: 44px;
+  }
+
+  .btn-gold-plaque {
+    padding: 10px 22px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  .btn-ivory-engraved {
+    min-height: 44px;
+  }
+
+  .btn-ghost-felt {
+    min-height: 44px;
+    padding: 10px 16px;
   }
 }

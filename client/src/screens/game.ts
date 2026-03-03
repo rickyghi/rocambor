@@ -372,8 +372,9 @@ export class GameScreen implements Screen {
         align-items: center;
         justify-content: center;
         padding: 8px 16px;
-        background: var(--bg-secondary);
-        border-top: 1px solid var(--border);
+        background: var(--surface-parchment);
+        border-top: 2px solid rgba(200,166,81,0.2);
+        box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
       }
       .control-group {
         display: flex;
@@ -383,11 +384,12 @@ export class GameScreen implements Screen {
         justify-content: center;
       }
       .control-label {
-        font-size: 13px;
-        font-family: var(--font-serif);
-        color: var(--text-secondary);
-        font-weight: 600;
-        margin-right: 4px;
+        font-size: 14px;
+        font-family: var(--font-display);
+        color: var(--text-on-parchment);
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        margin-right: 8px;
       }
       .controls-hint {
         font-size: 14px;
@@ -402,10 +404,17 @@ export class GameScreen implements Screen {
         padding: 8px 16px;
         border-radius: var(--radius-sm);
         cursor: pointer;
-        transition: all 0.15s ease;
+        transition: background var(--dur-fast) var(--ease-standard),
+                    border-color var(--dur-fast) var(--ease-standard),
+                    transform var(--dur-micro) var(--ease-standard),
+                    box-shadow var(--dur-fast) var(--ease-standard);
         border: 1px solid var(--border);
         background: var(--bg-tertiary);
         color: var(--text-primary);
+      }
+      .bid-btn:focus-visible, .trump-btn:focus-visible, .exchange-btn:focus-visible {
+        outline: none;
+        box-shadow: var(--focus-ring), var(--focus-ring-offset);
       }
       .bid-btn:hover:not(:disabled) {
         border-color: var(--color-gold);
@@ -444,6 +453,20 @@ export class GameScreen implements Screen {
         background: #9a2626;
         border-color: #9a2626;
       }
+      .exchange-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: var(--font-sans);
+        padding: 4px 12px;
+        border-radius: var(--radius-pill);
+        background: rgba(200,166,81,0.15);
+        color: var(--color-gold);
+        letter-spacing: 0.5px;
+        margin-right: 4px;
+      }
       .exchange-btn.secondary {
         background: transparent;
         border-color: var(--color-gold);
@@ -455,12 +478,21 @@ export class GameScreen implements Screen {
       @media (max-width: 640px) {
         .game-controls-bar {
           padding: 6px 8px;
-          min-height: 48px;
+          min-height: 52px;
         }
-        .bid-btn, .trump-btn, .exchange-btn {
+        .bid-btn, .trump-btn, .exchange-btn, .rematch-btn, .start-btn {
           font-size: 12px;
-          padding: 6px 12px;
+          padding: 8px 14px;
           min-height: 44px;
+          min-width: 44px;
+        }
+        .control-label {
+          font-size: 12px;
+          margin-right: 4px;
+        }
+        .exchange-count {
+          font-size: 12px;
+          padding: 3px 10px;
         }
       }
     `;

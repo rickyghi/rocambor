@@ -16,6 +16,7 @@ export class HomeScreen implements Screen {
   private ctx!: AppContext;
   private container!: HTMLElement;
   private unsubscribes: Array<() => void> = [];
+  private selectedMode: Mode = "tresillo";
 
   mount(container: HTMLElement, ctx: AppContext): void {
     this.ctx = ctx;
@@ -31,28 +32,25 @@ export class HomeScreen implements Screen {
             <p class="logo-tagline" style="display:none">THE GAME OF OMBRE</p>
           </div>
 
-          <div class="home-hero">
-            <div class="btn-row hero-row">
-              <button class="primary hero-btn quick-play-btn" data-mode="tresillo">
-                Tresillo <span class="badge">3P</span>
-              </button>
-              <button class="primary hero-btn quick-play-btn" data-mode="quadrille">
-                Quadrille <span class="badge">4P</span>
-              </button>
+          <div class="play-card panel-felt">
+            <div class="mode-toggle">
+              <button class="mode-btn active" data-mode="tresillo">Tresillo</button>
+              <button class="mode-btn" data-mode="quadrille">Quadrille</button>
             </div>
+            <button class="btn-gold-plaque play-cta">Play Now</button>
           </div>
 
           <div class="home-secondary">
-            <button class="secondary create-room-btn">Create Room</button>
-            <button class="secondary join-room-btn">Join by Code</button>
+            <button class="btn-ivory-engraved create-room-btn">Create Room</button>
+            <button class="btn-ivory-engraved join-room-btn">Join by Code</button>
           </div>
 
-          <div class="home-divider"></div>
+          <div class="ornament-divider"><span class="ornament-dot"></span></div>
 
           <nav class="home-nav">
-            <button class="ghost settings-btn">Settings</button>
-            <button class="ghost rules-btn">How to Play</button>
-            <button class="ghost leaderboard-btn">Leaderboard</button>
+            <button class="btn-ghost-felt settings-btn">Settings</button>
+            <button class="btn-ghost-felt rules-btn">How to Play</button>
+            <button class="btn-ghost-felt leaderboard-btn">Leaderboard</button>
           </nav>
 
           <div class="connection-status" id="conn-status">
@@ -93,13 +91,21 @@ export class HomeScreen implements Screen {
   }
 
   private attachHandlers(): void {
-    this.container.querySelectorAll<HTMLButtonElement>(".quick-play-btn").forEach((btn) => {
+    // Mode toggle
+    this.container.querySelectorAll<HTMLButtonElement>(".mode-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const mode = btn.dataset.mode as Mode;
-        this.ctx.connection.send({ type: "QUICK_PLAY", mode });
-        btn.disabled = true;
-        setTimeout(() => (btn.disabled = false), 2000);
+        this.container.querySelectorAll(".mode-btn").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        this.selectedMode = btn.dataset.mode as Mode;
       });
+    });
+
+    // Play CTA
+    const playCta = this.container.querySelector(".play-cta") as HTMLButtonElement;
+    playCta?.addEventListener("click", () => {
+      this.ctx.connection.send({ type: "QUICK_PLAY", mode: this.selectedMode });
+      playCta.disabled = true;
+      setTimeout(() => (playCta.disabled = false), 2000);
     });
 
     this.container.querySelector(".create-room-btn")?.addEventListener("click", () => {
@@ -126,16 +132,16 @@ export class HomeScreen implements Screen {
   private showCreateRoomModal(): void {
     const content = document.createElement("div");
     content.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:16px;">
-        <label style="color:var(--text-secondary);display:flex;align-items:center;gap:8px;">Mode
-          <select id="create-mode">
-            <option value="tresillo">Tresillo (3 players)</option>
-            <option value="quadrille" selected>Quadrille (4 players)</option>
-          </select>
-        </label>
-        <label style="color:var(--text-secondary);display:flex;align-items:center;gap:8px;">Points to win
-          <input id="create-target" type="number" value="12" min="6" max="30" style="width:70px;" />
-        </label>
+      <div class="modal-form-group">
+        <label for="create-mode">Mode</label>
+        <select id="create-mode">
+          <option value="tresillo">Tresillo (3 players)</option>
+          <option value="quadrille" selected>Quadrille (4 players)</option>
+        </select>
+      </div>
+      <div class="modal-form-group">
+        <label for="create-target">Points to win</label>
+        <input id="create-target" type="number" value="12" min="6" max="30" style="width:70px;" />
       </div>
     `;
 
@@ -164,11 +170,10 @@ export class HomeScreen implements Screen {
   private showJoinRoomModal(): void {
     const content = document.createElement("div");
     content.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:16px;">
-        <label style="color:var(--text-secondary);">Room Code
-          <input id="join-code" type="text" maxlength="6" placeholder="ABC123"
-            style="display:block;margin-top:8px;width:100%;text-transform:uppercase;font-size:20px;letter-spacing:4px;text-align:center;padding:12px;" />
-        </label>
+      <div class="modal-form-group">
+        <label for="join-code">Room Code</label>
+        <input id="join-code" type="text" maxlength="6" placeholder="ABC123"
+          style="width:100%;text-transform:uppercase;font-size:20px;letter-spacing:4px;text-align:center;padding:12px;" />
       </div>
     `;
 
@@ -208,33 +213,43 @@ export class HomeScreen implements Screen {
     const content = document.createElement("div");
     content.innerHTML = `
       <div class="settings-grid">
-        <label style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);">
-          <input type="checkbox" id="set-sound" ${s.get("soundEnabled") ? "checked" : ""} />
-          Sound Effects
-        </label>
-        <label style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);">
-          <input type="checkbox" id="set-colorblind" ${s.get("colorblindMode") ? "checked" : ""} />
-          Colorblind Mode
-        </label>
-        <label style="color:var(--text-secondary);">Table Theme
-          <select id="set-theme" style="margin-left:8px;">
+        <div class="modal-form-group">
+          <label>
+            <input type="checkbox" id="set-sound" ${s.get("soundEnabled") ? "checked" : ""} />
+            Sound Effects
+          </label>
+        </div>
+        <div class="modal-form-group">
+          <label>
+            <input type="checkbox" id="set-colorblind" ${s.get("colorblindMode") ? "checked" : ""} />
+            Colorblind Mode
+          </label>
+        </div>
+        <div class="modal-form-group">
+          <label for="set-theme">Table Theme</label>
+          <select id="set-theme">
             <option value="classic" ${s.get("tableTheme") === "classic" ? "selected" : ""}>Classic Green</option>
             <option value="royal" ${s.get("tableTheme") === "royal" ? "selected" : ""}>Royal Blue</option>
             <option value="rustic" ${s.get("tableTheme") === "rustic" ? "selected" : ""}>Rustic Brown</option>
           </select>
-        </label>
-        <label style="color:var(--text-secondary);">Card Skin
-          <select id="set-card-skin" style="margin-left:8px;">
+        </div>
+        <div class="modal-form-group">
+          <label>Card Skin</label>
+          <div class="skin-gallery" id="skin-gallery">
             ${skinOptions
               .map(
                 (skin) =>
-                  `<option value="${skin.id}" ${skin.id === selectedSkin ? "selected" : ""}>${skin.label}</option>`
+                  `<button type="button" class="skin-tile ${skin.id === selectedSkin ? "active" : ""}" data-skin="${skin.id}">
+                    <canvas class="skin-tile-canvas" width="120" height="56" data-skin-id="${skin.id}"></canvas>
+                    <span class="skin-tile-label">${skin.label}</span>
+                    ${skin.rarity === "legendary" ? '<span class="skin-tile-star">&#9733;</span>' : skin.rarity === "rare" ? '<span class="skin-tile-star rare">&#9733;</span>' : ""}
+                  </button>`
               )
               .join("")}
-          </select>
-        </label>
+          </div>
+          <input type="hidden" id="set-card-skin" value="${selectedSkin}" />
+        </div>
         <div id="set-skin-meta" class="settings-skin-meta"></div>
-        <canvas id="set-skin-preview" class="settings-skin-preview" width="280" height="130"></canvas>
 
         <details class="settings-skin-import">
           <summary>Import / Update Custom Skin</summary>
@@ -252,14 +267,31 @@ export class HomeScreen implements Screen {
       </div>
     `;
 
-    const skinSelect = content.querySelector("#set-card-skin") as HTMLSelectElement;
+    const skinInput = content.querySelector("#set-card-skin") as HTMLInputElement;
+    const skinGallery = content.querySelector("#skin-gallery") as HTMLElement;
     const colorblindInput = content.querySelector("#set-colorblind") as HTMLInputElement;
     const skinMeta = content.querySelector("#set-skin-meta") as HTMLElement;
-    const previewCanvas = content.querySelector("#set-skin-preview") as HTMLCanvasElement;
     const importBtn = content.querySelector("#set-skin-import-btn") as HTMLButtonElement;
     const removeBtn = content.querySelector("#set-skin-remove-btn") as HTMLButtonElement;
     const status = content.querySelector("#set-skin-status") as HTMLElement;
     const jsonInput = content.querySelector("#set-skin-json") as HTMLTextAreaElement;
+
+    const renderTileCanvases = (): void => {
+      content.querySelectorAll<HTMLCanvasElement>(".skin-tile-canvas").forEach((canvas) => {
+        const skinId = canvas.dataset.skinId!;
+        this.renderSkinTile(canvas, skinId, colorblindInput.checked);
+      });
+    };
+
+    const selectSkinTile = (skinId: string): void => {
+      skinInput.value = skinId;
+      skinGallery.querySelectorAll(".skin-tile").forEach((tile) => {
+        tile.classList.toggle("active", (tile as HTMLElement).dataset.skin === skinId);
+      });
+      const skin = skinOptions.find((entry) => entry.id === skinId);
+      skinMeta.textContent = skin ? `${skin.label}: ${skin.description}` : "";
+      removeBtn.disabled = !isCustomCardSkin(skinId);
+    };
 
     const refreshSkinOptions = (targetId?: string): void => {
       skinOptions = listCardSkins();
@@ -267,27 +299,35 @@ export class HomeScreen implements Screen {
         targetId && skinOptions.some((skin) => skin.id === targetId)
           ? targetId
           : skinOptions[0]?.id || "rocambor";
-      skinSelect.innerHTML = skinOptions
+      skinGallery.innerHTML = skinOptions
         .map(
           (skin) =>
-            `<option value="${skin.id}" ${skin.id === selectedId ? "selected" : ""}>${skin.label}</option>`
+            `<button type="button" class="skin-tile ${skin.id === selectedId ? "active" : ""}" data-skin="${skin.id}">
+              <canvas class="skin-tile-canvas" width="120" height="56" data-skin-id="${skin.id}"></canvas>
+              <span class="skin-tile-label">${skin.label}</span>
+              ${skin.rarity === "legendary" ? '<span class="skin-tile-star">&#9733;</span>' : skin.rarity === "rare" ? '<span class="skin-tile-star rare">&#9733;</span>' : ""}
+            </button>`
         )
         .join("");
+      selectSkinTile(selectedId);
+      attachTileHandlers();
+      renderTileCanvases();
     };
 
-    const updateSkinPreview = (): void => {
-      const skinId = skinSelect.value;
-      const skin = skinOptions.find((entry) => entry.id === skinId);
-      skinMeta.textContent = skin ? `${skin.label}: ${skin.description}` : "";
-      this.renderSkinPreview(previewCanvas, skinId, colorblindInput.checked);
-      removeBtn.disabled = !isCustomCardSkin(skinId);
+    const attachTileHandlers = (): void => {
+      skinGallery.querySelectorAll<HTMLButtonElement>(".skin-tile").forEach((tile) => {
+        tile.addEventListener("click", () => {
+          selectSkinTile(tile.dataset.skin!);
+        });
+      });
     };
 
-    refreshSkinOptions(selectedSkin);
-    updateSkinPreview();
+    // Initial render
+    selectSkinTile(selectedSkin);
+    attachTileHandlers();
+    renderTileCanvases();
 
-    skinSelect.addEventListener("change", () => updateSkinPreview());
-    colorblindInput.addEventListener("change", () => updateSkinPreview());
+    colorblindInput.addEventListener("change", () => renderTileCanvases());
 
     importBtn.addEventListener("click", () => {
       status.textContent = "";
@@ -299,7 +339,6 @@ export class HomeScreen implements Screen {
       try {
         const skin = importCustomCardSkin(raw);
         refreshSkinOptions(skin.id);
-        updateSkinPreview();
         status.textContent = `Imported skin: ${skin.label}`;
       } catch (err) {
         status.textContent = err instanceof Error ? err.message : "Could not import skin.";
@@ -307,7 +346,7 @@ export class HomeScreen implements Screen {
     });
 
     removeBtn.addEventListener("click", () => {
-      const skinId = skinSelect.value;
+      const skinId = skinInput.value;
       if (!isCustomCardSkin(skinId)) {
         status.textContent = "Select an imported custom skin first.";
         return;
@@ -318,7 +357,6 @@ export class HomeScreen implements Screen {
         return;
       }
       refreshSkinOptions("rocambor");
-      updateSkinPreview();
       status.textContent = "Skin removed.";
     });
 
@@ -333,12 +371,48 @@ export class HomeScreen implements Screen {
             s.set("soundEnabled", (content.querySelector("#set-sound") as HTMLInputElement).checked);
             s.set("colorblindMode", (content.querySelector("#set-colorblind") as HTMLInputElement).checked);
             s.set("tableTheme", (content.querySelector("#set-theme") as HTMLSelectElement).value as any);
-            s.set("cardSkin", (content.querySelector("#set-card-skin") as HTMLSelectElement).value);
+            s.set("cardSkin", (content.querySelector("#set-card-skin") as HTMLInputElement).value);
             showToast("Settings saved", "success");
           },
         },
       ],
     });
+  }
+
+  private renderSkinTile(canvas: HTMLCanvasElement, skinId: string, colorblind: boolean): void {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+
+    const drawTile = (): void => {
+      ctx.clearRect(0, 0, w, h);
+      const bg = ctx.createLinearGradient(0, 0, 0, h);
+      bg.addColorStop(0, "#2A4D41");
+      bg.addColorStop(1, "#1A2F28");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+
+      const cards: Card[] = [
+        { id: "tile-oros-1", s: "oros", r: 1 },
+        { id: "tile-copas-12", s: "copas", r: 12 },
+      ];
+
+      drawCard(ctx, 32, 28, 36, 48, cards[0], colorblind, { skin: skinId });
+      drawCard(ctx, 72, 28, 36, 48, cards[1], colorblind, { skin: skinId });
+      drawCard(ctx, 100, 28, 36, 48, null, colorblind, { skin: skinId, faceDown: true });
+    };
+
+    drawTile();
+
+    const skinDef = getCardSkinDefinition(skinId);
+    if (skinDef.imageMode && skinDef.imagePath) {
+      const atlas = getLoadedAtlas(skinId);
+      if (!atlas?.loaded) {
+        preloadSkinImages(skinId, skinDef.imagePath).then(() => drawTile());
+      }
+    }
   }
 
   private renderSkinPreview(canvas: HTMLCanvasElement, skinId: string, colorblind: boolean): void {
@@ -442,10 +516,11 @@ export class HomeScreen implements Screen {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 8px;
+        gap: 16px;
+        animation: fadeInUp var(--dur-slow) var(--ease-decelerate);
       }
       .home-logo {
-        margin-bottom: 24px;
+        margin-bottom: 8px;
       }
       .logo-img {
         max-width: 420px;
@@ -471,47 +546,61 @@ export class HomeScreen implements Screen {
         font-weight: 400;
       }
 
-      /* --- Hero play buttons --- */
-      .home-hero {
-        margin-bottom: 16px;
+      /* --- Play card (dominant CTA) --- */
+      .play-card {
         width: 100%;
-      }
-      .hero-row {
+        max-width: 340px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
         gap: 16px;
+        padding: 20px 24px;
+        border-radius: var(--radius-lg);
       }
-      .hero-btn {
-        flex: 1;
-        max-width: 200px;
-        padding: 16px 24px !important;
-        font-size: 16px !important;
-        font-weight: 700 !important;
-        border-radius: var(--radius-sm) !important;
-        position: relative;
-        overflow: hidden;
+
+      /* --- Mode toggle --- */
+      .mode-toggle {
+        display: flex;
+        background: rgba(0,0,0,0.25);
+        border-radius: var(--radius-pill);
+        padding: 3px;
+        gap: 2px;
       }
-      .hero-btn::after {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-        transition: left 0.4s ease;
-        pointer-events: none;
-      }
-      .hero-btn:hover::after {
-        left: 100%;
-      }
-      .badge {
-        display: inline-block;
-        font-size: 11px;
+      .mode-btn {
+        font-family: var(--font-sans);
+        font-size: 13px;
         font-weight: 600;
-        background: rgba(255,255,255,0.2);
-        padding: 2px 7px;
-        border-radius: 999px;
-        margin-left: 6px;
-        vertical-align: middle;
+        padding: 8px 20px;
+        border: none;
+        border-radius: var(--radius-pill);
+        background: transparent;
+        color: var(--text-on-felt-muted);
+        cursor: pointer;
+        transition: background var(--dur-fast) var(--ease-standard),
+                    color var(--dur-fast) var(--ease-standard);
+        min-height: 36px;
+      }
+      .mode-btn:hover:not(.active) {
+        color: var(--text-on-felt);
+        background: rgba(255,255,255,0.06);
+      }
+      .mode-btn.active {
+        background: rgba(200,166,81,0.2);
+        color: var(--color-gold);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      }
+      .mode-btn:focus-visible {
+        outline: none;
+        box-shadow: var(--focus-ring), var(--focus-ring-offset);
+      }
+
+      /* --- Play CTA --- */
+      .play-cta {
+        width: 100%;
+        max-width: 260px;
+        min-height: 52px;
+        font-size: 16px;
+        letter-spacing: 0.5px;
       }
 
       /* --- Secondary actions --- */
@@ -520,43 +609,54 @@ export class HomeScreen implements Screen {
         gap: 12px;
         width: 100%;
         justify-content: center;
-        margin-bottom: 12px;
       }
-      .home-secondary button {
+      .home-secondary .btn-ivory-engraved {
         flex: 1;
-        max-width: 180px;
-        padding: 10px 18px;
-        font-size: 14px;
-        color: var(--color-ivory) !important;
-        border-color: rgba(200,166,81,0.5) !important;
+        max-width: 160px;
+        font-size: 13px;
+        padding: 10px 16px;
+        color: var(--text-on-felt);
+        background: rgba(248,246,240,0.08);
+        border-color: rgba(200,166,81,0.4);
+        box-shadow: none;
       }
-      .home-secondary button:hover:not(:disabled) {
-        background: rgba(200,166,81,0.12) !important;
-        border-color: var(--color-gold) !important;
+      .home-secondary .btn-ivory-engraved:hover:not(:disabled) {
+        background: rgba(200,166,81,0.12);
+        border-color: var(--color-gold);
+        color: var(--color-ivory);
+        box-shadow: none;
       }
 
-      /* --- Divider --- */
-      .home-divider {
-        width: 60px;
-        height: 1px;
-        background: rgba(200,166,81,0.3);
-        margin: 8px 0;
+      /* --- Ornament divider on dark bg --- */
+      .home-center .ornament-divider {
+        width: 200px;
+        margin: 4px 0;
+      }
+      .home-center .ornament-divider::before {
+        background: linear-gradient(90deg, transparent, rgba(200,166,81,0.3));
+      }
+      .home-center .ornament-divider::after {
+        background: linear-gradient(90deg, rgba(200,166,81,0.3), transparent);
+      }
+      .home-center .ornament-dot {
+        opacity: 0.35;
       }
 
       /* --- Nav footer --- */
       .home-nav {
         display: flex;
-        gap: 8px;
-        margin-bottom: 16px;
+        gap: 4px;
       }
-      .home-nav button {
+      .home-nav .btn-ghost-felt {
+        color: var(--text-on-felt-muted);
         font-size: 13px;
         padding: 8px 14px;
-        color: rgba(248,246,240,0.7) !important;
+        border-color: transparent;
       }
-      .home-nav button:hover:not(:disabled) {
-        color: var(--color-ivory) !important;
-        background: rgba(255,255,255,0.06) !important;
+      .home-nav .btn-ghost-felt:hover:not(:disabled) {
+        color: var(--text-on-felt);
+        background: rgba(255,255,255,0.06);
+        border-color: transparent;
       }
 
       /* --- Connection status --- */
@@ -575,28 +675,79 @@ export class HomeScreen implements Screen {
         background: var(--error);
       }
 
-      /* --- General overrides for dark-on-green context --- */
-      .btn-row {
-        display: flex;
-        gap: 12px;
-        justify-content: center;
-      }
-      .home-screen .primary {
-        background: var(--color-crimson) !important;
-        border-color: var(--color-crimson) !important;
-        color: var(--color-ivory) !important;
-      }
-      .home-screen .primary:hover:not(:disabled) {
-        background: #962626 !important;
-        box-shadow: 0 4px 16px rgba(176,46,46,0.4);
-      }
-
-      /* --- Settings modal (inherits from global, slight overrides) --- */
+      /* --- Settings modal --- */
       .settings-grid {
         display: flex;
         flex-direction: column;
-        gap: 14px;
+        gap: 6px;
       }
+      .settings-grid .modal-form-group label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+
+      /* --- Skin Gallery --- */
+      .skin-gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 8px;
+        margin-top: 4px;
+      }
+      .skin-tile {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 6px;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-md);
+        background: var(--bg-tertiary);
+        cursor: pointer;
+        transition: border-color var(--dur-fast) var(--ease-standard),
+                    box-shadow var(--dur-fast) var(--ease-standard);
+        font-family: var(--font-sans);
+        font-size: 11px;
+        color: var(--text-secondary);
+      }
+      .skin-tile:hover {
+        border-color: var(--color-gold);
+      }
+      .skin-tile.active {
+        border-color: var(--color-gold);
+        box-shadow: 0 0 0 1px rgba(200,166,81,0.2), 0 0 12px rgba(200,166,81,0.15);
+        background: rgba(200,166,81,0.06);
+      }
+      .skin-tile.active .skin-tile-label {
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+      .skin-tile-canvas {
+        border-radius: 6px;
+        width: 100%;
+        height: auto;
+        pointer-events: none;
+      }
+      .skin-tile-label {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+      .skin-tile-star {
+        position: absolute;
+        top: 4px;
+        right: 6px;
+        font-size: 12px;
+        color: var(--color-gold);
+        line-height: 1;
+      }
+      .skin-tile-star.rare {
+        color: #A0A0A0;
+      }
+
       .settings-skin-meta {
         color: var(--text-secondary);
         font-size: 12px;
@@ -656,14 +807,16 @@ export class HomeScreen implements Screen {
           font-size: 36px;
           letter-spacing: 4px;
         }
-        .hero-row,
+        .play-card {
+          max-width: 100%;
+          padding: 16px 20px;
+        }
         .home-secondary {
           flex-direction: column;
           align-items: center;
         }
-        .hero-btn,
-        .home-secondary button {
-          max-width: 100% !important;
+        .home-secondary .btn-ivory-engraved {
+          max-width: 100%;
           width: 100%;
         }
         .home-nav {

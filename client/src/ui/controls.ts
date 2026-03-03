@@ -114,9 +114,11 @@ export class GameControls {
 
   private renderExchange(): string {
     const selected = this.state.selectedCards.size;
+    const maxExchange = this.state.hand.length;
     return `
       <div class="control-group">
-        <span class="control-label">Exchange (${selected} selected)</span>
+        <span class="control-label">Exchange</span>
+        <span class="exchange-count">${selected} / ${maxExchange}</span>
         <button class="exchange-btn primary" data-action="confirm">Exchange ${selected} card${selected !== 1 ? "s" : ""}</button>
         <button class="exchange-btn secondary" data-action="skip">Keep All</button>
       </div>

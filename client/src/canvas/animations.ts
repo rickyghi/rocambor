@@ -147,6 +147,24 @@ export class TrickWinAnimation implements Animation {
       ctx.fill();
     }
 
+    // Sparkle dots at cardinal points
+    if (progress < 0.6) {
+      const sparkleAlpha = (1 - progress / 0.6) * 0.8;
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = sparkleAlpha;
+      const sparkleRadius = radius + 4;
+      for (let i = 0; i < 8; i++) {
+        const angle = (i * Math.PI) / 4 + progress * Math.PI * 0.5;
+        const sx = this.centerX + Math.cos(angle) * sparkleRadius;
+        const sy = this.centerY + Math.sin(angle) * sparkleRadius;
+        const dotSize = (1 - progress / 0.6) * 3;
+        ctx.beginPath();
+        ctx.arc(sx, sy, dotSize, 0, Math.PI * 2);
+        ctx.fillStyle = "#C8A651";
+        ctx.fill();
+      }
+    }
+
     ctx.restore();
   }
 }

@@ -95,3 +95,17 @@ export const RADIUS = {
   lg: "20px",
   pill: "999px",
 } as const;
+
+export const MOTION = {
+  durMicro: 120,
+  durFast: 150,
+  durBase: 240,
+  durSlow: 400,
+} as const;
+
+export const SURFACES = {
+  parchment: "#F8F6F0",
+  felt: "#2A4D41",
+  feltDark: "#1A2F28",
+  card: "#FFFFFF",
+} as const;

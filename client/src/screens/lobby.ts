@@ -48,38 +48,52 @@ export class LobbyScreen implements Screen {
 
       if (isResting && mode === "tresillo") continue;
 
-      let label = "Empty";
-      let statusClass = "empty";
+      let label = "Open Seat";
+      let statusClass = "open";
+      let badgeLabel = "Open";
+      let badgeClass = "badge-open";
 
       if (player) {
         label = player.handle;
-        statusClass = player.isBot ? "bot" : player.connected ? "human" : "disconnected";
-      }
-
-      if (isMine) {
-        label += " (You)";
-        statusClass = "you";
+        if (isMine) {
+          statusClass = "you";
+          badgeLabel = "You";
+          badgeClass = "badge-you";
+        } else if (player.isBot) {
+          statusClass = "bot";
+          badgeLabel = "Bot";
+          badgeClass = "badge-bot";
+        } else if (!player.connected) {
+          statusClass = "offline";
+          badgeLabel = "Offline";
+          badgeClass = "badge-offline";
+        } else {
+          statusClass = "ready";
+          badgeLabel = "Ready";
+          badgeClass = "badge-ready";
+        }
       }
 
       seats.push(`
-        <div class="seat-card ${statusClass}" data-seat="${i}">
-          <div class="seat-icon">${player?.isBot ? "\uD83E\uDD16" : isMine ? "\uD83D\uDE0A" : "\uD83D\uDC64"}</div>
+        <div class="seat-plaque ${statusClass}" data-seat="${i}">
+          <span class="seat-badge ${badgeClass}">${badgeLabel}</span>
           <div class="seat-name">${label}</div>
-          <div class="seat-status">${statusClass === "empty" ? "Open" : statusClass === "bot" ? "Bot" : statusClass === "disconnected" ? "Offline" : "Ready"}</div>
-          ${statusClass === "empty" && mySeat === null ? `<button class="take-seat-btn" data-seat="${i}">Sit Here</button>` : ""}
+          ${statusClass === "open" && mySeat === null ? `<button class="btn-ivory-engraved take-seat-btn" data-seat="${i}">Sit Here</button>` : ""}
         </div>
       `);
     }
 
+    const modeLabel = mode === "tresillo" ? "Tresillo" : "Quadrille";
+
     this.container.innerHTML = `
       <div class="screen lobby-screen">
         <div class="lobby-header">
-          <button class="back-btn" data-action="leave">\u2190 Leave</button>
-          <div class="room-info">
+          <button class="btn-ghost-felt back-btn" data-action="leave">\u2190 Leave</button>
+          <div class="room-info-strip">
             <span class="room-code">${code}</span>
-            <span class="room-mode">${mode === "tresillo" ? "Tresillo (3P)" : "Quadrille (4P)"}</span>
+            <span class="room-meta">${modeLabel}</span>
           </div>
-          <button class="copy-code-btn" data-action="copy">Copy Code</button>
+          <button class="btn-ivory-engraved copy-code-btn" data-action="copy">Copy Code</button>
         </div>
 
         <div class="lobby-body">
@@ -89,7 +103,7 @@ export class LobbyScreen implements Screen {
           </div>
 
           <div class="lobby-actions">
-            ${mySeat !== null ? `<button class="primary start-btn" data-action="start">Start Game</button>` : ""}
+            ${mySeat !== null ? `<button class="btn-gold-plaque start-btn" data-action="start">Start Game</button>` : ""}
           </div>
         </div>
       </div>
@@ -141,24 +155,26 @@ export class LobbyScreen implements Screen {
         align-items: center;
         justify-content: space-between;
         padding: 12px 16px;
-        background: var(--bg-secondary);
+        background: var(--surface-card);
         border-bottom: 1px solid rgba(200,166,81,0.2);
       }
-      .room-info {
+      .room-info-strip {
         display: flex;
         flex-direction: column;
         align-items: center;
+        gap: 2px;
       }
       .room-code {
-        font-family: var(--font-serif);
-        font-size: 24px;
+        font-family: var(--font-display);
+        font-size: 22px;
         font-weight: 700;
         letter-spacing: 6px;
         color: var(--color-gold);
       }
-      .room-mode {
+      .room-meta {
         font-size: 12px;
         color: var(--text-secondary);
+        letter-spacing: 0.5px;
       }
       .lobby-body {
         flex: 1;
@@ -168,13 +184,15 @@ export class LobbyScreen implements Screen {
         justify-content: center;
         padding: 32px;
         gap: 32px;
+        animation: fadeInUp var(--dur-slow) var(--ease-decelerate);
       }
       .lobby-body h2 {
         font-family: var(--font-serif);
         color: var(--text-secondary);
-        font-size: 18px;
+        font-size: 16px;
         text-transform: uppercase;
         letter-spacing: 3px;
+        font-weight: 400;
       }
       .seats-grid {
         display: grid;
@@ -183,24 +201,110 @@ export class LobbyScreen implements Screen {
         max-width: 720px;
         width: 100%;
       }
-      .seat-card {
-        background: var(--bg-tertiary);
+
+      /* --- Seat plaques --- */
+      .seat-plaque {
+        background: var(--surface-parchment);
         border: 2px solid var(--border);
         border-radius: var(--radius-lg);
         padding: 20px;
         text-align: center;
-        transition: border-color 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        transition: border-color var(--dur-fast) var(--ease-standard),
+                    box-shadow var(--dur-fast) var(--ease-standard);
       }
-      .seat-card.you { border-color: var(--text-accent); }
-      .seat-card.human { border-color: var(--success); }
-      .seat-card.bot { border-color: var(--info); }
-      .seat-card.disconnected { border-color: var(--error); opacity: 0.6; }
-      .seat-icon { font-size: 32px; margin-bottom: 8px; }
-      .seat-name { font-weight: 600; margin-bottom: 4px; }
-      .seat-status { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
-      .take-seat-btn { font-size: 12px; padding: 6px 12px; }
-      .lobby-actions { margin-top: 16px; }
-      .start-btn { padding: 14px 32px; font-size: 16px; }
+      .seat-plaque.you {
+        border-color: var(--color-gold);
+        box-shadow: 0 0 0 1px rgba(200,166,81,0.15), var(--shadow-soft);
+      }
+      .seat-plaque.ready {
+        border-color: var(--success);
+      }
+      .seat-plaque.bot {
+        border-color: var(--info);
+      }
+      .seat-plaque.offline {
+        border-color: var(--error);
+        opacity: 0.65;
+      }
+      .seat-plaque.open {
+        border-style: dashed;
+        border-color: var(--border-light);
+      }
+
+      /* --- Seat badges --- */
+      .seat-badge {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        padding: 3px 10px;
+        border-radius: var(--radius-pill);
+      }
+      .badge-you {
+        background: rgba(200,166,81,0.15);
+        color: var(--color-gold);
+      }
+      .badge-ready {
+        background: rgba(31,122,77,0.1);
+        color: var(--success);
+      }
+      .badge-bot {
+        background: rgba(116,192,252,0.12);
+        color: #2D8AC7;
+      }
+      .badge-offline {
+        background: rgba(176,46,46,0.1);
+        color: var(--error);
+      }
+      .badge-open {
+        background: rgba(0,0,0,0.04);
+        color: var(--text-secondary);
+      }
+
+      .seat-name {
+        font-weight: 600;
+        font-size: 15px;
+        color: var(--text-primary);
+      }
+      .take-seat-btn {
+        font-size: 12px;
+        padding: 6px 16px;
+        margin-top: 4px;
+      }
+
+      .lobby-actions {
+        margin-top: 8px;
+      }
+      .start-btn {
+        padding: 14px 40px;
+        font-size: 16px;
+        min-height: 52px;
+      }
+
+      @media (max-width: 480px) {
+        .lobby-body {
+          padding: 24px 16px;
+          gap: 24px;
+        }
+        .seats-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        .seat-plaque {
+          padding: 16px 12px;
+        }
+        .lobby-header {
+          padding: 10px 12px;
+        }
+        .room-code {
+          font-size: 18px;
+          letter-spacing: 4px;
+        }
+      }
     `;
     document.head.appendChild(style);
   }

@@ -13,6 +13,9 @@ export interface SuitPalette {
   secondary: string;
 }
 
+export type SkinTheme = "classic" | "modern" | "ornate" | "custom";
+export type SkinRarity = "common" | "rare" | "legendary";
+
 export interface CardSkinDefinition {
   id: string;
   label: string;
@@ -37,6 +40,10 @@ export interface CardSkinDefinition {
   // Image-based skin support
   imageMode?: boolean;
   imagePath?: string;
+  // Metadata
+  author?: string;
+  theme?: SkinTheme;
+  rarity?: SkinRarity;
 }
 
 export interface CardSkinImportInput {
@@ -69,6 +76,9 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     id: "rocambor",
     label: "Rocambor",
     description: "Ivory, gold, forest green, and deep crimson",
+    author: "Rocambor",
+    theme: "ornate",
+    rarity: "rare",
     faceColor: "#F8F6F0",
     faceBorderColor: "#C8A651",
     backColor: "#2A4D41",
@@ -101,6 +111,9 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     id: "classic",
     label: "Classic",
     description: "High-contrast traditional deck",
+    author: "Rocambor",
+    theme: "classic",
+    rarity: "common",
     faceColor: "#fefefe",
     faceBorderColor: "#cccccc",
     backColor: "#2d1b4a",
@@ -121,6 +134,9 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     id: "minimal",
     label: "Minimal",
     description: "Modern flat style",
+    author: "Rocambor",
+    theme: "modern",
+    rarity: "common",
     faceColor: "#f7f8fa",
     faceBorderColor: "#d1d5db",
     backColor: "#1f2937",
@@ -141,6 +157,9 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     id: "parchment",
     label: "Parchment",
     description: "Aged paper and warm accents",
+    author: "Rocambor",
+    theme: "ornate",
+    rarity: "common",
     faceColor: "#f4ead2",
     faceBorderColor: "#b08b5c",
     backColor: "#6b3f22",
@@ -161,6 +180,9 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     id: "clasica",
     label: "Clasica (Fournier)",
     description: "Traditional Heraclio Fournier card art",
+    author: "Heraclio Fournier",
+    theme: "classic",
+    rarity: "legendary",
     imageMode: true,
     imagePath: "/cards/clasica",
     // Procedural fallback properties (used for cards without images)

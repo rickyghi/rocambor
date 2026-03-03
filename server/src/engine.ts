@@ -80,14 +80,9 @@ export function legalPlays(
     const must = hand.filter((c) => isTrump(tr, c));
     return must.length ? must : hand.slice();
   }
+  // Matadors always behave as trump, not as plain suit followers.
   const must = hand.filter((c) => c.s === led.s && !isMatador(tr, c));
-  // If the card is a matador and the led suit matches its printed suit,
-  // the player can still choose to play it but isn't forced to follow suit with it
-  const matadorsOfSuit = hand.filter(
-    (c) => c.s === led.s && isMatador(tr, c)
-  );
-  const combined = [...must, ...matadorsOfSuit];
-  if (combined.length) return combined;
+  if (must.length) return must;
   // Void in led suit: must play trump if holding any
   const trumps = hand.filter((c) => isTrump(tr, c));
   return trumps.length ? trumps : hand.slice();
@@ -113,10 +108,11 @@ export function trickWinner(
   }
 
   function plainVal(s: Suit, r: Rank): number {
-    const nb = isBlack(s);
-    const map: Record<number, number> = nb
-      ? { 12: 10, 11: 9, 10: 8, 7: 7, 6: 6, 5: 5, 4: 4, 3: 3, 2: 2, 1: 1 }
-      : { 12: 10, 11: 9, 10: 8, 1: 7, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2, 7: 1 };
+    // Non-trump suit ranking is uniform across suits:
+    // K > C > S > A > 2 > 3 > 4 > 5 > 6 > 7
+    const map: Record<number, number> = {
+      12: 10, 11: 9, 10: 8, 1: 7, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2, 7: 1,
+    };
     return map[r] || 0;
   }
 
