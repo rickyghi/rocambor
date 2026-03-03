@@ -1,7 +1,7 @@
 # CLAUDE.md — RocamborMP Project Guide
 
 ## Project Overview
-Multiplayer Spanish trick-taking card game (Tresillo/Quadrille) with a Node.js WebSocket server and Vite-bundled browser client using HTML5 Canvas rendering.
+Multiplayer Spanish trick-taking card game (Tresillo/Quadrille) with a Node.js WebSocket server and Vite-bundled browser client using HTML5 Canvas rendering. Premium tabletop UI theme with ivory/gold/green brand palette.
 
 ## Dev Environment Setup
 ```bash
@@ -17,7 +17,7 @@ npm install
 ```bash
 cd server && npx vitest run
 ```
-All 78 tests should pass. Simulation tests use `vi.useFakeTimers()` from Vitest to control the Room's internal timer-driven bot flow.
+All 87 tests should pass. Simulation tests use `vi.useFakeTimers()` from Vitest to control the Room's internal timer-driven bot flow.
 
 ## Key Architecture Decisions
 
@@ -63,6 +63,63 @@ The simulation tests (`simulation.test.ts`) use Vitest fake timers to run full b
 4. Use `vi.advanceTimersByTime(1500)` in a loop to drive bot actions naturally
 5. Clean up with `vi.clearAllTimers()`
 
+## UI/UX Design System
+
+### Brand Palette
+- **Ivory** `#F8F6F0` — Primary background, parchment surfaces
+- **Gold** `#C8A651` — Accent, borders, CTAs (use as accent, not fill)
+- **Black** `#0D0D0D` — Text, contrast
+- **Crimson** `#B02E2E` — Danger/error only (not primary CTAs)
+- **Forest Green** `#2A4D41` — Felt/table surfaces
+
+### Typography
+- **Inter** — Body/UI text (variable weight sans-serif)
+- **Playfair Display** — Serif headings (loaded via Google Fonts)
+- **NoeDisplay Bold** — Display/logo text (local @font-face)
+
+### Design Token System
+CSS variables in `global.css` `:root` — semantic surfaces, motion timing, focus rings, shadows.
+TypeScript constants in `design-tokens.ts` — `COLORS`, `FONT`, `SPACING`, `RADIUS`, `MOTION`, `SURFACES` for canvas rendering.
+
+### Branded Component Classes
+- **`.btn-gold-plaque`** — Premium gold gradient CTA (gradient bg, plaque shadow, shimmer hover)
+- **`.btn-ivory-engraved`** — Secondary parchment button (carved inset shadow, gold border hover)
+- **`.btn-ghost-felt`** — Tertiary transparent button for dark backgrounds
+- **`.panel-parchment`** — Ivory surface panel with gold border
+- **`.panel-felt`** — Dark semi-transparent panel with backdrop blur
+- **`.ornament-divider`** — Gold gradient lines with center dot
+- **`.skel-block`** / **`.skel-text`** / **`.skel-circle`** — Skeleton loading primitives
+
+### Motion Tokens
+```css
+--dur-micro: 120ms;   /* Micro interactions (press feedback) */
+--dur-fast: 150ms;    /* Standard hover/focus transitions */
+--dur-base: 240ms;    /* Modal entrances, screen transitions */
+--dur-slow: 400ms;    /* Entrance animations (fadeInUp) */
+```
+
+### Canvas Rendering
+- Fixed 1024×720 logical resolution, CSS-scaled to container
+- `renderer.ts` — Main render loop (table bg, players, cards, animations, HUD)
+- Unified top HUD strip: phase | contract · trump | target
+- Card skins: procedural (`drawCard()`) + image-based (`CardImageAtlas`)
+- Animations: `CardPlayAnimation`, `TrickWinAnimation` (with sparkle dots), `CardDealAnimation`, `ScoreChangeAnimation`
+
+### Card Skin System
+- `card-skin-registry.ts` — Built-in skins (rocambor, classic, minimal, parchment, clasica) + custom import/export via localStorage
+- Each skin has metadata: `author`, `theme` (classic/modern/ornate/custom), `rarity` (common/rare/legendary)
+- Settings modal uses visual tile grid with mini canvas previews and rarity stars
+- Image-mode skins load sprite atlases from `/cards/{skinId}/` via `card-image-loader.ts`
+
+### Screen Architecture
+- Hybrid DOM + Canvas: screens implement `Screen` interface (`mount`/`unmount`)
+- 6 screens: `home`, `lobby`, `game`, `post-hand`, `match-summary`, `leaderboard`
+- Each screen injects `<style>` via `addStyles()` with ID-gated dedup
+- Home: single Play CTA + mode toggle, ornament dividers, skin gallery in settings
+- Lobby: seat plaques with text badges, compact room header
+- Game: canvas + parchment controls bar
+- Leaderboard: skeleton loading, gradient rank badges, self-row highlight, empty state
+
 ## Deployment
 
 ### Live URLs
@@ -77,15 +134,16 @@ The simulation tests (`simulation.test.ts`) use Vitest fake timers to run full b
 - The NIXPACKS build phase runs `npm run build` (root script builds both server + client). The start command only runs the server.
 
 ### Netlify (Client)
-- Config: `netlify.toml` — builds from `client/`, publishes `dist/`, SPA fallback, security headers
-- CLI: `netlify deploy --prod --dir=client/dist --site=b1b0f56c-fad3-401a-b2eb-ef23cd2ab33a --no-build --filter rocambor-client`
-- Must use `--filter rocambor-client` due to monorepo workspace detection
-- Client is built locally with `VITE_WS_URL=wss://rocambor-server-production.up.railway.app` baked in
+- Config: `netlify.toml` — builds from `client/`, publishes `dist/`, SPA fallback, security headers (CSP allows Google Fonts)
+- Deploy pre-built dist: `cd client && npx netlify-cli deploy --prod --dir dist --no-build`
+- Site ID: `b1b0f56c-fad3-401a-b2eb-ef23cd2ab33a` (stored in `client/.netlify/state.json`)
+- The Netlify CLI has a monorepo detection bug — use `--no-build` with pre-built dist to avoid interactive prompts
+- Build command in `netlify.toml` includes `VITE_WS_URL` and `VITE_API_URL` env vars
 
 ### WebSocket URL (cross-domain)
 `client/src/connection.ts` uses `VITE_WS_URL` env var for split deployments. Set this when building the client:
 ```bash
-cd client && VITE_WS_URL=wss://rocambor-server-production.up.railway.app npm run build
+cd client && VITE_WS_URL=wss://rocambor-server-production.up.railway.app VITE_API_URL=https://rocambor-server-production.up.railway.app npm run build
 ```
 If not set, falls back to `location.hostname` (works when server/client share domain).
 
@@ -104,10 +162,11 @@ The server tsconfig uses `rootDir: ".."` so tsc outputs preserve the full direct
 | `DATABASE_URL` | Railway | Optional | PostgreSQL connection — server runs fine without it |
 | `REDIS_URL` | Railway | Optional | Redis connection — server runs fine without it |
 | `VITE_WS_URL` | Build-time | Required for split deploy | WebSocket URL baked into client at build time |
+| `VITE_API_URL` | Build-time | Required for split deploy | REST API URL baked into client at build time |
 
 ### CI/CD
 GitHub Actions (`.github/workflows/ci.yml`) runs on push to `main`:
-- Server job: install → type-check → test (78 tests) → build
+- Server job: install → type-check → test (87 tests) → build
 - Client job: install → type-check → build
 
 ## File Structure
@@ -128,11 +187,21 @@ client/src/
   connection.ts — WebSocket client
   state.ts      — Client-side state management
   router.ts     — Screen navigation
-  screens/      — UI screens (home, lobby, game, post-hand, match-summary)
+  screens/      — UI screens (home, lobby, game, post-hand, match-summary, leaderboard)
   canvas/       — HTML5 Canvas rendering (cards, players, table, animations)
+    renderer.ts   — Main render loop + unified HUD strip
+    cards.ts      — Procedural card drawing
+    card-skin-registry.ts — Skin definitions + custom import/export
+    card-image-loader.ts  — Image atlas loading for image-mode skins
+    animations.ts — Card play, trick win (sparkle dots), deal, score animations
+    table.ts      — Table background rendering
+    players.ts    — Player names, scores, opponent cards
+    layout.ts     — Canvas layout calculations
   ui/           — Controls, settings, modals, toasts
   audio/        — Sound effects
-  styles/       — CSS + design tokens
+  styles/
+    global.css      — CSS variables, branded components, keyframes, responsive
+    design-tokens.ts — TypeScript constants for canvas (COLORS, FONT, SPACING, RADIUS, MOTION, SURFACES)
 
 shared/
   types.ts      — Shared TypeScript types (Card, Suit, GameState, etc.)
