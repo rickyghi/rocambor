@@ -1,7 +1,7 @@
 [build]
   base = "client"
   publish = "dist"
-  command = "npm run build"
+  command = "VITE_WS_URL=wss://rocambor-server-production.up.railway.app VITE_API_URL=https://rocambor-server-production.up.railway.app npm run build"
 
 # SPA fallback - serve index.html for all routes
 [[redirects]]

@@ -4,11 +4,13 @@ import { showToast } from "../ui/toast";
 import type { Card, Mode } from "../protocol";
 import { drawCard } from "../canvas/cards";
 import {
+  getCardSkinDefinition,
   importCustomCardSkin,
   isCustomCardSkin,
   listCardSkins,
   removeCustomCardSkin,
 } from "../canvas/card-skin-registry";
+import { preloadSkinImages, getLoadedAtlas } from "../canvas/card-image-loader";
 
 export class HomeScreen implements Screen {
   private ctx!: AppContext;
@@ -24,9 +26,9 @@ export class HomeScreen implements Screen {
         <div class="home-bg"></div>
         <div class="home-center">
           <div class="home-logo">
-            <img src="/logo/wordmark.png" alt="Rocambor" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+            <img src="/logo/wordmark.png" alt="Rocambor — The Game of Ombre" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='block';this.parentElement.querySelector('.logo-tagline').style.display='block'" />
             <h1 class="logo-text" style="display:none">ROCAMBOR</h1>
-            <p class="logo-tagline">THE GAME OF OMBRE</p>
+            <p class="logo-tagline" style="display:none">THE GAME OF OMBRE</p>
           </div>
 
           <div class="home-hero">
@@ -343,26 +345,42 @@ export class HomeScreen implements Screen {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
+    const drawPreview = (): void => {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
 
-    const bg = ctx.createLinearGradient(0, 0, 0, h);
-    bg.addColorStop(0, "#2A4D41");
-    bg.addColorStop(1, "#1A2F28");
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, w, h);
+      const bg = ctx.createLinearGradient(0, 0, 0, h);
+      bg.addColorStop(0, "#2A4D41");
+      bg.addColorStop(1, "#1A2F28");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
 
-    const cards: Card[] = [
-      { id: "preview-oros-1", s: "oros", r: 1 },
-      { id: "preview-copas-7", s: "copas", r: 7 },
-      { id: "preview-espadas-12", s: "espadas", r: 12 },
-    ];
+      const cards: Card[] = [
+        { id: "preview-oros-1", s: "oros", r: 1 },
+        { id: "preview-copas-7", s: "copas", r: 7 },
+        { id: "preview-espadas-12", s: "espadas", r: 12 },
+      ];
 
-    drawCard(ctx, 56, 65, 54, 84, cards[0], colorblind, { skin: skinId });
-    drawCard(ctx, 122, 65, 54, 84, cards[1], colorblind, { skin: skinId });
-    drawCard(ctx, 188, 65, 54, 84, cards[2], colorblind, { skin: skinId });
-    drawCard(ctx, 242, 65, 54, 84, null, colorblind, { skin: skinId, faceDown: true });
+      drawCard(ctx, 56, 65, 54, 84, cards[0], colorblind, { skin: skinId });
+      drawCard(ctx, 122, 65, 54, 84, cards[1], colorblind, { skin: skinId });
+      drawCard(ctx, 188, 65, 54, 84, cards[2], colorblind, { skin: skinId });
+      drawCard(ctx, 242, 65, 54, 84, null, colorblind, { skin: skinId, faceDown: true });
+    };
+
+    // Draw immediately (procedural fallback)
+    drawPreview();
+
+    // For image skins, preload images then redraw
+    const skinDef = getCardSkinDefinition(skinId);
+    if (skinDef.imageMode && skinDef.imagePath) {
+      const atlas = getLoadedAtlas(skinId);
+      if (!atlas?.loaded) {
+        preloadSkinImages(skinId, skinDef.imagePath).then(() => {
+          drawPreview();
+        });
+      }
+    }
   }
 
   private showRulesModal(): void {
@@ -430,10 +448,10 @@ export class HomeScreen implements Screen {
         margin-bottom: 24px;
       }
       .logo-img {
-        max-width: 320px;
+        max-width: 420px;
         width: 100%;
         height: auto;
-        filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+        filter: drop-shadow(0 2px 12px rgba(0,0,0,0.5));
       }
       .logo-text {
         font-size: 56px;
@@ -632,7 +650,7 @@ export class HomeScreen implements Screen {
           padding: 28px 16px 20px;
         }
         .logo-img {
-          max-width: 240px;
+          max-width: 300px;
         }
         .logo-text {
           font-size: 36px;
