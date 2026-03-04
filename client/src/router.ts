@@ -2,12 +2,14 @@ import type { ConnectionManager } from "./connection";
 import type { ClientState } from "./state";
 import type { SoundManager } from "./audio/sounds";
 import type { SettingsManager } from "./ui/settings";
+import type { ProfileManager } from "./lib/profile";
 
 export interface AppContext {
   connection: ConnectionManager;
   state: ClientState;
   sounds: SoundManager;
   settings: SettingsManager;
+  profile: ProfileManager;
   router: Router;
 }
 
@@ -38,6 +40,17 @@ export class Router {
   }
 
   navigate(name: string, _params?: Record<string, string>): void {
+    const factory = this.screens.get(name);
+    if (!factory) {
+      console.error(`[router] Unknown screen: ${name}`);
+      return;
+    }
+
+    const targetHash = `#${name}`;
+    if (window.location.hash !== targetHash) {
+      window.location.hash = name;
+    }
+
     if (this.currentName === name) return;
 
     if (this.current) {
@@ -46,12 +59,6 @@ export class Router {
     }
 
     this.container.innerHTML = "";
-
-    const factory = this.screens.get(name);
-    if (!factory) {
-      console.error(`[router] Unknown screen: ${name}`);
-      return;
-    }
 
     this.current = factory();
     this.currentName = name;
@@ -64,8 +71,14 @@ export class Router {
 
   private handleHash(): void {
     const hash = window.location.hash.slice(1);
-    if (hash && this.screens.has(hash)) {
-      this.navigate(hash);
+    if (!hash) {
+      this.navigate("home");
+      return;
     }
+    if (this.screens.has(hash)) {
+      this.navigate(hash);
+      return;
+    }
+    this.navigate("home");
   }
 }

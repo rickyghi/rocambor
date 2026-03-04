@@ -22,6 +22,17 @@ interface MemoryStats {
 
 const inMemoryLeaderboard = new Map<string, MemoryStats>();
 
+// ---- Elo calculation ----
+export function computeElo(
+  ratingA: number,
+  ratingB: number,
+  scoreA: number, // 1.0 for win, 0.0 for loss
+  K = 32
+): number {
+  const expectedA = 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
+  return Math.round(ratingA + K * (scoreA - expectedA));
+}
+
 export async function createRoomRecord(
   roomId: string,
   mode: Mode
@@ -96,7 +107,39 @@ export async function saveMatchResult(data: {
   playerIds: (string | null)[];
   playerHandles: (string | null)[];
 }): Promise<void> {
-  // Always track runtime stats, even when DB is unavailable.
+  // Collect current Elos for all human players
+  const eloMap = new Map<string, number>();
+  for (let i = 0; i < data.playerIds.length; i++) {
+    const pid = data.playerIds[i];
+    if (!pid) continue;
+    const prev = inMemoryLeaderboard.get(pid);
+    eloMap.set(pid, prev?.elo ?? 1200);
+  }
+
+  // Compute new Elos
+  const newElos = new Map<string, number>();
+  for (let i = 0; i < data.playerIds.length; i++) {
+    const pid = data.playerIds[i];
+    if (!pid) continue;
+    const myElo = eloMap.get(pid) ?? 1200;
+    const isWinner = i === data.winner;
+
+    // Average opponent Elo
+    const opponentElos: number[] = [];
+    for (let j = 0; j < data.playerIds.length; j++) {
+      if (j !== i && data.playerIds[j]) {
+        opponentElos.push(eloMap.get(data.playerIds[j]!) ?? 1200);
+      }
+    }
+    const avgOpponentElo =
+      opponentElos.length > 0
+        ? opponentElos.reduce((a, b) => a + b, 0) / opponentElos.length
+        : 1200;
+
+    newElos.set(pid, computeElo(myElo, avgOpponentElo, isWinner ? 1.0 : 0.0));
+  }
+
+  // Update in-memory leaderboard with new Elos
   for (let i = 0; i < data.playerIds.length; i++) {
     const pid = data.playerIds[i];
     if (!pid) continue;
@@ -108,7 +151,7 @@ export async function saveMatchResult(data: {
       handle,
       gamesPlayed: (prev?.gamesPlayed || 0) + 1,
       wins: (prev?.wins || 0) + (isWinner ? 1 : 0),
-      elo: prev?.elo || 1200,
+      elo: newElos.get(pid) ?? (prev?.elo || 1200),
       lastPlayed: new Date().toISOString(),
     };
     inMemoryLeaderboard.set(pid, next);
@@ -125,6 +168,30 @@ export async function saveMatchResult(data: {
     );
     if (!tableCheck.rows[0].exists) return;
 
+    // Fetch current DB Elos for more accurate calculation
+    const dbEloMap = new Map<string, number>();
+    for (const pid of data.playerIds.filter(Boolean) as string[]) {
+      const res = await db.query("SELECT elo FROM players WHERE id = $1", [pid]);
+      dbEloMap.set(pid, res.rows[0]?.elo ?? 1200);
+    }
+
+    // Recompute Elos from DB values
+    const dbNewElos = new Map<string, number>();
+    for (let i = 0; i < data.playerIds.length; i++) {
+      const pid = data.playerIds[i];
+      if (!pid) continue;
+      const myElo = dbEloMap.get(pid) ?? 1200;
+      const isWinner = i === data.winner;
+      const opps = data.playerIds
+        .filter((_, j) => j !== i && data.playerIds[j] !== null)
+        .map((opId) => dbEloMap.get(opId!) ?? 1200);
+      const avgOpp =
+        opps.length > 0
+          ? opps.reduce((a, b) => a + b, 0) / opps.length
+          : 1200;
+      dbNewElos.set(pid, computeElo(myElo, avgOpp, isWinner ? 1.0 : 0.0));
+    }
+
     for (let i = 0; i < data.playerIds.length; i++) {
       const pid = data.playerIds[i];
       if (!pid) continue; // skip bots
@@ -139,14 +206,15 @@ export async function saveMatchResult(data: {
         [data.roomId, pid, i, data.finalScores[i] || 0, isWinner]
       );
 
-      // Update player stats
+      // Update player stats + Elo
       await db.query(
         `UPDATE players SET
            games_played = COALESCE(games_played, 0) + 1,
            wins = COALESCE(wins, 0) + $2,
+           elo = $3,
            last_played = NOW()
          WHERE id = $1`,
-        [pid, isWinner ? 1 : 0]
+        [pid, isWinner ? 1 : 0, dbNewElos.get(pid) ?? 1200]
       );
     }
   } catch (e) {
@@ -197,7 +265,7 @@ export async function getLeaderboard(
            last_played
          FROM players
          WHERE COALESCE(games_played, 0) > 0
-         ORDER BY wins DESC, games_played DESC, elo DESC, last_played DESC NULLS LAST
+         ORDER BY elo DESC, wins DESC, games_played DESC, last_played DESC NULLS LAST
          LIMIT $1`,
         [safeLimit]
       );
@@ -223,9 +291,9 @@ export async function getLeaderboard(
 
   return [...inMemoryLeaderboard.values()]
     .sort((a, b) => {
+      if (b.elo !== a.elo) return b.elo - a.elo;
       if (b.wins !== a.wins) return b.wins - a.wins;
-      if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
-      return b.elo - a.elo;
+      return b.gamesPlayed - a.gamesPlayed;
     })
     .slice(0, safeLimit)
     .map((entry) => ({

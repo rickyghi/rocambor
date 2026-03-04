@@ -1,5 +1,6 @@
 import type { Screen, AppContext } from "../router";
 import type { GameState, SeatIndex } from "../protocol";
+import { escapeHtml } from "../utils/escape";
 
 export class PostHandScreen implements Screen {
   private ctx!: AppContext;
@@ -84,7 +85,7 @@ export class PostHandScreen implements Screen {
             <div class="post-hand-details">
               <div class="detail-row">
                 <span class="detail-label">Contract</span>
-                <span class="detail-value">${contractLabels[contract || ""] || contract || "-"}</span>
+                <span class="detail-value">${contractLabels[contract || ""] || escapeHtml(contract || "-")}</span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Trump</span>
@@ -219,7 +220,7 @@ export class PostHandScreen implements Screen {
     if (seat === null) return "...";
     if (seat === this.ctx.state.mySeat) return "You";
     const player = this.ctx.state.game?.players[seat];
-    return player?.handle || `Seat ${seat}`;
+    return escapeHtml(player?.handle || `Seat ${seat}`);
   }
 
   private addStyles(): void {

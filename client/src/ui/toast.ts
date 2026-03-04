@@ -6,6 +6,8 @@ function ensureContainer(): HTMLElement {
   if (!container) {
     container = document.createElement("div");
     container.id = "toasts";
+    container.setAttribute("aria-live", "polite");
+    container.setAttribute("aria-atomic", "true");
     document.body.appendChild(container);
   }
   return container;
@@ -19,6 +21,7 @@ export function showToast(
   const c = ensureContainer();
   const el = document.createElement("div");
   el.className = `toast ${type}`;
+  el.setAttribute("role", "status");
   el.textContent = message;
   c.appendChild(el);
 

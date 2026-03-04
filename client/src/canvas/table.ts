@@ -1,15 +1,80 @@
 import { TABLE_THEMES, type TableTheme } from "../styles/design-tokens";
 
-let textureCanvas: OffscreenCanvas | null = null;
-let textureTheme: string | null = null;
+type TextureCanvas = OffscreenCanvas | HTMLCanvasElement;
 
-function ensureTexture(w: number, h: number, theme: TableTheme): OffscreenCanvas {
+let textureCanvas: TextureCanvas | null = null;
+let textureTheme: string | null = null;
+let feltImage: HTMLImageElement | null = null;
+let feltReady = false;
+let watermarkImage: HTMLImageElement | null = null;
+let watermarkReady = false;
+
+function invalidateTextureCache(): void {
+  textureCanvas = null;
+  textureTheme = null;
+}
+
+function ensureAssetsLoaded(): void {
+  if (!feltImage) {
+    feltImage = new Image();
+    feltImage.onload = () => {
+      feltReady = true;
+      invalidateTextureCache();
+    };
+    feltImage.onerror = () => {
+      if (feltImage && !feltImage.src.endsWith("/textures/felt.png")) {
+        feltImage.src = "/textures/felt.png";
+        return;
+      }
+      feltReady = false;
+    };
+    feltImage.src = "/assets/rocambor/felt-texture.jpg";
+  }
+
+  if (!watermarkImage) {
+    watermarkImage = new Image();
+    watermarkImage.onload = () => {
+      watermarkReady = true;
+    };
+    watermarkImage.onerror = () => {
+      if (watermarkImage && !watermarkImage.src.endsWith("/brand/rocambor-watermark.svg")) {
+        watermarkImage.src = "/brand/rocambor-watermark.svg";
+        return;
+      }
+      watermarkReady = false;
+    };
+    watermarkImage.src = "/assets/rocambor/rocambor-watermark.svg";
+  }
+}
+
+function createTextureCanvas(w: number, h: number): TextureCanvas {
+  if (typeof OffscreenCanvas !== "undefined") {
+    return new OffscreenCanvas(w, h);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  return canvas;
+}
+
+function getTextureContext2D(
+  canvas: TextureCanvas
+): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("2D context unavailable for texture canvas.");
+  }
+  return ctx as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+}
+
+function ensureTexture(w: number, h: number, theme: TableTheme): TextureCanvas {
+  ensureAssetsLoaded();
   const key = `${w}x${h}:${theme}`;
   if (textureCanvas && textureTheme === key) return textureCanvas;
 
-  textureCanvas = new OffscreenCanvas(w, h);
+  textureCanvas = createTextureCanvas(w, h);
   textureTheme = key;
-  const tCtx = textureCanvas.getContext("2d")!;
+  const tCtx = getTextureContext2D(textureCanvas);
   const t = TABLE_THEMES[theme];
 
   // Base radial gradient felt
@@ -23,20 +88,44 @@ function ensureTexture(w: number, h: number, theme: TableTheme): OffscreenCanvas
   tCtx.fillStyle = gradient;
   tCtx.fillRect(0, 0, w, h);
 
-  // Subtle felt grain texture
-  tCtx.globalAlpha = 0.025;
-  const seed = 42;
-  for (let y = 0; y < h; y += 3) {
-    for (let x = 0; x < w; x += 3) {
-      // Deterministic pseudo-random for stable texture
-      const v = Math.sin(x * 127.1 + y * 311.7 + seed) * 43758.5453;
-      if ((v - Math.floor(v)) > 0.5) {
-        tCtx.fillStyle = "#000";
-        tCtx.fillRect(x, y, 1, 1);
+  if (feltReady && feltImage) {
+    tCtx.save();
+    tCtx.globalAlpha = 0.22;
+    const pattern = tCtx.createPattern(feltImage, "repeat");
+    if (pattern) {
+      tCtx.fillStyle = pattern;
+      tCtx.fillRect(0, 0, w, h);
+    }
+    tCtx.restore();
+  } else {
+    // Fallback grain while texture image is still loading.
+    tCtx.globalAlpha = 0.025;
+    const seed = 42;
+    for (let y = 0; y < h; y += 3) {
+      for (let x = 0; x < w; x += 3) {
+        const v = Math.sin(x * 127.1 + y * 311.7 + seed) * 43758.5453;
+        if ((v - Math.floor(v)) > 0.5) {
+          tCtx.fillStyle = "#000";
+          tCtx.fillRect(x, y, 1, 1);
+        }
       }
     }
+    tCtx.globalAlpha = 1;
   }
-  tCtx.globalAlpha = 1;
+
+  // Edge vignette for table depth/readability.
+  const vignette = tCtx.createRadialGradient(
+    w / 2,
+    h / 2,
+    Math.min(w, h) * 0.2,
+    w / 2,
+    h / 2,
+    Math.max(w, h) * 0.62
+  );
+  vignette.addColorStop(0, "rgba(0,0,0,0)");
+  vignette.addColorStop(1, "rgba(0,0,0,0.45)");
+  tCtx.fillStyle = vignette;
+  tCtx.fillRect(0, 0, w, h);
 
   return textureCanvas;
 }
@@ -47,6 +136,7 @@ export function drawTableBackground(
   height: number,
   theme: TableTheme
 ): void {
+  ensureAssetsLoaded();
   // Draw cached felt texture
   const tex = ensureTexture(width, height, theme);
   ctx.drawImage(tex, 0, 0);
@@ -75,12 +165,26 @@ export function drawTableBackground(
   ctx.stroke();
   ctx.restore();
 
-  // Center glow
+  // Center-table watermark logo (subtle, unobtrusive).
   ctx.save();
-  ctx.fillStyle = "rgba(200,166,81,0.02)";
-  ctx.beginPath();
-  ctx.arc(width / 2, height / 2 - 20, 60, 0, Math.PI * 2);
-  ctx.fill();
+  if (watermarkReady && watermarkImage) {
+    const targetW = width > 760 ? Math.min(560, width * 0.52) : Math.min(360, width * 0.62);
+    const ratio = watermarkImage.width > 0 ? watermarkImage.height / watermarkImage.width : 0.3;
+    const targetH = targetW * ratio;
+    const x = width / 2 - targetW / 2;
+    const y = height / 2 - targetH / 2 - 14;
+    ctx.globalAlpha = 0.08;
+    ctx.filter = "blur(0.8px)";
+    ctx.drawImage(watermarkImage, x, y, targetW, targetH);
+    ctx.filter = "none";
+  } else {
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = "rgba(200,166,81,0.6)";
+    ctx.font = `700 ${width > 760 ? 70 : 42}px Georgia, serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("ROCAMBOR", width / 2, height / 2 - 14);
+  }
   ctx.restore();
 }
 

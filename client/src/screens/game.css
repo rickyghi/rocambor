@@ -1,0 +1,231 @@
+.game-screen {
+  position: relative;
+  overflow: hidden;
+}
+
+.felt-background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.felt-base,
+.felt-texture,
+.felt-vignette,
+.felt-noise {
+  position: absolute;
+  inset: 0;
+}
+
+.felt-base {
+  background: radial-gradient(ellipse at 50% 45%, var(--forest) 0%, var(--forest2) 68%, #132821 100%);
+}
+
+.felt-texture {
+  background: url("/assets/rocambor/felt-texture.jpg") repeat;
+  background-size: 420px 420px;
+  opacity: 0.22;
+  mix-blend-mode: multiply;
+}
+
+.felt-vignette {
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 48%, rgba(0, 0, 0, 0.46) 100%);
+}
+
+.felt-noise {
+  background: url("/assets/rocambor/noise-texture.png") repeat;
+  background-size: 420px 420px;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+}
+
+.game-shell {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px 0;
+  gap: 10px;
+}
+
+.game-header-left,
+.game-header-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-profile-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-profile-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(13, 13, 13, 0.14);
+}
+
+.game-profile-name {
+  max-width: 130px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.game-canvas-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#game-canvas {
+  image-rendering: auto;
+  display: block;
+}
+
+.table-watermark-text {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-serif);
+  font-size: clamp(38px, 7vw, 78px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(200, 166, 81, 0.2);
+  pointer-events: none;
+}
+
+.trick-card-wrap {
+  width: 76px;
+  height: 108px;
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+}
+
+.roc-card {
+  width: 76px;
+  height: 108px;
+  display: block;
+}
+
+.game-controls-bar {
+  position: relative;
+  z-index: 2;
+  margin: 0 12px 12px;
+  border-radius: var(--rMd);
+  padding: 8px 10px;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.control-label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink60);
+  font-weight: 700;
+}
+
+.controls-hint {
+  font-size: 13px;
+  color: var(--ink60);
+}
+
+.exchange-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: rgba(200, 166, 81, 0.18);
+  color: #7d6328;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.bid-btn,
+.trump-btn,
+.exchange-btn,
+.rematch-btn,
+.start-btn {
+  min-height: 44px;
+}
+
+@media (max-width: 900px) {
+  .game-shell {
+    padding: 8px 8px 0;
+  }
+
+  .game-header {
+    min-height: 58px;
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .game-profile-name {
+    display: none;
+  }
+
+  .game-profile-btn {
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  .game-settings-btn {
+    display: none;
+  }
+
+  .game-sound-btn {
+    min-width: 44px;
+    padding: 8px;
+    font-size: 0;
+  }
+
+  .game-sound-btn::before {
+    content: "S";
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .game-dom-layers {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .hand-overlay {
+    bottom: 6px;
+  }
+
+  .hand-row {
+    width: calc(100% - 8px);
+    max-width: none;
+  }
+
+  .game-controls-bar {
+    margin: 0 8px 8px;
+    position: sticky;
+    bottom: 8px;
+  }
+}

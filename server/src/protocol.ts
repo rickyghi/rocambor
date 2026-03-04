@@ -25,8 +25,10 @@ export const C2SMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("EXCHANGE"),
     discardIds: z.array(z.string()).max(9),
   }),
+  z.object({ type: z.literal("CLOSE_HAND") }),
   z.object({ type: z.literal("PLAY"), cardId: z.string().min(1) }),
   z.object({ type: z.literal("REMATCH") }),
+  z.object({ type: z.literal("LEAVE_QUEUE") }),
   z.object({ type: z.literal("PING") }),
 ]);
 

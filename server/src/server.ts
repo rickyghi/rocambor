@@ -372,6 +372,11 @@ function attachPreRoomMessageHandler(
           return;
         }
 
+        case "LEAVE_QUEUE": {
+          lobby.leaveQueue(id);
+          return;
+        }
+
         case "PING": {
           wsSend(ws, { type: "PONG" });
           return;
@@ -442,9 +447,7 @@ function setupWsHandlers(
         .reserveSeat(conn.id, roomId, conn.seat, conn.playerId)
         .catch(() => {});
       // Mark as disconnected but don't remove
-      conn.connected = false;
-      conn.lastSeen = Date.now();
-      room.broadcastState();
+      room.markDisconnected(conn);
       console.log(
         `[connection] Client ${conn.id} disconnected from room ${roomId} seat ${conn.seat}`
       );

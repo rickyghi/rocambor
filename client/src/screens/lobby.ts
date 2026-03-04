@@ -1,6 +1,10 @@
+import "./lobby.css";
+
 import type { Screen, AppContext } from "../router";
 import { showToast } from "../ui/toast";
 import type { SeatIndex } from "../protocol";
+import { escapeHtml } from "../utils/escape";
+import { buildDiceBearUrl, fallbackAvatarAt } from "../lib/avatars";
 
 export class LobbyScreen implements Screen {
   private ctx!: AppContext;
@@ -14,13 +18,13 @@ export class LobbyScreen implements Screen {
 
     this.unsubscribes.push(
       ctx.state.subscribe(() => this.render()),
+      ctx.profile.subscribe(() => this.render()),
       ctx.connection.on("EVENT", (msg: any) => {
         if (msg.name === "SEATED") {
           showToast(`${msg.payload.handle} joined`, "info");
         }
       }),
       ctx.connection.on("STATE", () => {
-        // Auto-navigate to game when phase changes
         if (ctx.state.game && ctx.state.game.phase !== "lobby") {
           ctx.router.navigate("game");
         }
@@ -38,6 +42,7 @@ export class LobbyScreen implements Screen {
     const code = this.ctx.state.roomCode || "...";
     const mode = game?.mode || "quadrille";
     const mySeat = this.ctx.state.mySeat;
+    const myProfile = this.ctx.profile.get();
 
     const seats: string[] = [];
 
@@ -45,71 +50,72 @@ export class LobbyScreen implements Screen {
       const player = game?.players[i];
       const isResting = game?.resting === i;
       const isMine = mySeat === i;
+      const safeName = isMine ? escapeHtml(myProfile.name) : escapeHtml(player?.handle || `Seat ${i}`);
 
       if (isResting && mode === "tresillo") continue;
 
-      let label = "Open Seat";
+      let badge = "OPEN";
       let statusClass = "open";
-      let badgeLabel = "Open";
-      let badgeClass = "badge-open";
+      let avatar = fallbackAvatarAt(i);
 
       if (player) {
-        label = player.handle;
         if (isMine) {
+          badge = "YOU";
           statusClass = "you";
-          badgeLabel = "You";
-          badgeClass = "badge-you";
+          avatar = myProfile.avatar;
         } else if (player.isBot) {
+          badge = "BOT";
           statusClass = "bot";
-          badgeLabel = "Bot";
-          badgeClass = "badge-bot";
+          avatar = buildDiceBearUrl(player.handle || `bot-${i}`, "bottts-neutral");
         } else if (!player.connected) {
+          badge = "OFFLINE";
           statusClass = "offline";
-          badgeLabel = "Offline";
-          badgeClass = "badge-offline";
+          avatar = buildDiceBearUrl(player.handle || `seat-${i}`, "identicon");
         } else {
+          badge = "READY";
           statusClass = "ready";
-          badgeLabel = "Ready";
-          badgeClass = "badge-ready";
+          avatar = buildDiceBearUrl(player.handle || `seat-${i}`, "identicon");
         }
       }
 
       seats.push(`
-        <div class="seat-plaque ${statusClass}" data-seat="${i}">
-          <span class="seat-badge ${badgeClass}">${badgeLabel}</span>
-          <div class="seat-name">${label}</div>
-          ${statusClass === "open" && mySeat === null ? `<button class="btn-ivory-engraved take-seat-btn" data-seat="${i}">Sit Here</button>` : ""}
-        </div>
+        <article class="lobby-seat ${statusClass}">
+          <div class="lobby-seat-badge">${badge}</div>
+          <img class="lobby-seat-avatar" src="${avatar}" data-fallback="${fallbackAvatarAt(i)}" alt="${safeName}" />
+          <div class="lobby-seat-name">${player ? safeName : "Open Seat"}</div>
+          ${statusClass === "open" && mySeat === null ? `<button class="btn-secondary take-seat-btn" data-seat="${i}" type="button">Sit Here</button>` : ""}
+        </article>
       `);
     }
 
-    const modeLabel = mode === "tresillo" ? "Tresillo" : "Quadrille";
-
     this.container.innerHTML = `
       <div class="screen lobby-screen">
-        <div class="lobby-header">
-          <button class="btn-ghost-felt back-btn" data-action="leave">\u2190 Leave</button>
-          <div class="room-info-strip">
-            <span class="room-code">${code}</span>
-            <span class="room-meta">${modeLabel}</span>
+        <header class="lobby-header rc-panel rc-panel-noise">
+          <button class="btn-ghost" data-action="leave" type="button">Back</button>
+          <div class="lobby-room-meta">
+            <strong class="room-code">${escapeHtml(code)}</strong>
+            <span class="room-mode">${mode === "tresillo" ? "Tresillo" : "Quadrille"}</span>
           </div>
-          <button class="btn-ivory-engraved copy-code-btn" data-action="copy">Copy Code</button>
-        </div>
+          <button class="btn-secondary" data-action="copy" type="button">Copy Code</button>
+        </header>
 
-        <div class="lobby-body">
-          <h2>Waiting for Players</h2>
-          <div class="seats-grid">
-            ${seats.join("")}
-          </div>
+        <main class="lobby-main">
+          <section class="lobby-panel rc-panel rc-panel-noise">
+            <h2>Waiting for Players</h2>
+            <div class="ornament-divider"></div>
 
-          <div class="lobby-actions">
-            ${mySeat !== null ? `<button class="btn-gold-plaque start-btn" data-action="start">Start Game</button>` : ""}
-          </div>
-        </div>
+            <div class="lobby-seats">
+              ${seats.join("")}
+            </div>
+
+            ${mySeat !== null && (game?.hostSeat === undefined || game?.hostSeat === mySeat)
+              ? `<div class="lobby-actions"><button class="btn-primary" data-action="start" type="button">Start Game</button></div>`
+              : ""}
+          </section>
+        </main>
       </div>
     `;
 
-    this.addStyles();
     this.attachHandlers();
   }
 
@@ -122,12 +128,11 @@ export class LobbyScreen implements Screen {
 
     this.container.querySelector('[data-action="copy"]')?.addEventListener("click", () => {
       const code = this.ctx.state.roomCode;
-      if (code) {
-        navigator.clipboard.writeText(code).then(
-          () => showToast("Code copied!", "success"),
-          () => showToast("Failed to copy", "error")
-        );
-      }
+      if (!code) return;
+      navigator.clipboard.writeText(code).then(
+        () => showToast("Code copied", "success", 1200),
+        () => showToast("Failed to copy", "error")
+      );
     });
 
     this.container.querySelector('[data-action="start"]')?.addEventListener("click", () => {
@@ -136,176 +141,17 @@ export class LobbyScreen implements Screen {
 
     this.container.querySelectorAll<HTMLButtonElement>(".take-seat-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const seat = parseInt(btn.dataset.seat!) as SeatIndex;
+        const seat = parseInt(btn.dataset.seat || "0", 10) as SeatIndex;
         this.ctx.connection.send({ type: "TAKE_SEAT", seat });
       });
     });
-  }
 
-  private addStyles(): void {
-    if (document.getElementById("lobby-styles")) return;
-    const style = document.createElement("style");
-    style.id = "lobby-styles";
-    style.textContent = `
-      .lobby-screen {
-        background: var(--bg-primary);
-      }
-      .lobby-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        background: var(--surface-card);
-        border-bottom: 1px solid rgba(200,166,81,0.2);
-      }
-      .room-info-strip {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 2px;
-      }
-      .room-code {
-        font-family: var(--font-display);
-        font-size: 22px;
-        font-weight: 700;
-        letter-spacing: 6px;
-        color: var(--color-gold);
-      }
-      .room-meta {
-        font-size: 12px;
-        color: var(--text-secondary);
-        letter-spacing: 0.5px;
-      }
-      .lobby-body {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 32px;
-        gap: 32px;
-        animation: fadeInUp var(--dur-slow) var(--ease-decelerate);
-      }
-      .lobby-body h2 {
-        font-family: var(--font-serif);
-        color: var(--text-secondary);
-        font-size: 16px;
-        text-transform: uppercase;
-        letter-spacing: 3px;
-        font-weight: 400;
-      }
-      .seats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-        gap: 16px;
-        max-width: 720px;
-        width: 100%;
-      }
-
-      /* --- Seat plaques --- */
-      .seat-plaque {
-        background: var(--surface-parchment);
-        border: 2px solid var(--border);
-        border-radius: var(--radius-lg);
-        padding: 20px;
-        text-align: center;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 8px;
-        transition: border-color var(--dur-fast) var(--ease-standard),
-                    box-shadow var(--dur-fast) var(--ease-standard);
-      }
-      .seat-plaque.you {
-        border-color: var(--color-gold);
-        box-shadow: 0 0 0 1px rgba(200,166,81,0.15), var(--shadow-soft);
-      }
-      .seat-plaque.ready {
-        border-color: var(--success);
-      }
-      .seat-plaque.bot {
-        border-color: var(--info);
-      }
-      .seat-plaque.offline {
-        border-color: var(--error);
-        opacity: 0.65;
-      }
-      .seat-plaque.open {
-        border-style: dashed;
-        border-color: var(--border-light);
-      }
-
-      /* --- Seat badges --- */
-      .seat-badge {
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.5px;
-        text-transform: uppercase;
-        padding: 3px 10px;
-        border-radius: var(--radius-pill);
-      }
-      .badge-you {
-        background: rgba(200,166,81,0.15);
-        color: var(--color-gold);
-      }
-      .badge-ready {
-        background: rgba(31,122,77,0.1);
-        color: var(--success);
-      }
-      .badge-bot {
-        background: rgba(116,192,252,0.12);
-        color: #2D8AC7;
-      }
-      .badge-offline {
-        background: rgba(176,46,46,0.1);
-        color: var(--error);
-      }
-      .badge-open {
-        background: rgba(0,0,0,0.04);
-        color: var(--text-secondary);
-      }
-
-      .seat-name {
-        font-weight: 600;
-        font-size: 15px;
-        color: var(--text-primary);
-      }
-      .take-seat-btn {
-        font-size: 12px;
-        padding: 6px 16px;
-        margin-top: 4px;
-      }
-
-      .lobby-actions {
-        margin-top: 8px;
-      }
-      .start-btn {
-        padding: 14px 40px;
-        font-size: 16px;
-        min-height: 52px;
-      }
-
-      @media (max-width: 480px) {
-        .lobby-body {
-          padding: 24px 16px;
-          gap: 24px;
-        }
-        .seats-grid {
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-        }
-        .seat-plaque {
-          padding: 16px 12px;
-        }
-        .lobby-header {
-          padding: 10px 12px;
-        }
-        .room-code {
-          font-size: 18px;
-          letter-spacing: 4px;
-        }
-      }
-    `;
-    document.head.appendChild(style);
+    this.container.querySelectorAll<HTMLImageElement>(".lobby-seat-avatar").forEach((img) => {
+      const fallback = img.dataset.fallback || "/avatars/avatar-01.svg";
+      img.addEventListener("error", () => {
+        if (img.src.endsWith(fallback)) return;
+        img.src = fallback;
+      });
+    });
   }
 }

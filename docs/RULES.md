@@ -27,9 +27,10 @@ Each suit has 10 cards: 1 (Ace), 2, 3, 4, 5, 6, 7, 10 (Sota/Jack), 11 (Caballo/K
 - 9 tricks per hand
 
 ### Quadrille (4 Players)
-- 4 active players (the 4th rotates resting each hand)
-- 8 cards dealt per player, 8 in the talon
-- 8 tricks per hand
+- 4 seats total, with 1 resting seat each hand (rotates)
+- 3 active players per hand (unless Penetro starts)
+- 9 cards dealt per active player, 13 in the talon
+- 9 tricks per hand
 
 ## Card Ranking
 
@@ -38,18 +39,18 @@ Each suit has 10 cards: 1 (Ace), 2, 3, 4, 5, 6, 7, 10 (Sota/Jack), 11 (Caballo/K
 The top 3 cards in trump are called **Matadores** and always rank highest:
 
 1. **Spadille** - Ace of Espadas (always the #1 trump, regardless of chosen trump suit)
-2. **Manille** - The 7 of the trump suit (for black suits: Espadas/Bastos) OR the 2 of the trump suit (for red suits: Oros/Copas)
+2. **Manille** - The 7 of the trump suit for red trumps (Oros/Copas), or the 2 of the trump suit for black trumps (Espadas/Bastos)
 3. **Basto** - Ace of Bastos (always the #3 trump, regardless of chosen trump suit)
 
-After the matadores, remaining trump cards rank: King (12), Knight (11), Jack (10), 7/6/5/4/3/2 (varies by suit color).
+After the matadores, remaining trump cards follow the suit's native ranking (red vs black ordering below).
 
 ### Non-Trump Suits
 
 For **red suits** (Oros, Copas): King > Knight > Jack > Ace > 2 > 3 > 4 > 5 > 6 > 7
 
-For **black suits** (Espadas, Bastos): King > Knight > Jack > Ace > 2 > 3 > 4 > 5 > 6 > 7
+For **black suits** (Espadas, Bastos): King > Knight > Jack > 7 > 6 > 5 > 4 > 3 > 2 > Ace
 
-> Note: When Espadas or Bastos is NOT trump, their Aces are still powerful but rank normally within their suit.
+> Note: In black suits, Ace is the lowest plain card.
 
 ## Phases of Play
 
@@ -81,9 +82,14 @@ The Ombre chooses the trump suit (unless the contract forces Oros).
 
 ### 4. Exchange
 
-Unless playing Solo or Bola:
-- The **Ombre** may discard cards and draw replacements from the talon (up to 8 cards)
-- Other active players may also exchange in turn order
+Exchange limits depend on contract:
+- **Entrada / Volteo**: Ombre up to 8 cards, each defender up to 5
+- **Oros**: Ombre up to 6 cards, each defender up to 5
+- **Solo / Solo Oros**: Ombre exchanges 0, defenders up to 5
+- **Bola**: nobody exchanges
+- **Contrabola**: Ombre must exchange exactly 1 card, nobody else exchanges
+
+In non-solo, non-contrabola contracts, Ombre exchanges first; after that, either defender may choose to exchange first.
 
 ### 5. Play
 
@@ -94,39 +100,44 @@ Players play tricks in turn order:
 - If unable to follow suit or trump, any card may be played
 - The highest trump wins, or if no trump, the highest card of the led suit
 
+In **Bola** and **Contrabola**, there is no trump suit (follow-suit only).
+
 ### 6. Scoring
 
 The Ombre needs to win **more tricks than any single opponent** to succeed.
 
 #### Sacada (Success)
-The Ombre wins at least 5 tricks (in Tresillo with 9 tricks). Points awarded based on contract value.
+For standard contracts, Ombre succeeds with 5+ tricks. Points depend on tricks taken.
 
 #### Codille (Defeat)
-An opponent wins more tricks than the Ombre. The Ombre loses points, and the winning opponent gains points.
+A single defender reaches at least 5 tricks and beats Ombre. That defender gains the codille award.
 
-#### Puesta (Draw)
-The Ombre ties with an opponent (or no one reaches 5). The Ombre loses a reduced penalty.
+#### Puesta
+Ombre fails to reach 5 tricks and no defender reaches 5; both defenders get puesta points.
 
 #### Special Outcomes
 
 - **Bola Made**: The Ombre wins all 9 tricks. Large bonus.
 - **Bola Failed**: The Ombre declared Bola but failed. Large penalty.
-- **Contrabola**: An opponent declares they will win all remaining tricks.
-- **Oros Bonus**: Extra points when Oros is trump (for Oros/Solo Oros contracts).
+- **Contrabola Made**: Ombre wins 0 tricks.
+- **Oros Bonus**: +1 extra point on successful Sacada in Oros/Solo Oros.
 - **Penetro**: When no active player holds the Spadille (it is in the talon) and all pass, a special forced game occurs.
 
 ## Scoring Table
 
-| Outcome       | Ombre          | Opponents          |
-|---------------|----------------|--------------------|
-| Sacada (5T)   | +2 per player  | -2 each            |
-| Sacada (7T)   | +3 per player  | -3 each            |
-| Sacada (9T)   | +5 per player  | -5 each            |
-| Codille       | -4 (penalty)   | Winner +4          |
-| Puesta        | -2 (to pot)    | 0                  |
-| Bola Made     | +10            | -10 each           |
-| Bola Failed   | -10            | +10 each           |
-| Oros Bonus    | +1 extra       | -1 extra each      |
+| Outcome | Award |
+|---|---|
+| Sacada (5-6 tricks) | Ombre +1 |
+| Sacada (7-8 tricks) | Ombre +2 |
+| Sacada (9 tricks) | Ombre +4 |
+| Oros / Solo Oros bonus | +1 extra on Sacada |
+| Puesta | Each defender +1 |
+| Codille | Best defender +2 |
+| Bola made | Ombre +6 |
+| Bola failed | Each defender +2 |
+| Contrabola made | Ombre +4 |
+| Contrabola failed | Each defender +1 |
+| Penetro | Trick leader (most tricks) +2 |
 
 ## Winning
 

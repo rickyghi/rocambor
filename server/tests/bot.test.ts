@@ -127,6 +127,26 @@ describe("decideBid", () => {
       expect(["solo_oros", "bola"].includes(bid)).toBe(true);
     }
   });
+
+  it("uses the smallest legal overcall instead of jumping to top bid", () => {
+    const hand = [
+      card("oros", 1), card("oros", 12), card("oros", 11),
+      card("oros", 5), card("oros", 4), card("copas", 12),
+      card("espadas", 12), card("bastos", 6), card("copas", 5),
+    ];
+    const ctx = makeCtx({
+      hand,
+      originalHand: hand,
+      auction: {
+        currentBid: "solo" as Bid,
+        currentBidder: 1 as SeatIndex,
+        passed: [],
+        order: [0, 1, 2] as SeatIndex[],
+      },
+    });
+    const bid = decideBid(ctx);
+    expect(bid).toBe("solo_oros");
+  });
 });
 
 describe("decideTrump", () => {
@@ -198,5 +218,24 @@ describe("decidePlay", () => {
     });
     const id = decidePlay(ctx);
     expect(id).toBe("o3");
+  });
+
+  it("ombre can lead a top matador to pull trumps with a strong trump holding", () => {
+    const ctx = makeCtx({
+      phase: "play",
+      seat: 0 as SeatIndex,
+      ombre: 0 as SeatIndex,
+      trump: "oros",
+      table: [],
+      hand: [
+        card("espadas", 1),
+        card("oros", 7),
+        card("oros", 12),
+        card("oros", 3),
+        card("copas", 12),
+      ],
+    });
+    const id = decidePlay(ctx);
+    expect(id).toBe("e1");
   });
 });

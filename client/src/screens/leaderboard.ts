@@ -1,5 +1,6 @@
 import type { Screen, AppContext } from "../router";
 import { showToast } from "../ui/toast";
+import { escapeHtml } from "../utils/escape";
 
 interface LeaderboardEntry {
   playerId: string;
@@ -131,10 +132,11 @@ export class LeaderboardScreen implements Screen {
               ? new Date(entry.lastPlayed).toLocaleDateString()
               : "-";
             const isSelf = myId && entry.playerId === myId;
+            const safeHandle = escapeHtml(entry.handle || "Unknown");
             return `
               <div class="leaderboard-row ${idx < 3 ? "top" : ""} ${isSelf ? "self-row" : ""}">
                 <div class="col rank">${this.renderRankBadge(idx)}</div>
-                <div class="col handle">${entry.handle}</div>
+                <div class="col handle">${safeHandle}</div>
                 <div class="col wins">${entry.wins}</div>
                 <div class="col games">${entry.gamesPlayed}</div>
                 <div class="col rate">${winRate}</div>

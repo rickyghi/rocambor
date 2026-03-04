@@ -13,7 +13,7 @@ import {
   S2CMessage,
 } from "../../shared/types";
 import { makeDeck, legalPlays, trickWinner, generateSeed } from "./engine";
-import { botAct, BotContext } from "./bot";
+import { botAct, BotContext, decideExchange } from "./bot";
 import {
   saveHandResult,
   saveMatchResult,
@@ -54,10 +54,13 @@ export class Room {
   talon: Card[] = [];
   table: Card[] = [];
   playOrder: SeatIndex[] = [];
+  trickWinners: SeatIndex[] = [];
   timer: NodeJS.Timeout | null = null;
   restIndex = 0;
   lastActivity: number = Date.now();
   private seed: string = "";
+  private hostSeat: SeatIndex | null = null;
+  private rematchVotes = new Set<SeatIndex>();
 
   constructor(id: string, config: RoomConfig) {
     this.id = id;
@@ -102,9 +105,23 @@ export class Room {
 
   broadcastState(): void {
     this.updatePlayersInfo();
+    this.state.hostSeat = this.hostSeat;
     for (const c of this.conns) {
       const hand = c.seat !== null && !c.isSpectator ? this.hands[c.seat] || null : null;
-      this.send(c, { type: "STATE", state: this.state, hand });
+      let stateToSend = this.state;
+
+      // Send legal play hints to the player whose turn it is
+      if (
+        this.state.phase === "play" &&
+        c.seat === this.state.turn &&
+        hand
+      ) {
+        const ledCard = this.table.length > 0 ? this.table[0] : null;
+        const legal = legalPlays(this.state.trump, hand, ledCard);
+        stateToSend = { ...this.state, legalIds: legal.map((card) => card.id) };
+      }
+
+      this.send(c, { type: "STATE", state: stateToSend, hand });
     }
   }
 
@@ -220,7 +237,36 @@ export class Room {
       this.event("PLAYER_LEFT", { seat: conn.seat, handle: conn.handle });
     }
     this.conns = this.conns.filter((c) => c !== conn);
+    // Transfer host if the leaving player was host
+    if (conn.seat !== null && conn.seat === this.hostSeat) {
+      const nextHuman = this.conns.find(
+        (c) => !c.isBot && !c.isSpectator && c.seat !== null && c.connected
+      );
+      this.hostSeat = nextHuman?.seat ?? null;
+    }
     this.lastActivity = Date.now();
+  }
+
+  markDisconnected(conn: Conn): void {
+    if (!this.conns.includes(conn)) return;
+
+    conn.connected = false;
+    conn.lastSeen = Date.now();
+
+    if (conn.seat !== null && conn.seat === this.hostSeat) {
+      const nextHuman = this.conns.find(
+        (c) =>
+          c !== conn &&
+          !c.isBot &&
+          !c.isSpectator &&
+          c.seat !== null &&
+          c.connected
+      );
+      this.hostSeat = nextHuman?.seat ?? null;
+      this.event("HOST_CHANGED", { hostSeat: this.hostSeat });
+    }
+
+    this.broadcastState();
   }
 
   tryReconnect(
@@ -302,6 +348,10 @@ export class Room {
   private seatPlayer(conn: Conn, seat: SeatIndex): void {
     conn.seat = seat;
     conn.isSpectator = false;
+    // Track host: first seated human becomes host
+    if (this.hostSeat === null && !conn.isBot) {
+      this.hostSeat = seat;
+    }
     this.event("SEATED", { seat, id: conn.id, handle: conn.handle, bot: conn.isBot });
     this.send(conn, {
       type: "ROOM_JOINED",
@@ -369,6 +419,7 @@ export class Room {
   }
 
   newHand(): void {
+    this.rematchVotes.clear();
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -390,6 +441,7 @@ export class Room {
     this.talon = [];
     this.table = [];
     this.playOrder = [];
+    this.trickWinners = [];
 
     // Reset state
     this.state.ombre = null;
@@ -465,6 +517,7 @@ export class Room {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    this.state.turnDeadline = Date.now() + TURN_MS;
     this.timer = setTimeout(() => {
       this.timer = null;
       this.onTimeout();
@@ -519,21 +572,7 @@ export class Room {
   }
 
   private doBotAction(seat: SeatIndex): void {
-    const ctx: BotContext = {
-      phase: this.state.phase,
-      seat,
-      hand: this.hands[seat] || [],
-      originalHand: this.original[seat] || [],
-      trump: this.state.trump,
-      contract: this.state.contract,
-      auction: this.state.auction,
-      ombre: this.state.ombre,
-      playOrder: this.playOrder.slice(),
-      handsCount: { ...this.state.handsCount },
-      tricks: { ...this.state.tricks },
-      table: this.table,
-      talonLength: this.talon.length,
-    };
+    const ctx = this.buildBotContext(seat);
 
     const action = botAct(ctx);
     if (!action) return;
@@ -552,6 +591,24 @@ export class Room {
         this.playCard(seat, action.payload as string);
         break;
     }
+  }
+
+  private buildBotContext(seat: SeatIndex): BotContext {
+    return {
+      phase: this.state.phase,
+      seat,
+      hand: this.hands[seat] || [],
+      originalHand: this.original[seat] || [],
+      trump: this.state.trump,
+      contract: this.state.contract,
+      auction: this.state.auction,
+      ombre: this.state.ombre,
+      playOrder: this.playOrder.slice(),
+      handsCount: { ...this.state.handsCount },
+      tricks: { ...this.state.tricks },
+      table: this.table,
+      talonLength: this.talon.length,
+    };
   }
 
   // ---- Auction ----
@@ -687,16 +744,11 @@ export class Room {
   private startExchange(): void {
     const isSolo =
       this.state.contract === "solo" || this.state.contract === "solo_oros";
-    const ombreConn = this.conns.find((c) => c.seat === this.state.ombre);
-    const humanVsBotsOmbre =
-      !!ombreConn && !ombreConn.isBot && this.humanCount() === 1;
+    const isBola = this.state.contract === "bola";
+    const isContrabola = this.state.contract === "contrabola";
 
-    // Preserve classic fast path for bola/contrabola except in human-vs-bots play,
-    // where the human declarer should still get an exchange turn.
-    if (
-      (this.state.contract === "bola" || this.state.contract === "contrabola") &&
-      !humanVsBotsOmbre
-    ) {
+    // Bola: no exchange by any player.
+    if (isBola) {
       this.state.phase = "play";
       this.state.turn = this.nextActive(this.state.ombre!);
       this.patch(this.state);
@@ -709,7 +761,10 @@ export class Room {
     const order = this.seatsActive().slice();
     let ex: SeatIndex[];
 
-    if (isSolo) {
+    if (isContrabola) {
+      // Contrabola: ombre must exchange exactly one card; nobody else exchanges.
+      ex = [this.state.ombre!];
+    } else if (isSolo) {
       // Solo: ombre doesn't exchange
       ex = order.filter((s) => s !== this.state.ombre);
     } else {
@@ -734,15 +789,39 @@ export class Room {
   }
 
   finishExchange(seat: SeatIndex, discardIds: string[]): void {
-    if (this.state.phase !== "exchange" || this.state.turn !== seat) return;
+    if (this.state.phase !== "exchange") return;
+
+    const ex = this.state.exchange;
+    if (!ex.order.includes(seat) || ex.completed.includes(seat)) return;
+
+    const ombre = this.state.ombre;
+    const contract = this.state.contract;
+    const isSoloContract = contract === "solo" || contract === "solo_oros";
+    const isContrabolaContract = contract === "contrabola";
+    const openDefenderChoice =
+      !isSoloContract &&
+      !isContrabolaContract &&
+      ombre !== null &&
+      ex.completed.length === 1 &&
+      ex.completed.includes(ombre) &&
+      seat !== ombre;
+
+    if (this.state.turn !== seat && !openDefenderChoice) return;
 
     const isOmbre = seat === this.state.ombre;
     const isSolo =
       this.state.contract === "solo" ||
       this.state.contract === "solo_oros";
+    const isBola = this.state.contract === "bola";
+    const isContrabola = this.state.contract === "contrabola";
     const isOros =
       this.state.contract === "oros" || this.state.contract === "solo_oros";
-    const max = isOmbre ? (isSolo ? 0 : isOros ? 6 : 8) : 5;
+    let max = isOmbre ? (isSolo ? 0 : isOros ? 6 : 8) : 5;
+
+    if (isBola) max = 0;
+    if (isContrabola) {
+      max = isOmbre ? 1 : 0;
+    }
 
     const hand = this.hands[seat];
     const ids = new Set(discardIds);
@@ -751,6 +830,16 @@ export class Room {
     for (let i = hand.length - 1; i >= 0; i--) {
       if (ids.has(hand[i].id)) {
         toDiscard.push(hand[i]);
+      }
+    }
+
+    if (isContrabola && isOmbre) {
+      if (toDiscard.length !== 1 || this.talon.length < 1) {
+        return this.errorSeat(
+          seat,
+          "BAD_EXCHANGE",
+          "Contrabola requires exchanging exactly one card"
+        );
       }
     }
 
@@ -769,15 +858,23 @@ export class Room {
     this.state.exchange.completed.push(seat);
     this.state.exchange.talonSize = this.talon.length;
 
-    const ex = this.state.exchange;
-    const curIdx = ex.order.indexOf(seat);
     let next: SeatIndex | undefined;
 
-    for (let k = 1; k < ex.order.length; k++) {
-      const cand = ex.order[(curIdx + k) % ex.order.length];
-      if (!ex.completed.includes(cand)) {
-        next = cand;
-        break;
+    // After ombre exchanges, both defenders can choose who goes first.
+    // If both pending defenders are bots, prefer the one with higher exchange demand.
+    const pendingDefenders = this.pendingOpenChoiceDefenders();
+    if (pendingDefenders.length > 1) {
+      next = this.preferredBotDefenderForExchange(pendingDefenders) ?? undefined;
+    }
+
+    if (next === undefined) {
+      const curIdx = ex.order.indexOf(seat);
+      for (let k = 1; k < ex.order.length; k++) {
+        const cand = ex.order[(curIdx + k) % ex.order.length];
+        if (!ex.completed.includes(cand)) {
+          next = cand;
+          break;
+        }
       }
     }
 
@@ -796,6 +893,82 @@ export class Room {
     }
   }
 
+  private isOpenDefenderChoiceWindow(): boolean {
+    if (this.state.phase !== "exchange") return false;
+    const contract = this.state.contract;
+    if (!contract) return false;
+    if (contract === "solo" || contract === "solo_oros" || contract === "contrabola") {
+      return false;
+    }
+    const ombre = this.state.ombre;
+    if (ombre === null) return false;
+    const completed = this.state.exchange.completed;
+    return completed.length === 1 && completed.includes(ombre);
+  }
+
+  private pendingOpenChoiceDefenders(): SeatIndex[] {
+    if (!this.isOpenDefenderChoiceWindow()) return [];
+    const ombre = this.state.ombre!;
+    return this.state.exchange.order.filter(
+      (s) => s !== ombre && !this.state.exchange.completed.includes(s)
+    );
+  }
+
+  private preferredBotDefenderForExchange(
+    pendingDefenders: SeatIndex[]
+  ): SeatIndex | null {
+    const botPending = pendingDefenders.filter((seat) => {
+      const conn = this.conns.find((c) => c.seat === seat);
+      return !!conn?.isBot;
+    });
+    if (!botPending.length || botPending.length !== pendingDefenders.length) {
+      return null;
+    }
+
+    let bestSeat = botPending[0];
+    let bestNeed = -1;
+    for (const botSeat of botPending) {
+      const need = decideExchange(this.buildBotContext(botSeat)).length;
+      if (need > bestNeed) {
+        bestNeed = need;
+        bestSeat = botSeat;
+      }
+    }
+    return bestSeat;
+  }
+
+  private canCloseHandNow(seat: SeatIndex): boolean {
+    if (this.state.phase !== "play" || this.state.turn !== seat) return false;
+    if (this.table.length !== 0) return false;
+    if (this.state.ombre !== seat) return false;
+    if (!this.state.contract) return false;
+    if (
+      this.state.contract === "bola" ||
+      this.state.contract === "contrabola" ||
+      this.state.contract === "penetro"
+    ) {
+      return false;
+    }
+    if (this.trickWinners.length !== 5) return false;
+    return this.trickWinners.every((w) => w === seat);
+  }
+
+  private canImplyBolaByContinuation(seat: SeatIndex): boolean {
+    return this.canCloseHandNow(seat);
+  }
+
+  closeHand(seat: SeatIndex): void {
+    if (!this.canCloseHandNow(seat)) {
+      return this.errorSeat(
+        seat,
+        "BAD_CLOSE",
+        "You can only close after taking the first five tricks"
+      );
+    }
+    this.event("HAND_CLOSED", { seat });
+    this.finishHand();
+  }
+
   // ---- Card play ----
   playCard(seat: SeatIndex, cardId: string): void {
     if (this.state.phase !== "play" || this.state.turn !== seat) return;
@@ -810,6 +983,13 @@ export class Room {
 
     if (!legal.find((c) => c.id === card.id)) {
       return this.errorSeat(seat, "ILLEGAL_PLAY", "Card is not a legal play");
+    }
+
+    // Continuing after the "first five won" close window implies bola.
+    if (this.canImplyBolaByContinuation(seat)) {
+      this.state.contract = "bola";
+      this.event("BOLA_IMPLIED", { ombre: seat });
+      this.patch(this.state);
     }
 
     hand.splice(idx, 1);
@@ -827,6 +1007,7 @@ export class Room {
       const winIdx = trickWinner(this.state.trump, this.table[0].s, this.table);
       const winner = this.playOrder[winIdx];
       this.state.tricks[winner]++;
+      this.trickWinners.push(winner);
 
       this.event("TRICK_TAKEN", { winner, cards: this.table });
 
@@ -1057,12 +1238,29 @@ export class Room {
   }
 
   // ---- Rematch ----
-  handleRematch(): void {
+  handleRematch(seat: SeatIndex): void {
     if (this.state.phase !== "match_end") return;
-    this.state.scores = { 0: 0, 1: 0, 2: 0, 3: 0 };
-    this.state.handNo = 1;
-    this.state.phase = "lobby";
-    this.newHand();
+    this.rematchVotes.add(seat);
+
+    // Require majority of connected humans
+    const humanSeats = this.conns
+      .filter((c) => !c.isBot && !c.isSpectator && c.seat !== null && c.connected)
+      .map((c) => c.seat!);
+    const required = Math.max(1, Math.ceil(humanSeats.length / 2 + 0.01));
+
+    this.event("REMATCH_VOTE", {
+      voter: seat,
+      count: this.rematchVotes.size,
+      required,
+    });
+
+    if (this.rematchVotes.size >= required) {
+      this.rematchVotes.clear();
+      this.state.scores = { 0: 0, 1: 0, 2: 0, 3: 0 };
+      this.state.handNo = 1;
+      this.state.phase = "lobby";
+      this.newHand();
+    }
   }
 
   // ---- Message handler ----
@@ -1103,12 +1301,19 @@ export class Room {
         }
 
         case "START_GAME": {
+          if (this.hostSeat !== null && conn.seat !== this.hostSeat) {
+            return this.send(conn, {
+              type: "ERROR",
+              code: "NOT_HOST",
+              message: "Only the room host can start the game",
+            });
+          }
           this.startGame();
           return;
         }
 
         case "REMATCH": {
-          this.handleRematch();
+          if (conn.seat !== null) this.handleRematch(conn.seat);
           return;
         }
 
@@ -1137,6 +1342,8 @@ export class Room {
           return this.chooseTrump(conn.seat, msg.suit as Suit);
         case "EXCHANGE":
           return this.finishExchange(conn.seat, (msg.discardIds as string[]) || []);
+        case "CLOSE_HAND":
+          return this.closeHand(conn.seat);
         case "PLAY":
           return this.playCard(conn.seat, msg.cardId as string);
         default:

@@ -1,13 +1,20 @@
-import type { Screen, AppContext } from "../router";
-import { GameRenderer } from "../canvas/renderer";
-import { GameControls } from "../ui/controls";
-import { showToast } from "../ui/toast";
-import type { S2CMessage } from "../protocol";
+import "./game.css";
+
+import type { AppContext, Screen } from "../router";
 import {
+  CardDealAnimation,
   CardPlayAnimation,
   TrickWinAnimation,
-  CardDealAnimation,
 } from "../canvas/animations";
+import { GameRenderer } from "../canvas/renderer";
+import { renderGameHeaderMarkup } from "../components/layout/AppHeader";
+import { renderFeltBackgroundMarkup } from "../components/layout/FeltBackground";
+import { openProfileModal } from "../components/profile/ProfileModal";
+import { detectSpritesheetSupport, ensureSpritesheetCss, spriteClassForCard } from "../lib/card-sprites";
+import type { S2CMessage } from "../protocol";
+import { GameControls } from "../ui/controls";
+import { showModal } from "../ui/modal";
+import { showToast } from "../ui/toast";
 
 export class GameScreen implements Screen {
   private ctx!: AppContext;
@@ -16,148 +23,282 @@ export class GameScreen implements Screen {
   private renderer!: GameRenderer;
   private controls!: GameControls;
   private unsubscribes: Array<() => void> = [];
+
+  private headerMeta!: HTMLElement;
+  private headerAvatar!: HTMLImageElement;
+  private headerName!: HTMLElement;
+  private soundToggleBtn!: HTMLButtonElement;
+
+  private domLayers!: HTMLElement;
+  private trickLayer!: HTMLElement;
+  private handLayer!: HTMLElement;
+  private spriteMode = false;
+
   private prevPhase: string | null = null;
   private prevTurn: number | null = null;
+
+  private lastTouchTs = 0;
+  private pendingPlayCard: string | null = null;
 
   mount(container: HTMLElement, ctx: AppContext): void {
     this.ctx = ctx;
     this.container = container;
 
+    if (!ctx.state.game) {
+      ctx.router.navigate("home");
+      return;
+    }
+
     container.innerHTML = `
-      <div class="screen game-screen">
-        <div class="game-canvas-wrap">
-          <canvas id="game-canvas"></canvas>
+      <div class="screen game-screen felt-shell">
+        ${renderFeltBackgroundMarkup()}
+        <div class="game-shell">
+          ${renderGameHeaderMarkup()}
+
+          <div class="game-canvas-wrap">
+            <canvas id="game-canvas"></canvas>
+
+            <div id="game-dom-layers" class="game-dom-layers" hidden>
+              <div class="trick-overlay" aria-hidden="true">
+                <div class="trick-overlay-inner" id="trick-layer"></div>
+              </div>
+
+              <div class="hand-overlay">
+                <div class="hand-row rc-panel rc-panel-noise" id="hand-layer" role="listbox" aria-label="Your hand"></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="game-controls-bar" id="game-controls"></div>
+
+        <div class="game-controls-bar rc-panel rc-panel-noise" id="game-controls"></div>
       </div>
     `;
 
-    this.addStyles();
-
-    // Setup canvas
     this.canvas = container.querySelector("#game-canvas") as HTMLCanvasElement;
     const canvasCtx = this.canvas.getContext("2d")!;
 
-    // Create renderer
     this.renderer = new GameRenderer(
       this.canvas,
       canvasCtx,
       ctx.state,
-      ctx.settings
+      ctx.settings,
+      ctx.profile
     );
 
-    // Create controls
-    const controlsEl = container.querySelector("#game-controls") as HTMLElement;
-    this.controls = new GameControls(controlsEl, ctx.connection, ctx.state);
+    this.headerMeta = container.querySelector("#game-header-meta") as HTMLElement;
+    this.headerAvatar = container.querySelector(".game-profile-avatar") as HTMLImageElement;
+    this.headerName = container.querySelector(".game-profile-name") as HTMLElement;
+    this.soundToggleBtn = container.querySelector(".game-sound-btn") as HTMLButtonElement;
 
-    // Canvas interaction: mouse + touch handlers
+    this.domLayers = container.querySelector("#game-dom-layers") as HTMLElement;
+    this.trickLayer = container.querySelector("#trick-layer") as HTMLElement;
+    this.handLayer = container.querySelector("#hand-layer") as HTMLElement;
+
+    this.controls = new GameControls(
+      container.querySelector("#game-controls") as HTMLElement,
+      ctx.connection,
+      ctx.state
+    );
+
+    this.bindEvents();
+    this.setupSubscriptions();
+    this.handleResize();
+    window.addEventListener("resize", this.handleResize);
+
+    if (ctx.state.game) {
+      this.prevPhase = ctx.state.game.phase;
+      this.prevTurn = ctx.state.game.turn;
+    }
+
+    this.updateHeader();
+    this.configureSpritesheetMode();
+  }
+
+  unmount(): void {
+    this.unsubscribes.forEach((fn) => fn());
+    this.unsubscribes = [];
+
+    this.renderer?.destroy();
+    this.controls?.destroy();
+
+    this.canvas?.removeEventListener("click", this.handleCanvasClick);
+    this.canvas?.removeEventListener("mousemove", this.handleCanvasMouseMove);
+    this.canvas?.removeEventListener("mouseleave", this.handleCanvasMouseLeave);
+    this.canvas?.removeEventListener("touchstart", this.handleTouchStart);
+    this.canvas?.removeEventListener("touchend", this.handleTouchEnd);
+
+    this.handLayer?.removeEventListener("click", this.handleDomHandClick);
+
+    window.removeEventListener("resize", this.handleResize);
+  }
+
+  private bindEvents(): void {
+    this.container.querySelector(".game-leave-btn")?.addEventListener("click", () => {
+      this.ctx.connection.send({ type: "LEAVE_ROOM" });
+    });
+
+    this.container.querySelector(".game-profile-btn")?.addEventListener("click", () => {
+      openProfileModal(this.ctx.profile);
+    });
+
+    this.container.querySelector(".game-settings-btn")?.addEventListener("click", () => {
+      this.openSettingsModal();
+    });
+
+    this.soundToggleBtn?.addEventListener("click", () => {
+      const next = !this.ctx.settings.get("soundEnabled");
+      this.ctx.settings.set("soundEnabled", next);
+      this.updateHeader();
+    });
+
     this.canvas.addEventListener("click", this.handleCanvasClick);
     this.canvas.addEventListener("mousemove", this.handleCanvasMouseMove);
     this.canvas.addEventListener("mouseleave", this.handleCanvasMouseLeave);
     this.canvas.addEventListener("touchstart", this.handleTouchStart, { passive: false });
     this.canvas.addEventListener("touchend", this.handleTouchEnd);
 
-    // Subscribe to state changes
+    this.handLayer.addEventListener("click", this.handleDomHandClick);
+  }
+
+  private setupSubscriptions(): void {
     this.unsubscribes.push(
-      ctx.state.subscribe(() => {
+      this.ctx.state.subscribe(() => {
         this.renderer.requestRender();
         this.handlePhaseTransitions();
-      })
-    );
+        this.updateHeader();
+        this.renderDomCardLayers();
+      }),
 
-    // Listen for server events
-    this.unsubscribes.push(
-      ctx.connection.on("EVENT", (msg: S2CMessage) => {
+      this.ctx.profile.subscribe(() => {
+        this.renderer.requestRender();
+        this.updateHeader();
+      }),
+
+      this.ctx.settings.subscribe(() => {
+        this.renderer.requestRender();
+        this.updateHeader();
+      }),
+
+      this.ctx.connection.on("EVENT", (msg: S2CMessage) => {
         if (msg.type !== "EVENT") return;
         this.handleEvent(msg.name, msg.payload);
-      })
-    );
+      }),
 
-    // Listen for errors
-    this.unsubscribes.push(
-      ctx.connection.on("ERROR", (msg: S2CMessage) => {
+      this.ctx.connection.on("ERROR", (msg: S2CMessage) => {
         if (msg.type !== "ERROR") return;
         showToast(msg.message || msg.code, "error");
-        ctx.sounds.error();
+        this.ctx.sounds.error();
+      }),
+
+      this.ctx.connection.on("ROOM_LEFT", () => {
+        this.ctx.router.navigate("home");
       })
     );
+  }
 
-    // Listen for room left
-    this.unsubscribes.push(
-      ctx.connection.on("ROOM_LEFT", () => {
-        ctx.router.navigate("home");
-      })
-    );
+  private async configureSpritesheetMode(): Promise<void> {
+    const supported = await detectSpritesheetSupport();
+    if (!this.container.isConnected) return;
 
-    // Resize handler
-    this.handleResize();
-    window.addEventListener("resize", this.handleResize);
+    this.spriteMode = supported;
+    this.domLayers.hidden = !supported;
 
-    // Initialize phase tracking
-    if (ctx.state.game) {
-      this.prevPhase = ctx.state.game.phase;
-      this.prevTurn = ctx.state.game.turn;
+    if (supported) {
+      ensureSpritesheetCss();
+      this.renderer.setCanvasCardLayers({ hand: false, table: false });
+      this.renderDomCardLayers();
+      return;
     }
+
+    this.renderer.setCanvasCardLayers({ hand: true, table: true });
   }
 
-  unmount(): void {
-    this.unsubscribes.forEach((fn) => fn());
-    this.unsubscribes = [];
-    this.renderer?.destroy();
-    this.controls?.destroy();
-    this.canvas?.removeEventListener("click", this.handleCanvasClick);
-    this.canvas?.removeEventListener("mousemove", this.handleCanvasMouseMove);
-    this.canvas?.removeEventListener("mouseleave", this.handleCanvasMouseLeave);
-    this.canvas?.removeEventListener("touchstart", this.handleTouchStart);
-    this.canvas?.removeEventListener("touchend", this.handleTouchEnd);
-    window.removeEventListener("resize", this.handleResize);
-  }
-
-  // --- Canvas interaction ---
-
-  private handleCanvasClick = (e: MouseEvent): void => {
-    const { x, y } = this.renderer.canvasCoords(e.clientX, e.clientY);
-    const hit = this.renderer.hitTestCard(x, y);
-
-    if (!hit) return;
+  private renderDomCardLayers(): void {
+    if (!this.spriteMode) return;
 
     const state = this.ctx.state;
-    const phase = state.phase;
+    const game = state.game;
+    if (!game) return;
 
-    if (phase === "exchange" && state.isMyTurn) {
-      // Toggle card selection for exchange
-      state.toggleCardSelection(hit.card.id);
-      this.ctx.sounds.cardPlay();
-    } else if (phase === "play" && state.isMyTurn) {
-      // Play the card
-      this.ctx.connection.send({ type: "PLAY", cardId: hit.card.id });
-      this.ctx.sounds.cardPlay();
-    }
+    const legalIds = game.legalIds || [];
+    const touchConfirm = window.matchMedia("(hover: none)").matches;
+
+    this.trickLayer.innerHTML = game.table
+      .map((card, index) => {
+        const angle = (index - 1) * 6;
+        return `
+          <div class="trick-card-wrap" style="transform: rotate(${angle}deg)">
+            <div class="${spriteClassForCard(card)}"></div>
+          </div>
+        `;
+      })
+      .join("");
+
+    this.handLayer.innerHTML = state.hand
+      .map((card) => {
+        const selected = state.selectedCards.has(card.id);
+        const isPlay = state.phase === "play" && state.isMyTurn;
+        const illegal = isPlay && legalIds.length > 0 && !legalIds.includes(card.id);
+        const pending = touchConfirm && this.pendingPlayCard === card.id;
+
+        return `
+          <button
+            class="hand-card-wrap${selected ? " selected" : ""}${illegal ? " illegal" : ""}${pending ? " pending" : ""}"
+            type="button"
+            role="option"
+            aria-selected="${selected ? "true" : "false"}"
+            data-card-id="${card.id}"
+            ${illegal ? "disabled" : ""}
+          >
+            <div class="${spriteClassForCard(card)}"></div>
+          </button>
+        `;
+      })
+      .join("");
+  }
+
+  private handleCanvasClick = (e: MouseEvent): void => {
+    if (this.spriteMode) return;
+    if (Date.now() - this.lastTouchTs < 700) return;
+
+    const { x, y } = this.renderer.canvasCoords(e.clientX, e.clientY);
+    const hit = this.renderer.hitTestCard(x, y);
+    if (!hit) return;
+
+    this.handleCardInteraction(hit.card.id, false);
   };
 
   private handleCanvasMouseMove = (e: MouseEvent): void => {
+    if (this.spriteMode) {
+      this.canvas.style.cursor = "default";
+      return;
+    }
+
     const { x, y } = this.renderer.canvasCoords(e.clientX, e.clientY);
     const hit = this.renderer.hitTestCard(x, y);
     this.renderer.setHoveredCard(hit ? hit.index : -1);
 
-    // Change cursor
     const state = this.ctx.state;
     const isInteractive =
       hit &&
-      ((state.phase === "exchange" && state.isMyTurn) ||
+      ((state.phase === "exchange" && state.canExchangeNow) ||
         (state.phase === "play" && state.isMyTurn));
+
     this.canvas.style.cursor = isInteractive ? "pointer" : "default";
   };
 
   private handleCanvasMouseLeave = (): void => {
+    if (this.spriteMode) return;
     this.renderer.setHoveredCard(-1);
     this.canvas.style.cursor = "default";
   };
 
-  // --- Touch interaction ---
-
   private handleTouchStart = (e: TouchEvent): void => {
-    e.preventDefault(); // Prevent scroll
+    if (this.spriteMode) return;
+
+    this.lastTouchTs = Date.now();
+    e.preventDefault();
+
     const touch = e.touches[0];
     const { x, y } = this.renderer.canvasCoords(touch.clientX, touch.clientY);
     const hit = this.renderer.hitTestCard(x, y);
@@ -165,6 +306,10 @@ export class GameScreen implements Screen {
   };
 
   private handleTouchEnd = (e: TouchEvent): void => {
+    if (this.spriteMode) return;
+
+    this.lastTouchTs = Date.now();
+
     const touch = e.changedTouches[0];
     const { x, y } = this.renderer.canvasCoords(touch.clientX, touch.clientY);
     const hit = this.renderer.hitTestCard(x, y);
@@ -172,19 +317,64 @@ export class GameScreen implements Screen {
 
     if (!hit) return;
 
-    const state = this.ctx.state;
-    const phase = state.phase;
-
-    if (phase === "exchange" && state.isMyTurn) {
-      state.toggleCardSelection(hit.card.id);
-      this.ctx.sounds.cardPlay();
-    } else if (phase === "play" && state.isMyTurn) {
-      this.ctx.connection.send({ type: "PLAY", cardId: hit.card.id });
-      this.ctx.sounds.cardPlay();
-    }
+    this.handleCardInteraction(hit.card.id, true);
   };
 
-  // --- Phase transition effects ---
+  private handleDomHandClick = (e: Event): void => {
+    if (!this.spriteMode) return;
+
+    const target = e.target as HTMLElement;
+    const button = target.closest<HTMLButtonElement>("[data-card-id]");
+    if (!button) return;
+
+    const cardId = button.dataset.cardId;
+    if (!cardId) return;
+
+    const touchConfirm = window.matchMedia("(hover: none)").matches;
+    this.handleCardInteraction(cardId, touchConfirm);
+  };
+
+  private handleCardInteraction(cardId: string, tapToConfirm: boolean): void {
+    const state = this.ctx.state;
+    const game = state.game;
+    if (!game) return;
+
+    if (state.phase === "exchange" && state.canExchangeNow) {
+      const isContrabolaOmbre = game.contract === "contrabola" && game.ombre === state.mySeat;
+      if (isContrabolaOmbre && !state.selectedCards.has(cardId)) {
+        state.clearSelection();
+      }
+      state.toggleCardSelection(cardId);
+      this.ctx.sounds.cardPlay();
+      this.renderDomCardLayers();
+      return;
+    }
+
+    if (state.phase !== "play" || !state.isMyTurn) return;
+
+    const legalIds = game.legalIds;
+    if (legalIds && !legalIds.includes(cardId)) return;
+
+    if (!tapToConfirm) {
+      this.ctx.connection.send({ type: "PLAY", cardId });
+      this.ctx.sounds.cardPlay();
+      return;
+    }
+
+    if (this.pendingPlayCard === cardId) {
+      this.ctx.connection.send({ type: "PLAY", cardId });
+      this.ctx.sounds.cardPlay();
+      this.pendingPlayCard = null;
+      state.clearSelection();
+      this.renderDomCardLayers();
+      return;
+    }
+
+    this.pendingPlayCard = cardId;
+    state.clearSelection();
+    state.toggleCardSelection(cardId);
+    this.renderDomCardLayers();
+  }
 
   private handlePhaseTransitions(): void {
     const game = this.ctx.state.game;
@@ -193,21 +383,19 @@ export class GameScreen implements Screen {
     const newPhase = game.phase;
     const newTurn = game.turn;
 
-    // Phase changed
     if (newPhase !== this.prevPhase) {
       this.onPhaseChange(this.prevPhase, newPhase);
       this.prevPhase = newPhase;
     }
 
-    // Turn changed - play sound if it's now my turn
     if (newTurn !== this.prevTurn) {
+      this.pendingPlayCard = null;
       if (this.ctx.state.isMyTurn && this.prevTurn !== null) {
         this.ctx.sounds.yourTurn();
       }
       this.prevTurn = newTurn;
     }
 
-    // Navigate to post-hand or match-summary screens
     if (newPhase === "post_hand") {
       this.ctx.router.navigate("post-hand");
     } else if (newPhase === "match_end") {
@@ -221,30 +409,24 @@ export class GameScreen implements Screen {
         this.ctx.sounds.cardDeal();
         break;
       case "auction":
-        if (this.ctx.state.isMyTurn) {
-          showToast("Your turn to bid", "info", 2000);
-        }
+        if (this.ctx.state.isMyTurn) showToast("Your turn to bid", "info", 1800);
         break;
       case "trump_choice":
-        if (this.ctx.state.isMyTurn) {
-          showToast("Choose trump suit", "info", 2000);
-        }
+        if (this.ctx.state.isMyTurn) showToast("Choose trump suit", "info", 1800);
         break;
       case "exchange":
-        if (this.ctx.state.isMyTurn) {
-          showToast("Select cards to exchange", "info", 2000);
-        }
+        if (this.ctx.state.canExchangeNow) showToast("Select cards to exchange", "info", 1800);
         this.ctx.state.clearSelection();
+        this.renderDomCardLayers();
         break;
       case "play":
-        if (oldPhase === "exchange") {
-          this.ctx.state.clearSelection();
-        }
+        if (oldPhase === "exchange") this.ctx.state.clearSelection();
+        this.renderDomCardLayers();
+        break;
+      default:
         break;
     }
   }
-
-  // --- Server event handling ---
 
   private handleEvent(name: string, payload: Record<string, unknown>): void {
     switch (name) {
@@ -253,23 +435,14 @@ export class GameScreen implements Screen {
         this.ctx.sounds.trickWin();
         const winner = payload.winner as number;
         const rel = this.ctx.state.relativePosition(winner as any);
-        const label =
-          rel === "self"
-            ? "You"
-            : this.ctx.state.game?.players[winner]?.handle || rel;
-        showToast(`${label} won the trick!`, "info", 1500);
-
-        // Gold ring animation at table center
-        this.renderer.addAnimation(
-          new TrickWinAnimation(512, 340, 600)
-        );
+        const label = rel === "self" ? "You" : this.ctx.state.game?.players[winner]?.handle || rel;
+        showToast(`${label} won the trick`, "info", 1300);
+        this.renderer.addAnimation(new TrickWinAnimation(512, 340, 600));
         break;
       }
 
       case "CARD_PLAYED": {
         this.ctx.sounds.cardPlay();
-
-        // Card flight animation toward table center
         const seat = payload.seat as number | undefined;
         if (seat !== undefined) {
           const relPos = this.ctx.state.relativePosition(seat as any);
@@ -280,44 +453,105 @@ export class GameScreen implements Screen {
             right: { x: 904, y: 280 },
           };
           const from = positions[relPos] || positions.across;
-          this.renderer.addAnimation(
-            new CardPlayAnimation(from.x, from.y, 512, 340, 76, 108, 250)
-          );
+          this.renderer.addAnimation(new CardPlayAnimation(from.x, from.y, 512, 340, 76, 108, 250));
         }
         break;
       }
 
       case "DEAL": {
         this.ctx.sounds.cardDeal();
-
-        // Staggered deal animation from center to all positions
         const dealTargets = [
-          { x: 512, y: 570 },  // self
-          { x: 120, y: 280 },  // left
-          { x: 512, y: 100 },  // across
-          { x: 904, y: 280 },  // right
+          { x: 512, y: 570 },
+          { x: 120, y: 280 },
+          { x: 512, y: 100 },
+          { x: 904, y: 280 },
         ];
         for (let i = 0; i < dealTargets.length; i++) {
           const target = dealTargets[i];
           this.renderer.addAnimation(
-            new CardDealAnimation(
-              512, 340,
-              target.x, target.y,
-              76, 108,
-              i * 80,  // stagger delay
-              300
-            )
+            new CardDealAnimation(512, 340, target.x, target.y, 76, 108, i * 80, 300)
           );
         }
         break;
       }
+
+      default:
+        break;
     }
   }
 
-  // --- Resize ---
+  private updateHeader(): void {
+    const game = this.ctx.state.game;
+    const profile = this.ctx.profile.get();
+
+    const metaParts: string[] = [];
+    if (game) {
+      metaParts.push(`Round ${game.handNo}`);
+      if (game.contract) metaParts.push(`Contract: ${String(game.contract).replace("_", " ")}`);
+      if (game.trump) metaParts.push(`Trump: ${game.trump}`);
+    } else {
+      metaParts.push("Waiting for game state");
+    }
+
+    this.headerMeta.textContent = metaParts.join("  •  ");
+    this.headerName.textContent = profile.name;
+    this.headerAvatar.src = profile.avatar || this.ctx.profile.getFallbackAvatar();
+    this.headerAvatar.onerror = () => {
+      this.headerAvatar.src = this.ctx.profile.getFallbackAvatar();
+    };
+
+    const soundOn = this.ctx.settings.get("soundEnabled");
+    this.soundToggleBtn.textContent = soundOn ? "Sound On" : "Sound Off";
+    this.soundToggleBtn.setAttribute("aria-pressed", String(soundOn));
+  }
+
+  private openSettingsModal(): void {
+    const settings = this.ctx.settings;
+    const content = document.createElement("div");
+    content.innerHTML = `
+      <div class="modal-form-group">
+        <label>
+          <input id="game-set-sound" type="checkbox" ${settings.get("soundEnabled") ? "checked" : ""} />
+          Enable sound
+        </label>
+      </div>
+      <div class="modal-form-group">
+        <label>
+          <input id="game-set-reduce-motion" type="checkbox" ${settings.get("reduceMotion") ? "checked" : ""} />
+          Reduce motion
+        </label>
+      </div>
+    `;
+
+    showModal({
+      title: "Settings",
+      size: "sm",
+      content,
+      actions: [
+        { label: "Cancel", className: "btn-secondary", onClick: () => {} },
+        {
+          label: "Save",
+          className: "btn-primary",
+          onClick: () => {
+            settings.set(
+              "soundEnabled",
+              (content.querySelector("#game-set-sound") as HTMLInputElement).checked
+            );
+            settings.set(
+              "reduceMotion",
+              (content.querySelector("#game-set-reduce-motion") as HTMLInputElement).checked
+            );
+            this.renderer.requestRender();
+            this.updateHeader();
+            showToast("Settings saved", "success", 1200);
+          },
+        },
+      ],
+    });
+  }
 
   private handleResize = (): void => {
-    const wrap = this.container.querySelector(".game-canvas-wrap") as HTMLElement;
+    const wrap = this.container.querySelector(".game-canvas-wrap") as HTMLElement | null;
     if (!wrap || !this.canvas) return;
 
     const wrapRect = wrap.getBoundingClientRect();
@@ -328,11 +562,9 @@ export class GameScreen implements Screen {
     let displayH: number;
 
     if (wrapRatio > targetRatio) {
-      // Wider than needed
       displayH = wrapRect.height;
       displayW = displayH * targetRatio;
     } else {
-      // Taller than needed
       displayW = wrapRect.width;
       displayH = displayW / targetRatio;
     }
@@ -340,162 +572,4 @@ export class GameScreen implements Screen {
     this.canvas.style.width = `${displayW}px`;
     this.canvas.style.height = `${displayH}px`;
   };
-
-  // --- Styles ---
-
-  private addStyles(): void {
-    if (document.getElementById("game-styles")) return;
-    const style = document.createElement("style");
-    style.id = "game-styles";
-    style.textContent = `
-      .game-screen {
-        display: flex;
-        flex-direction: column;
-        background: var(--bg-primary);
-        overflow: hidden;
-      }
-      .game-canvas-wrap {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-        min-height: 0;
-      }
-      #game-canvas {
-        image-rendering: auto;
-      }
-      .game-controls-bar {
-        flex-shrink: 0;
-        min-height: 56px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 8px 16px;
-        background: var(--surface-parchment);
-        border-top: 2px solid rgba(200,166,81,0.2);
-        box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
-      }
-      .control-group {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-        justify-content: center;
-      }
-      .control-label {
-        font-size: 14px;
-        font-family: var(--font-display);
-        color: var(--text-on-parchment);
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        margin-right: 8px;
-      }
-      .controls-hint {
-        font-size: 14px;
-        font-family: var(--font-sans);
-        color: var(--text-secondary);
-        font-style: italic;
-      }
-      .bid-btn, .trump-btn, .exchange-btn, .rematch-btn, .start-btn {
-        font-size: 13px;
-        font-family: var(--font-sans);
-        font-weight: 600;
-        padding: 8px 16px;
-        border-radius: var(--radius-sm);
-        cursor: pointer;
-        transition: background var(--dur-fast) var(--ease-standard),
-                    border-color var(--dur-fast) var(--ease-standard),
-                    transform var(--dur-micro) var(--ease-standard),
-                    box-shadow var(--dur-fast) var(--ease-standard);
-        border: 1px solid var(--border);
-        background: var(--bg-tertiary);
-        color: var(--text-primary);
-      }
-      .bid-btn:focus-visible, .trump-btn:focus-visible, .exchange-btn:focus-visible {
-        outline: none;
-        box-shadow: var(--focus-ring), var(--focus-ring-offset);
-      }
-      .bid-btn:hover:not(:disabled) {
-        border-color: var(--color-gold);
-        background: rgba(200, 166, 81, 0.08);
-      }
-      .bid-btn:disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
-      }
-      .bid-btn.pass-btn {
-        color: var(--text-secondary);
-      }
-      .bid-btn.pass-btn:hover:not(:disabled) {
-        border-color: var(--text-secondary);
-        background: rgba(90, 90, 90, 0.08);
-      }
-      .trump-btn {
-        font-size: 14px;
-        padding: 8px 18px;
-      }
-      .trump-btn:hover:not(:disabled) {
-        border-color: var(--suit-color, var(--color-gold));
-        background: rgba(200, 166, 81, 0.08);
-        transform: scale(1.04);
-      }
-      .trump-btn:disabled {
-        opacity: 0.3;
-        cursor: not-allowed;
-      }
-      .exchange-btn.primary, .rematch-btn.primary, .start-btn.primary {
-        background: var(--color-crimson);
-        color: #fff;
-        border-color: var(--color-crimson);
-      }
-      .exchange-btn.primary:hover, .rematch-btn.primary:hover, .start-btn.primary:hover {
-        background: #9a2626;
-        border-color: #9a2626;
-      }
-      .exchange-count {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 13px;
-        font-weight: 700;
-        font-family: var(--font-sans);
-        padding: 4px 12px;
-        border-radius: var(--radius-pill);
-        background: rgba(200,166,81,0.15);
-        color: var(--color-gold);
-        letter-spacing: 0.5px;
-        margin-right: 4px;
-      }
-      .exchange-btn.secondary {
-        background: transparent;
-        border-color: var(--color-gold);
-        color: var(--color-gold);
-      }
-      .exchange-btn.secondary:hover {
-        background: rgba(200, 166, 81, 0.08);
-      }
-      @media (max-width: 640px) {
-        .game-controls-bar {
-          padding: 6px 8px;
-          min-height: 52px;
-        }
-        .bid-btn, .trump-btn, .exchange-btn, .rematch-btn, .start-btn {
-          font-size: 12px;
-          padding: 8px 14px;
-          min-height: 44px;
-          min-width: 44px;
-        }
-        .control-label {
-          font-size: 12px;
-          margin-right: 4px;
-        }
-        .exchange-count {
-          font-size: 12px;
-          padding: 3px 10px;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-  }
 }

@@ -1,5 +1,6 @@
 import type { ClientState } from "../state";
 import type { SettingsManager } from "../ui/settings";
+import type { ProfileManager } from "../lib/profile";
 import type { Card } from "../protocol";
 import { computeLayout, cardSpread, type Layout } from "./layout";
 import { drawTableBackground } from "./table";
@@ -8,6 +9,7 @@ import { drawPlayers } from "./players";
 import { AnimationManager, type Animation } from "./animations";
 import { getCardSkinDefinition } from "./card-skin-registry";
 import { preloadSkinImages } from "./card-image-loader";
+import { AVATAR_READY_EVENT } from "./avatar-cache";
 
 const FONT_SANS = '"Inter", system-ui, sans-serif';
 
@@ -18,18 +20,42 @@ export class GameRenderer {
   readonly animations = new AnimationManager();
   private hoveredCardIndex = -1;
   private currentSkin = "";
+  private dpr = 1;
+  private drawHandOnCanvas = true;
+  private drawTableCardsOnCanvas = true;
+  private avatarReadyHandler = () => {
+    this.requestRender();
+  };
 
   constructor(
     private canvas: HTMLCanvasElement,
     private ctx: CanvasRenderingContext2D,
     private state: ClientState,
-    private settings: SettingsManager
+    private settings: SettingsManager,
+    private profile: ProfileManager
   ) {
     this.layout = computeLayout(1024, 720);
-    this.canvas.width = 1024;
-    this.canvas.height = 720;
+    this.applyDpr();
+    window.addEventListener(AVATAR_READY_EVENT, this.avatarReadyHandler);
+    this.watchDpr();
     this.preloadCurrentSkin();
     this.startLoop();
+  }
+
+  private applyDpr(): void {
+    this.dpr = window.devicePixelRatio || 1;
+    this.canvas.width = 1024 * this.dpr;
+    this.canvas.height = 720 * this.dpr;
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.dirty = true;
+  }
+
+  private watchDpr(): void {
+    const mq = window.matchMedia(`(resolution: ${this.dpr}dppx)`);
+    mq.addEventListener("change", () => {
+      this.applyDpr();
+      this.watchDpr(); // re-register for next change
+    }, { once: true });
   }
 
   requestRender(): void {
@@ -45,6 +71,12 @@ export class GameRenderer {
 
   addAnimation(anim: Animation): void {
     this.animations.add(anim);
+  }
+
+  setCanvasCardLayers(layers: { hand?: boolean; table?: boolean }): void {
+    if (typeof layers.hand === "boolean") this.drawHandOnCanvas = layers.hand;
+    if (typeof layers.table === "boolean") this.drawTableCardsOnCanvas = layers.table;
+    this.requestRender();
   }
 
   private preloadCurrentSkin(): void {
@@ -65,6 +97,11 @@ export class GameRenderer {
       const skinId = this.settings.get("cardSkin");
       if (skinId !== this.currentSkin) {
         this.preloadCurrentSkin();
+        this.dirty = true;
+      }
+
+      // Force continuous render when countdown is active
+      if (this.state.game?.turnDeadline && this.state.game.turn !== null) {
         this.dirty = true;
       }
 
@@ -92,13 +129,24 @@ export class GameRenderer {
 
     // 2. Players (names, scores, opponent cards)
     const colorblind = this.settings.get("colorblindMode");
-    drawPlayers(this.ctx, this.state, this.layout, colorblind, cardSkin);
+    drawPlayers(
+      this.ctx,
+      this.state,
+      this.layout,
+      colorblind,
+      cardSkin,
+      this.profile.get()
+    );
 
     // 3. Table cards (center)
-    this.drawTableCards(colorblind, cardSkin);
+    if (this.drawTableCardsOnCanvas) {
+      this.drawTableCards(colorblind, cardSkin);
+    }
 
     // 4. Player's hand (bottom)
-    this.drawHand(colorblind, cardSkin);
+    if (this.drawHandOnCanvas) {
+      this.drawHand(colorblind, cardSkin);
+    }
 
     // 5. Animations overlay
     this.animations.draw(this.ctx);
@@ -141,8 +189,9 @@ export class GameRenderer {
       this.layout.handCenterX
     );
 
-    const isExchange = this.state.phase === "exchange" && this.state.isMyTurn;
+    const isExchange = this.state.phase === "exchange" && this.state.canExchangeNow;
     const isPlay = this.state.phase === "play" && this.state.isMyTurn;
+    const legalIds = this.state.game?.legalIds;
 
     for (let i = 0; i < hand.length; i++) {
       const x = startX + i * spread;
@@ -150,8 +199,15 @@ export class GameRenderer {
       const isHovered = i === this.hoveredCardIndex;
       const yOffset = isSelected ? -12 : isHovered ? -6 : 0;
 
+      // Dim illegal cards during play phase
+      const isIllegal = isPlay && legalIds && !legalIds.includes(hand[i].id);
+      if (isIllegal) {
+        this.ctx.save();
+        this.ctx.globalAlpha = 0.4;
+      }
+
       // Hover scale effect
-      if (isHovered && (isExchange || isPlay)) {
+      if (isHovered && (isExchange || (isPlay && !isIllegal))) {
         this.ctx.save();
         this.ctx.translate(x, this.layout.handY + yOffset);
         this.ctx.scale(1.03, 1.03);
@@ -186,6 +242,10 @@ export class GameRenderer {
           }
         );
       }
+
+      if (isIllegal) {
+        this.ctx.restore();
+      }
     }
   }
 
@@ -202,14 +262,18 @@ export class GameRenderer {
     const barH = 44;
     const barR = 12;
 
-    // Dark rounded rect bar
+    // Ivory rounded rect bar
     this.ctx.save();
-    this.ctx.fillStyle = "rgba(13,13,13,0.6)";
+    this.ctx.fillStyle = "rgba(248,246,240,0.92)";
     this.roundRect(barX, barY, barW, barH, barR);
     this.ctx.fill();
 
-    // Subtle gold top border
-    this.ctx.strokeStyle = "rgba(200,166,81,0.2)";
+    // Border + subtle gold top highlight
+    this.ctx.strokeStyle = "rgba(13,13,13,0.1)";
+    this.ctx.lineWidth = 1;
+    this.roundRect(barX, barY, barW, barH, barR);
+    this.ctx.stroke();
+    this.ctx.strokeStyle = "rgba(200,166,81,0.25)";
     this.ctx.lineWidth = 1;
     this.ctx.beginPath();
     this.ctx.moveTo(barX + barR, barY + 0.5);
@@ -231,7 +295,7 @@ export class GameRenderer {
       scoring: "Scoring",
       match_end: "Match Over",
     };
-    this.ctx.fillStyle = "#F8F6F0";
+    this.ctx.fillStyle = "#0D0D0D";
     this.ctx.font = `600 13px ${FONT_SANS}`;
     this.ctx.textAlign = "left";
     this.ctx.textBaseline = "middle";
@@ -263,7 +327,7 @@ export class GameRenderer {
 
     if (centerParts.length > 0) {
       this.ctx.save();
-      this.ctx.fillStyle = "#C8A651";
+      this.ctx.fillStyle = "#8a6a24";
       this.ctx.font = `bold 14px ${FONT_SANS}`;
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
@@ -274,7 +338,7 @@ export class GameRenderer {
     // Right: Target
     if (game.gameTarget) {
       this.ctx.save();
-      this.ctx.fillStyle = "rgba(248,246,240,0.45)";
+      this.ctx.fillStyle = "rgba(13,13,13,0.62)";
       this.ctx.font = `11px ${FONT_SANS}`;
       this.ctx.textAlign = "right";
       this.ctx.textBaseline = "middle";
@@ -282,11 +346,26 @@ export class GameRenderer {
       this.ctx.restore();
     }
 
+    // --- Turn countdown ---
+    const deadline = game.turnDeadline;
+    if (deadline && game.turn !== null) {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      if (remaining <= 25) {
+        this.ctx.save();
+        this.ctx.fillStyle = remaining <= 5 ? "#B02E2E" : "rgba(13,13,13,0.5)";
+        this.ctx.font = `700 12px ${FONT_SANS}`;
+        this.ctx.textAlign = "right";
+        this.ctx.textBaseline = "middle";
+        this.ctx.fillText(`${remaining}s`, barX + barW - 80, barCY);
+        this.ctx.restore();
+      }
+    }
+
     // --- Turn indicator (below table, near hand) ---
     if (game.turn !== null && this.state.isMyTurn) {
       this.ctx.save();
       const pulseAlpha = 0.6 + 0.4 * Math.sin(performance.now() / 500);
-      this.ctx.fillStyle = `rgba(200,166,81,${pulseAlpha * 0.12})`;
+      this.ctx.fillStyle = `rgba(248,246,240,${0.88 + pulseAlpha * 0.08})`;
       this.roundRect(
         this.layout.tableCX - 80,
         this.layout.handY - 70,
@@ -295,7 +374,17 @@ export class GameRenderer {
         15
       );
       this.ctx.fill();
-      this.ctx.fillStyle = `rgba(200,166,81,${pulseAlpha})`;
+      this.ctx.strokeStyle = `rgba(200,166,81,${0.25 + pulseAlpha * 0.35})`;
+      this.ctx.lineWidth = 1.5;
+      this.roundRect(
+        this.layout.tableCX - 80,
+        this.layout.handY - 70,
+        160,
+        30,
+        15
+      );
+      this.ctx.stroke();
+      this.ctx.fillStyle = "#8a6a24";
       this.ctx.font = `bold 14px ${FONT_SANS}`;
       this.ctx.textAlign = "center";
       this.ctx.textBaseline = "middle";
@@ -306,6 +395,7 @@ export class GameRenderer {
 
   // ---- Hit testing ----
   hitTestCard(canvasX: number, canvasY: number): { card: Card; index: number } | null {
+    if (!this.drawHandOnCanvas) return null;
     const hand = this.state.hand;
     if (!hand.length) return null;
 
@@ -364,6 +454,7 @@ export class GameRenderer {
       cancelAnimationFrame(this.animationId);
       this.animationId = null;
     }
+    window.removeEventListener(AVATAR_READY_EVENT, this.avatarReadyHandler);
     this.animations.clear();
   }
 }

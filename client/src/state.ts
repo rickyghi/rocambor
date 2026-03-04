@@ -64,9 +64,30 @@ export class ClientState {
   }
 
   toggleCardSelection(cardId: string): void {
-    if (this.selectedCards.has(cardId)) this.selectedCards.delete(cardId);
-    else this.selectedCards.add(cardId);
+    if (this.selectedCards.has(cardId)) {
+      this.selectedCards.delete(cardId);
+    } else {
+      // Enforce exchange max during exchange phase
+      if (this.game?.phase === "exchange") {
+        const max = this.getExchangeMax();
+        if (max > 0 && this.selectedCards.size >= max) return;
+      }
+      this.selectedCards.add(cardId);
+    }
     this.notify();
+  }
+
+  getExchangeMax(): number {
+    const g = this.game;
+    if (!g || g.phase !== "exchange" || this.mySeat === null) return 0;
+    const isOmbre = this.mySeat === g.ombre;
+    const contract = g.contract;
+    const isSolo = contract === "solo" || contract === "solo_oros";
+    const isOros = contract === "oros" || contract === "solo_oros";
+    if (contract === "bola") return 0;
+    if (contract === "contrabola") return isOmbre ? 1 : 0;
+    if (isOmbre) return isSolo ? 0 : isOros ? 6 : 8;
+    return Math.min(5, g.exchange.talonSize);
   }
 
   clearSelection(): void {
@@ -80,6 +101,52 @@ export class ClientState {
       this.mySeat !== null &&
       this.game.turn === this.mySeat
     );
+  }
+
+  get canExchangeNow(): boolean {
+    if (!this.game || this.mySeat === null) return false;
+    if (this.game.phase !== "exchange") return false;
+    if (this.game.turn === this.mySeat) return true;
+
+    const contract = this.game.contract;
+    if (contract === "solo" || contract === "solo_oros" || contract === "contrabola") {
+      return false;
+    }
+
+    const ombre = this.game.ombre;
+    if (ombre === null) return false;
+
+    const completed = this.game.exchange.completed;
+    if (completed.length !== 1 || !completed.includes(ombre)) return false;
+
+    return (
+      this.game.exchange.order.includes(this.mySeat) &&
+      !completed.includes(this.mySeat) &&
+      this.mySeat !== ombre
+    );
+  }
+
+  get canCloseHandNow(): boolean {
+    if (!this.game || this.mySeat === null) return false;
+    if (this.game.phase !== "play") return false;
+    if (this.game.turn !== this.mySeat) return false;
+    if (this.game.ombre !== this.mySeat) return false;
+    if (this.game.table.length !== 0) return false;
+
+    const contract = this.game.contract;
+    if (!contract) return false;
+    if (contract === "bola" || contract === "contrabola" || contract === "penetro") {
+      return false;
+    }
+
+    const myTricks = this.game.tricks[this.mySeat] || 0;
+    if (myTricks !== 5) return false;
+
+    const otherTricks = [0, 1, 2, 3]
+      .filter((s) => s !== this.mySeat)
+      .reduce((sum, s) => sum + (this.game!.tricks[s] || 0), 0);
+
+    return otherTricks === 0;
   }
 
   get phase(): string {

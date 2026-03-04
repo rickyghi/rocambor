@@ -225,6 +225,6 @@ export class ConnectionManager {
     }
 
     // Production: same host
-    return `${protocol}//${location.hostname}`;
+    return `${protocol}//${location.host}`;
   }
 }

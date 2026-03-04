@@ -155,6 +155,58 @@ cd server && npm run migrate
 - **Table themes**: Classic Green, Royal Blue, Rustic Brown
 - **Sound effects**: Synthesized audio (Web Audio API, no external files)
 
+## Classic Luxury UI Assets
+
+Canonical UI assets now live in:
+
+- `client/public/assets/rocambor/felt-texture.jpg`
+- `client/public/assets/rocambor/noise-texture.png`
+- `client/public/assets/rocambor/app-icon.png`
+- `client/public/assets/rocambor/favicon.png`
+- `client/public/assets/rocambor/divider-1.png`
+- `client/public/assets/rocambor/divider-2.png`
+- `client/public/assets/rocambor/coin-crown.png`
+- `client/public/assets/rocambor/coin-heart.png`
+- `client/public/assets/rocambor/coin-club.png`
+- `client/public/assets/rocambor/coin-gold.png`
+
+Legacy folders (`/textures`, `/brand`, `/logo`) are still kept for compatibility fallback.
+
+## Avatar System
+
+- Player profile data is stored locally through `ProfileManager`.
+- Name and avatar persist in local storage.
+- Avatar choices use deterministic DiceBear URLs and local SVG fallbacks.
+- If remote avatar loading fails, the UI falls back to bundled local avatars and then initials-based SVG.
+
+## Modals and Toasts
+
+- Modals are implemented via `client/src/ui/modal.ts`.
+- `showModal(...)` supports:
+  - `size: "sm" | "md" | "lg"`
+  - `scroll: boolean`
+  - `dismissible: boolean` (Escape/backdrop/close button)
+- Toasts are implemented via `client/src/ui/toast.ts` and styled for:
+  - Desktop: top-center stack
+  - Mobile: bottom-center stack
+
+## Spritesheet Card Mapping
+
+The UI can render DOM cards from a spritesheet when all files exist:
+
+- `/cards/rocambor_cards_spritesheet.webp`
+- `/cards/rocambor_cards_spritesheet.css`
+- `/cards/rocambor_cards_spritesheet.json`
+
+Class convention:
+
+- `roc-card roc-card--{suit}-{rank}` (example: `roc-card roc-card--oros-1`)
+- Back face: `roc-card roc-card--back`
+
+Fallback behavior:
+
+- If spritesheet assets are missing, the game automatically falls back to existing canvas card rendering (no gameplay regression).
+
 ## License
 
 Private project.

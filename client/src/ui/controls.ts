@@ -1,6 +1,7 @@
 import type { ConnectionManager } from "../connection";
 import type { ClientState } from "../state";
 import type { Bid, Suit } from "../protocol";
+import { escapeHtml } from "../utils/escape";
 
 export class GameControls {
   private container: HTMLElement;
@@ -28,6 +29,7 @@ export class GameControls {
     }
 
     const myTurn = this.state.isMyTurn;
+    const canExchange = this.state.canExchangeNow;
     const phase = game.phase;
 
     let html = "";
@@ -36,12 +38,14 @@ export class GameControls {
       html = this.renderAuction();
     } else if (phase === "trump_choice" && myTurn) {
       html = this.renderTrumpChoice();
-    } else if (phase === "exchange" && myTurn) {
+    } else if (phase === "exchange" && canExchange) {
       html = this.renderExchange();
     } else if (phase === "play" && myTurn) {
-      html = `<div class="controls-hint">Click a card to play</div>`;
+      html = this.renderPlay();
     } else if (phase === "auction" && !myTurn) {
       html = `<div class="controls-hint">Waiting for ${this.seatLabel(game.turn)}...</div>`;
+    } else if (phase === "exchange" && !canExchange) {
+      html = `<div class="controls-hint">Waiting for exchange...</div>`;
     } else if (phase === "play" && !myTurn) {
       html = `<div class="controls-hint">Waiting for ${this.seatLabel(game.turn)}...</div>`;
     } else if (phase === "post_hand") {
@@ -77,10 +81,18 @@ export class GameControls {
       )
       .join("");
 
+    // Contrabola: only when all others passed and you're last in order
+    const a = this.state.game!.auction;
+    const mySeatIdx = a.order.indexOf(this.state.mySeat!);
+    const isLast = mySeatIdx === a.order.length - 1;
+    const allOthersPassed = a.currentBid === "pass" && a.passed.length === a.order.length - 1;
+    const showContrabola = isLast && allOthersPassed;
+
     return `
       <div class="control-group">
         <span class="control-label">Auction</span>
         ${btns}
+        ${showContrabola ? `<button class="bid-btn contrabola-btn" data-bid="contrabola">Contrabola</button>` : ""}
         <button class="bid-btn pass-btn" data-bid="pass">Pass</button>
       </div>
     `;
@@ -114,15 +126,42 @@ export class GameControls {
 
   private renderExchange(): string {
     const selected = this.state.selectedCards.size;
-    const maxExchange = this.state.hand.length;
+    const { min, max } = this.exchangeLimits();
+    const maxExchange = Math.min(max, this.state.hand.length);
+    const canConfirm = selected >= min && selected <= maxExchange;
+    const requireExactOne = min === 1 && maxExchange === 1;
+
     return `
       <div class="control-group">
         <span class="control-label">Exchange</span>
+        ${requireExactOne ? `<span class="controls-hint">Select exactly 1 card</span>` : ""}
         <span class="exchange-count">${selected} / ${maxExchange}</span>
-        <button class="exchange-btn primary" data-action="confirm">Exchange ${selected} card${selected !== 1 ? "s" : ""}</button>
-        <button class="exchange-btn secondary" data-action="skip">Keep All</button>
+        <button class="exchange-btn primary" data-action="confirm" ${canConfirm ? "" : "disabled"}>
+          ${requireExactOne ? "Exchange 1 card" : `Exchange ${selected} card${selected !== 1 ? "s" : ""}`}
+        </button>
+        ${min > 0 ? "" : `<button class="exchange-btn secondary" data-action="skip">Keep All</button>`}
       </div>
     `;
+  }
+
+  private exchangeLimits(): { min: number; max: number } {
+    const game = this.state.game;
+    if (!game || this.state.mySeat === null) return { min: 0, max: 0 };
+
+    const isOmbre = game.ombre === this.state.mySeat;
+    const contract = game.contract;
+    const isSolo = contract === "solo" || contract === "solo_oros";
+    const isOros = contract === "oros" || contract === "solo_oros";
+
+    if (contract === "bola") return { min: 0, max: 0 };
+    if (contract === "contrabola") {
+      return isOmbre ? { min: 1, max: 1 } : { min: 0, max: 0 };
+    }
+    if (isOmbre) {
+      if (isSolo) return { min: 0, max: 0 };
+      return { min: 0, max: isOros ? 6 : 8 };
+    }
+    return { min: 0, max: 5 };
   }
 
   private renderMatchEnd(): string {
@@ -138,6 +177,20 @@ export class GameControls {
     return `
       <div class="control-group">
         <button class="start-btn primary" data-action="start">Start Game</button>
+      </div>
+    `;
+  }
+
+  private renderPlay(): string {
+    if (!this.state.canCloseHandNow) {
+      return `<div class="controls-hint">Click a card to play</div>`;
+    }
+
+    return `
+      <div class="control-group">
+        <span class="control-label">First Five Won</span>
+        <span class="controls-hint">Close hand now, or play a card to continue and imply Bola.</span>
+        <button class="exchange-btn secondary" data-action="close-hand">Close Hand</button>
       </div>
     `;
   }
@@ -162,11 +215,16 @@ export class GameControls {
     // Exchange buttons
     this.container.querySelectorAll<HTMLButtonElement>(".exchange-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
+        const { min, max } = this.exchangeLimits();
+
         if (btn.dataset.action === "confirm") {
-          const ids = Array.from(this.state.selectedCards);
+          let ids = Array.from(this.state.selectedCards);
+          if (ids.length < min) return;
+          if (ids.length > max) ids = ids.slice(0, max);
           this.conn.send({ type: "EXCHANGE", discardIds: ids });
           this.state.clearSelection();
         } else {
+          if (min > 0) return;
           this.conn.send({ type: "EXCHANGE", discardIds: [] });
           this.state.clearSelection();
         }
@@ -182,6 +240,10 @@ export class GameControls {
     this.container.querySelector<HTMLButtonElement>(".start-btn")?.addEventListener("click", () => {
       this.conn.send({ type: "START_GAME" });
     });
+
+    this.container.querySelector<HTMLButtonElement>('[data-action="close-hand"]')?.addEventListener("click", () => {
+      this.conn.send({ type: "CLOSE_HAND" });
+    });
   }
 
   private seatLabel(seat: number | null): string {
@@ -189,7 +251,7 @@ export class GameControls {
     const rel = this.state.relativePosition(seat as any);
     if (rel === "self") return "you";
     const player = this.state.game?.players[seat];
-    return player?.handle || rel;
+    return escapeHtml(player?.handle || rel);
   }
 
   update(): void {

@@ -1,0 +1,120 @@
+      .post-hand-screen {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--overlay);
+      }
+      .post-hand-overlay {
+        animation: fadeInUp 0.4s ease-out;
+      }
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .post-hand-card {
+        background: var(--color-ivory);
+        border: 1px solid rgba(200,166,81,0.3);
+        border-radius: var(--radius-lg);
+        padding: 32px;
+        max-width: 420px;
+        width: 90vw;
+        text-align: center;
+        box-shadow: var(--shadow-elevated);
+      }
+      .post-hand-card h2 {
+        font-family: var(--font-serif);
+        color: var(--text-primary);
+        font-size: 22px;
+        margin-bottom: 16px;
+      }
+      .post-hand-result {
+        font-size: 22px;
+        font-weight: 700;
+        padding: 12px 20px;
+        border-radius: var(--radius-md);
+        margin-bottom: 20px;
+      }
+      .result-win {
+        color: var(--success);
+        background: rgba(31, 122, 77, 0.1);
+        border: 1px solid rgba(31, 122, 77, 0.3);
+      }
+      .result-loss {
+        color: var(--color-crimson);
+        background: rgba(176, 46, 46, 0.1);
+        border: 1px solid rgba(176, 46, 46, 0.3);
+      }
+      .result-neutral {
+        color: var(--color-gold);
+        background: rgba(200, 166, 81, 0.1);
+        border: 1px solid rgba(200, 166, 81, 0.3);
+      }
+      .post-hand-details {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+      }
+      .detail-row {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+      .detail-label {
+        font-size: 11px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .detail-value {
+        font-size: 15px;
+        color: var(--text-primary);
+        font-weight: 600;
+      }
+      .post-hand-tricks, .post-hand-scores {
+        margin-bottom: 16px;
+      }
+      .post-hand-tricks h3, .post-hand-scores h3 {
+        font-size: 12px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        margin-bottom: 8px;
+      }
+      .tricks-table, .scores-table {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .trick-row, .score-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+      }
+      .trick-row.ombre {
+        background: rgba(200, 166, 81, 0.1);
+        border: 1px solid rgba(200, 166, 81, 0.2);
+      }
+      .trick-name, .score-name {
+        color: var(--text-secondary);
+      }
+      .trick-count, .score-value {
+        color: var(--text-primary);
+        font-weight: 700;
+      }
+      .score-row.self {
+        background: rgba(200, 166, 81, 0.08);
+      }
+      .score-row.self .score-name {
+        color: var(--color-gold);
+      }
+      .post-hand-hint {
+        font-size: 13px;
+        color: var(--text-secondary);
+        font-style: italic;
+        margin-top: 8px;
+      }

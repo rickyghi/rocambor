@@ -194,6 +194,21 @@ describe("trickWinner", () => {
     const cards = [card("copas", 3), card("espadas", 12), card("copas", 5)];
     expect(trickWinner(trump, "copas", cards)).toBe(0); // copas-3 > copas-5 in red suit ranking, espadas ignored
   });
+
+  it("uses black suit plain ranking when no trump is played", () => {
+    const cards = [card("espadas", 2), card("espadas", 7), card("copas", 12)];
+    expect(trickWinner(trump, "espadas", cards)).toBe(1); // espadas-7 > espadas-2 in black ranking
+  });
+
+  it("treats red-suit ace as a valid trump card", () => {
+    const cards = [card("copas", 12), card("oros", 1), card("copas", 11)];
+    expect(trickWinner(trump, "copas", cards)).toBe(1); // trump ace beats led plain cards
+  });
+
+  it("orders red-suit trump ace above trump two", () => {
+    const cards = [card("oros", 2), card("oros", 1), card("copas", 12)];
+    expect(trickWinner(trump, "oros", cards)).toBe(1); // oros-1 > oros-2 (non-matador trumps)
+  });
 });
 
 describe("evalTrumpPointsExact", () => {

@@ -2,6 +2,9 @@ import type { ClientState } from "../state";
 import type { Layout } from "./layout";
 import type { SeatIndex, PlayerInfo } from "../protocol";
 import { drawCard, type CardSkin } from "./cards";
+import type { PlayerProfile } from "../lib/profile";
+import { buildDiceBearUrl, fallbackAvatarAt } from "../lib/avatars";
+import { getAvatarImage } from "./avatar-cache";
 
 type Position = "self" | "left" | "across" | "right";
 
@@ -12,7 +15,8 @@ export function drawPlayers(
   state: ClientState,
   layout: Layout,
   colorblind: boolean,
-  cardSkin: CardSkin
+  cardSkin: CardSkin,
+  profile: PlayerProfile
 ): void {
   if (!state.game) return;
 
@@ -28,9 +32,32 @@ export function drawPlayers(
     const coords = layout.positions[pos];
     const isResting = state.game.resting === seat;
     const isMyTurn = state.game.turn === seat;
+    const isSelf = pos === "self";
+
+    const displayName = isSelf
+      ? profile.name
+      : player?.handle || `Seat ${seat}`;
+    const avatarUrl = isSelf
+      ? profile.avatar
+      : player
+        ? buildDiceBearUrl(player.handle || `Seat-${seat}`, "identicon")
+        : fallbackAvatarAt(seat);
+    const avatarFallback = fallbackAvatarAt(seat);
 
     // Draw name badge
-    drawNameBadge(ctx, coords.x, coords.y, player, seat, isMyTurn, isResting, pos === "self");
+    drawNameBadge(
+      ctx,
+      coords.x,
+      coords.y,
+      player,
+      seat,
+      isMyTurn,
+      isResting,
+      isSelf,
+      displayName,
+      avatarUrl,
+      avatarFallback
+    );
 
     // Draw score
     const score = state.game.scores[seat] || 0;
@@ -78,9 +105,12 @@ function drawNameBadge(
   seat: SeatIndex,
   isMyTurn: boolean,
   isResting: boolean,
-  isSelf: boolean
+  isSelf: boolean,
+  displayName: string,
+  avatarUrl: string,
+  avatarFallback: string
 ): void {
-  const name = player?.handle || (isSelf ? "You" : `Seat ${seat}`);
+  const name = displayName || player?.handle || (isSelf ? "You" : `Seat ${seat}`);
   const label = isResting ? `${name} (resting)` : name;
 
   ctx.save();
@@ -88,31 +118,53 @@ function drawNameBadge(
   // Background pill
   ctx.font = `${isMyTurn ? "bold " : ""}13px ${FONT_SANS}`;
   const textW = ctx.measureText(label).width || 60;
-  const pillW = Math.max(textW + 20, 80);
+  const avatarSize = 18;
+  const pillW = Math.max(textW + 36 + avatarSize, 112);
   const pillH = 24;
 
   ctx.fillStyle = isMyTurn
-    ? "rgba(200,166,81,0.2)"
-    : "rgba(0,0,0,0.6)";
+    ? "rgba(248,246,240,0.96)"
+    : "rgba(248,246,240,0.9)";
   roundRect(ctx, x - pillW / 2, y - pillH / 2, pillW, pillH, 12);
   ctx.fill();
 
-  if (isMyTurn) {
-    ctx.strokeStyle = "#C8A651";
-    ctx.lineWidth = 2;
-    // Gold glow
-    ctx.shadowColor = "#C8A651";
-    ctx.shadowBlur = 6;
-    roundRect(ctx, x - pillW / 2, y - pillH / 2, pillW, pillH, 12);
-    ctx.stroke();
-    ctx.shadowColor = "transparent";
-  }
+  ctx.strokeStyle = isMyTurn ? "#C8A651" : "rgba(13,13,13,0.12)";
+  ctx.lineWidth = isMyTurn ? 2 : 1;
+  roundRect(ctx, x - pillW / 2, y - pillH / 2, pillW, pillH, 12);
+  ctx.stroke();
 
   // Name text
-  ctx.fillStyle = isMyTurn ? "#C8A651" : isResting ? "#666" : "#F8F6F0";
-  ctx.textAlign = "center";
+  ctx.fillStyle = isMyTurn ? "#8a6a24" : isResting ? "#666" : "#0D0D0D";
+  ctx.textAlign = "left";
   ctx.textBaseline = "middle";
-  ctx.fillText(label, x, y);
+
+  const avatarX = x - pillW / 2 + 12;
+  const avatarY = y;
+  const img = getAvatarImage(avatarUrl, avatarFallback);
+  if (img) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarX + avatarSize / 2, avatarY, avatarSize / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(
+      img,
+      avatarX,
+      avatarY - avatarSize / 2,
+      avatarSize,
+      avatarSize
+    );
+    ctx.restore();
+  } else {
+    ctx.save();
+    ctx.fillStyle = "rgba(13,13,13,0.08)";
+    ctx.beginPath();
+    ctx.arc(avatarX + avatarSize / 2, avatarY, avatarSize / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.fillText(label, avatarX + avatarSize + 8, y);
 
   ctx.restore();
 }
@@ -124,11 +176,15 @@ function drawScore(
   score: number
 ): void {
   ctx.save();
-  ctx.fillStyle = "rgba(0,0,0,0.7)";
+  ctx.fillStyle = "rgba(248,246,240,0.92)";
   roundRect(ctx, x - 20, y - 10, 40, 20, 10);
   ctx.fill();
+  ctx.strokeStyle = "rgba(13,13,13,0.12)";
+  ctx.lineWidth = 1;
+  roundRect(ctx, x - 20, y - 10, 40, 20, 10);
+  ctx.stroke();
 
-  ctx.fillStyle = "#F8F6F0";
+  ctx.fillStyle = "#0D0D0D";
   ctx.font = `bold 13px ${FONT_SANS}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -144,10 +200,14 @@ function drawTricks(
 ): void {
   if (tricks === 0) return;
   ctx.save();
-  ctx.fillStyle = "rgba(200,166,81,0.15)";
+  ctx.fillStyle = "rgba(248,246,240,0.9)";
   roundRect(ctx, x - 16, y - 8, 32, 16, 8);
   ctx.fill();
-  ctx.fillStyle = "#C8A651";
+  ctx.strokeStyle = "rgba(13,13,13,0.12)";
+  ctx.lineWidth = 1;
+  roundRect(ctx, x - 16, y - 8, 32, 16, 8);
+  ctx.stroke();
+  ctx.fillStyle = "#8a6a24";
   ctx.font = `bold 11px ${FONT_SANS}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";

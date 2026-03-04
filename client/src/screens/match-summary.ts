@@ -1,10 +1,12 @@
 import type { Screen, AppContext } from "../router";
 import type { SeatIndex } from "../protocol";
+import { escapeHtml } from "../utils/escape";
 
 export class MatchSummaryScreen implements Screen {
   private ctx!: AppContext;
   private container!: HTMLElement;
   private unsubscribes: Array<() => void> = [];
+  private hasVoted = false;
 
   mount(container: HTMLElement, ctx: AppContext): void {
     this.ctx = ctx;
@@ -24,6 +26,15 @@ export class MatchSummaryScreen implements Screen {
       }),
       ctx.connection.on("ROOM_LEFT", () => {
         ctx.router.navigate("home");
+      }),
+      ctx.connection.on("EVENT", (msg: any) => {
+        if (msg.name === "REMATCH_VOTE") {
+          const { count, required } = msg.payload as { count: number; required: number };
+          const btn = this.container.querySelector<HTMLButtonElement>("#rematch-btn");
+          if (btn) {
+            btn.textContent = `Play Again (${count}/${required})`;
+          }
+        }
       })
     );
 
@@ -116,8 +127,13 @@ export class MatchSummaryScreen implements Screen {
   }
 
   private attachHandlers(): void {
-    this.container.querySelector("#rematch-btn")?.addEventListener("click", () => {
+    const rematchBtn = this.container.querySelector<HTMLButtonElement>("#rematch-btn");
+    rematchBtn?.addEventListener("click", () => {
+      if (this.hasVoted) return;
+      this.hasVoted = true;
       this.ctx.connection.send({ type: "REMATCH" });
+      rematchBtn.classList.add("voted");
+      rematchBtn.textContent = "Voted — waiting…";
     });
 
     this.container.querySelector("#leave-btn")?.addEventListener("click", () => {
@@ -131,7 +147,7 @@ export class MatchSummaryScreen implements Screen {
     if (seat === null) return "...";
     if (seat === this.ctx.state.mySeat) return "You";
     const player = this.ctx.state.game?.players[seat];
-    return player?.handle || `Seat ${seat}`;
+    return escapeHtml(player?.handle || `Seat ${seat}`);
   }
 
   private renderConfetti(): string {
@@ -308,6 +324,11 @@ export class MatchSummaryScreen implements Screen {
       .rematch-btn {
         padding: 12px 28px;
         font-size: 16px;
+        transition: opacity 0.2s;
+      }
+      .rematch-btn.voted {
+        opacity: 0.7;
+        cursor: default;
       }
       .leave-btn {
         padding: 12px 20px;

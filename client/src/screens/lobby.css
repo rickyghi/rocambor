@@ -1,0 +1,157 @@
+.lobby-screen {
+  padding: 12px;
+  gap: 12px;
+}
+
+.lobby-header {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lobby-room-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.room-code {
+  color: color-mix(in srgb, var(--gold) 72%, #6f5724);
+  font-family: var(--font-serif);
+  letter-spacing: 0.16em;
+  font-size: 21px;
+}
+
+.room-mode {
+  font-size: 12px;
+  color: var(--ink60);
+}
+
+.lobby-main {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+}
+
+.lobby-panel {
+  width: min(920px, 100%);
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.lobby-panel h2 {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--ink80);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.lobby-seats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.lobby-seat {
+  border-radius: var(--rMd);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: var(--shadowSoft);
+  padding: 14px 10px;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
+  min-height: 180px;
+}
+
+.lobby-seat.you {
+  border-color: rgba(200, 166, 81, 0.76);
+  box-shadow: 0 0 0 1px rgba(200, 166, 81, 0.2), var(--shadowSoft);
+}
+
+.lobby-seat.ready {
+  border-color: color-mix(in srgb, var(--success) 38%, var(--line));
+}
+
+.lobby-seat.bot {
+  border-color: color-mix(in srgb, var(--info) 38%, var(--line));
+}
+
+.lobby-seat.offline {
+  border-color: color-mix(in srgb, var(--crimson) 40%, var(--line));
+  opacity: 0.82;
+}
+
+.lobby-seat.open {
+  border-style: dashed;
+  border-color: #d2cabc;
+}
+
+.lobby-seat-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--ink60);
+}
+
+.lobby-seat-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(13, 13, 13, 0.12);
+}
+
+.lobby-seat-name {
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink80);
+}
+
+.lobby-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.lobby-actions .btn-primary {
+  min-width: 220px;
+}
+
+@media (max-width: 920px) {
+  .lobby-seats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .lobby-screen {
+    padding: 8px;
+  }
+
+  .lobby-header {
+    padding: 8px;
+  }
+
+  .room-code {
+    font-size: 16px;
+  }
+
+  .lobby-panel {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .lobby-seat {
+    min-height: 160px;
+  }
+}

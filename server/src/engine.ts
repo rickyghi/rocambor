@@ -63,6 +63,15 @@ export function isTrump(tr: Suit | null, c: Card): boolean {
   return !!tr && (c.s === tr || isMatador(tr, c));
 }
 
+export function plainSuitValue(s: Suit, r: Rank): number {
+  // Red suits (oros, copas): K > C > S > A > 2 > 3 > 4 > 5 > 6 > 7
+  // Black suits (espadas, bastos): K > C > S > 7 > 6 > 5 > 4 > 3 > 2 > A
+  const map: Record<number, number> = isBlack(s)
+    ? { 12: 10, 11: 9, 10: 8, 7: 7, 6: 6, 5: 5, 4: 4, 3: 3, 2: 2, 1: 1 }
+    : { 12: 10, 11: 9, 10: 8, 1: 7, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2, 7: 1 };
+  return map[r] || 0;
+}
+
 // ---- Legal plays ----
 export function legalPlays(
   tr: Suit | null,
@@ -100,27 +109,20 @@ export function trickWinner(
     if (isManille(tr, c)) return 99;
     if (c.s === "bastos" && c.r === 1) return 98; // basto ace
     if (c.s !== tr) return 0;
-    const nb = isBlack(tr);
-    const map: Record<number, number> = nb
-      ? { 12: 90, 11: 89, 10: 88, 7: 87, 6: 86, 5: 85, 4: 84, 3: 83 }
-      : { 12: 90, 11: 89, 10: 88, 2: 87, 3: 86, 4: 85, 5: 84, 6: 83 };
-    return map[c.r] || 0;
-  }
-
-  function plainVal(s: Suit, r: Rank): number {
-    // Non-trump suit ranking is uniform across suits:
-    // K > C > S > A > 2 > 3 > 4 > 5 > 6 > 7
-    const map: Record<number, number> = {
-      12: 10, 11: 9, 10: 8, 1: 7, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2, 7: 1,
-    };
-    return map[r] || 0;
+    // Remaining trumps follow the suit's native plain order under matadors.
+    return 80 + plainSuitValue(tr, c.r);
   }
 
   let best = -1,
     idx = 0;
   cards.forEach((c, i) => {
     const tv = trumpVal(c);
-    const v = tv > 0 ? 1000 + tv : c.s === ledSuit ? 100 + plainVal(c.s, c.r) : 0;
+    const v =
+      tv > 0
+        ? 1000 + tv
+        : c.s === ledSuit
+          ? 100 + plainSuitValue(c.s, c.r)
+          : 0;
     if (v > best) {
       best = v;
       idx = i;

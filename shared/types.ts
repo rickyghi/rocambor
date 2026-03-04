@@ -73,6 +73,9 @@ export interface GameState {
     espadaObligatoria: boolean;
     penetroEnabled: boolean;
   };
+  hostSeat?: SeatIndex | null;
+  turnDeadline?: number;
+  legalIds?: string[];
 }
 
 // ---- Client-to-Server messages ----
@@ -87,8 +90,10 @@ export type C2SMessage =
   | { type: "BID"; value: Bid }
   | { type: "CHOOSE_TRUMP"; suit: Suit }
   | { type: "EXCHANGE"; discardIds: string[] }
+  | { type: "CLOSE_HAND" }
   | { type: "PLAY"; cardId: string }
   | { type: "REMATCH" }
+  | { type: "LEAVE_QUEUE" }
   | { type: "PING" };
 
 // ---- Server-to-Client messages ----

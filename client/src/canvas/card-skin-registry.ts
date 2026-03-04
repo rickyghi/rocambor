@@ -324,17 +324,38 @@ export function importCustomCardSkin(rawJson: string): CardSkinDefinition {
   try {
     parsed = JSON.parse(rawJson);
   } catch {
-    throw new Error("Invalid JSON format.");
+    throw new Error("Invalid JSON format. Check for missing commas or brackets.");
   }
 
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("Skin data must be a JSON object.");
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Skin data must be a JSON object, not an array or primitive.");
   }
 
   const input = parsed as CardSkinImportInput;
   const id = typeof input.id === "string" ? input.id.trim().toLowerCase() : "";
+  if (!id) {
+    throw new Error('Missing required "id" field. Example: {"id": "my_skin"}');
+  }
   if (!isValidCustomSkinId(id)) {
-    throw new Error("Skin id must be 2-32 chars: lowercase letters, numbers, _ or -.");
+    throw new Error(`Invalid skin id "${id}". Must be 2-32 chars: lowercase letters, numbers, _ or -.`);
+  }
+
+  // Validate color fields
+  const colorFields = [
+    "faceColor", "faceBorderColor", "backColor", "backBorderColor",
+    "backPatternColor", "emblemColor", "selectionBorderColor", "hoverBorderColor",
+  ] as const;
+  for (const field of colorFields) {
+    const val = (input as any)[field];
+    if (val !== undefined && typeof val !== "string") {
+      throw new Error(`Field "${field}" must be a CSS color string.`);
+    }
+  }
+
+  // Validate backPattern
+  const validPatterns = ["diamond", "vertical", "horizontal", "crosshatch", "ornate"];
+  if ((input as any).backPattern !== undefined && !validPatterns.includes((input as any).backPattern)) {
+    throw new Error(`Invalid backPattern "${(input as any).backPattern}". Must be one of: ${validPatterns.join(", ")}.`);
   }
 
   const merged = mergeCustomSkin({ ...input, id });

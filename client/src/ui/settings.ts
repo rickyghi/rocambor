@@ -7,6 +7,7 @@ export interface Settings {
   tableTheme: TableTheme;
   cardSkin: string;
   animationSpeed: "slow" | "normal" | "fast";
+  reduceMotion: boolean;
 }
 
 const STORAGE_KEY = "rocambor_settings";
@@ -18,6 +19,7 @@ const DEFAULTS: Settings = {
   tableTheme: "classic",
   cardSkin: "rocambor",
   animationSpeed: "normal",
+  reduceMotion: false,
 };
 
 type SettingsListener = (s: Settings) => void;
@@ -57,6 +59,9 @@ export class SettingsManager {
         const merged = { ...DEFAULTS, ...parsed };
         if (typeof merged.cardSkin !== "string" || !merged.cardSkin.trim()) {
           merged.cardSkin = DEFAULTS.cardSkin;
+        }
+        if (typeof merged.reduceMotion !== "boolean") {
+          merged.reduceMotion = DEFAULTS.reduceMotion;
         }
         return merged;
       }

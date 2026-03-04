@@ -5,7 +5,7 @@ import {
   SUITS,
   isTrump,
   isMatador,
-  isBlack,
+  plainSuitValue,
   trickWinner,
   isManille,
 } from "./engine";
@@ -49,19 +49,11 @@ function trumpOrderValue(card: Card, trump: Suit): number {
   if (isManille(trump, card)) return 99;
   if (card.s === "bastos" && card.r === 1) return 98;
   if (card.s !== trump) return 0;
-  const nb = isBlack(trump);
-  const map: Record<number, number> = nb
-    ? { 12: 90, 11: 89, 10: 88, 7: 87, 6: 86, 5: 85, 4: 84, 3: 83 }
-    : { 12: 90, 11: 89, 10: 88, 2: 87, 3: 86, 4: 85, 5: 84, 6: 83 };
-  return map[card.r] || 0;
+  return 80 + plainSuitValue(trump, card.r);
 }
 
 function plainOrderValue(card: Card): number {
-  const nb = isBlack(card.s);
-  const map: Record<number, number> = nb
-    ? { 12: 10, 11: 9, 10: 8, 7: 7, 6: 6, 5: 5, 4: 4, 3: 3, 2: 2, 1: 1 }
-    : { 12: 10, 11: 9, 10: 8, 1: 7, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2, 7: 1 };
-  return map[card.r] || 0;
+  return plainSuitValue(card.s, card.r);
 }
 
 function cardPower(card: Card, trump: Suit | null): number {
@@ -164,7 +156,8 @@ export function decideBid(ctx: BotContext): Bid {
     const candidates = ladder
       .map((x) => x.bid)
       .filter((b) => BID_VAL[b] > BID_VAL[a.currentBid]);
-    bid = candidates.length ? candidates[0] : "pass";
+    // Prefer the cheapest legal overcall, not an unnecessarily high jump.
+    bid = candidates.length ? candidates[candidates.length - 1] : "pass";
   }
 
   // Weak hands should still pass when table is already competitive
@@ -205,8 +198,14 @@ export function decideExchange(ctx: BotContext): string[] {
   const isOmbre = ctx.seat === ctx.ombre;
   const isSolo =
     ctx.contract === "solo" || ctx.contract === "solo_oros";
+  const isContrabola = ctx.contract === "contrabola";
   const isOros =
     ctx.contract === "oros" || ctx.contract === "solo_oros";
+
+  if (isContrabola) {
+    if (!isOmbre || ctx.talonLength === 0 || ctx.hand.length === 0) return [];
+    return [pickLowest(ctx.hand, null).id];
+  }
 
   const max = isOmbre
     ? isSolo
@@ -246,15 +245,16 @@ function chooseLeadCard(ctx: BotContext, legal: Card[]): Card {
   const trumpCards = legal.filter((c) => isTrump(ctx.trump, c));
   const plainCards = legal.filter((c) => !isTrump(ctx.trump, c));
   const isOmbre = ctx.ombre !== null && ctx.seat === ctx.ombre;
+  const trump = ctx.trump;
 
-  if (isOmbre && trumpCards.length >= 4) {
-    const strongestTrump = pickHighest(trumpCards, ctx.trump);
-    if (cardPower(strongestTrump, ctx.trump) >= 1180) return strongestTrump;
+  if (trump && isOmbre && trumpCards.length >= 4) {
+    const strongestTrump = pickHighest(trumpCards, trump);
+    if (trumpOrderValue(strongestTrump, trump) >= 98) return strongestTrump;
   }
 
-  if (!isOmbre && trumpCards.length >= 5) {
-    const strongestTrump = pickHighest(trumpCards, ctx.trump);
-    if (cardPower(strongestTrump, ctx.trump) >= 1170) return strongestTrump;
+  if (trump && !isOmbre && trumpCards.length >= 5) {
+    const strongestTrump = pickHighest(trumpCards, trump);
+    if (trumpOrderValue(strongestTrump, trump) >= 99) return strongestTrump;
   }
 
   const pool = plainCards.length ? plainCards : legal;
