@@ -22,10 +22,38 @@ export function spriteAssetPaths(): { css: string; json: string; image: string }
   };
 }
 
-async function canFetch(url: string): Promise<boolean> {
+async function isValidCss(url: string): Promise<boolean> {
   try {
     const response = await fetch(url, { method: "GET", cache: "no-store" });
-    return response.ok;
+    if (!response.ok) return false;
+    const contentType = (response.headers.get("content-type") || "").toLowerCase();
+    if (!contentType.includes("text/css")) return false;
+    const text = await response.text();
+    return text.includes(".roc-card");
+  } catch {
+    return false;
+  }
+}
+
+async function isValidJson(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { method: "GET", cache: "no-store" });
+    if (!response.ok) return false;
+    const contentType = (response.headers.get("content-type") || "").toLowerCase();
+    if (!contentType.includes("json")) return false;
+    const payload = await response.json();
+    return !!payload && (Array.isArray(payload) || typeof payload === "object");
+  } catch {
+    return false;
+  }
+}
+
+async function isValidImage(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { method: "GET", cache: "no-store" });
+    if (!response.ok) return false;
+    const contentType = (response.headers.get("content-type") || "").toLowerCase();
+    return contentType.startsWith("image/");
   } catch {
     return false;
   }
@@ -35,9 +63,9 @@ export async function detectSpritesheetSupport(): Promise<boolean> {
   if (!spriteSupportPromise) {
     spriteSupportPromise = (async () => {
       const [cssOk, jsonOk, imageOk] = await Promise.all([
-        canFetch(SPRITE_CSS_PATH),
-        canFetch(SPRITE_JSON_PATH),
-        canFetch(SPRITE_IMAGE_PATH),
+        isValidCss(SPRITE_CSS_PATH),
+        isValidJson(SPRITE_JSON_PATH),
+        isValidImage(SPRITE_IMAGE_PATH),
       ]);
       return cssOk && jsonOk && imageOk;
     })();

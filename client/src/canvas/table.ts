@@ -22,13 +22,17 @@ function ensureAssetsLoaded(): void {
       invalidateTextureCache();
     };
     feltImage.onerror = () => {
+      if (feltImage && !feltImage.src.endsWith("/assets/rocambor/felt-texture.jpg")) {
+        feltImage.src = "/assets/rocambor/felt-texture.jpg";
+        return;
+      }
       if (feltImage && !feltImage.src.endsWith("/textures/felt.png")) {
         feltImage.src = "/textures/felt.png";
         return;
       }
       feltReady = false;
     };
-    feltImage.src = "/assets/rocambor/felt-texture.jpg";
+    feltImage.src = "/assets/rocambor/felt-texture.png";
   }
 
   if (!watermarkImage) {
