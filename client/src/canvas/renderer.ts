@@ -2,7 +2,12 @@ import type { ClientState } from "../state";
 import type { SettingsManager } from "../ui/settings";
 import type { ProfileManager } from "../lib/profile";
 import type { Card } from "../protocol";
-import { computeLayout, cardSpread, type Layout } from "./layout";
+import {
+  computeLayout,
+  cardSpread,
+  type Layout,
+  type ViewportMode,
+} from "./layout";
 import { drawTableBackground } from "./table";
 import { drawCard, type CardSkin } from "./cards";
 import { drawPlayers } from "./players";
@@ -23,6 +28,7 @@ export class GameRenderer {
   private dpr = 1;
   private drawHandOnCanvas = true;
   private drawTableCardsOnCanvas = true;
+  private viewportMode: ViewportMode = "desktop";
   private avatarReadyHandler = () => {
     this.requestRender();
   };
@@ -34,7 +40,7 @@ export class GameRenderer {
     private settings: SettingsManager,
     private profile: ProfileManager
   ) {
-    this.layout = computeLayout(1024, 720);
+    this.layout = computeLayout(this.viewportMode);
     this.applyDpr();
     window.addEventListener(AVATAR_READY_EVENT, this.avatarReadyHandler);
     this.watchDpr();
@@ -44,8 +50,8 @@ export class GameRenderer {
 
   private applyDpr(): void {
     this.dpr = window.devicePixelRatio || 1;
-    this.canvas.width = 1024 * this.dpr;
-    this.canvas.height = 720 * this.dpr;
+    this.canvas.width = this.layout.width * this.dpr;
+    this.canvas.height = this.layout.height * this.dpr;
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.dirty = true;
   }
@@ -60,6 +66,30 @@ export class GameRenderer {
 
   requestRender(): void {
     this.dirty = true;
+  }
+
+  setViewportMode(mode: ViewportMode): void {
+    if (this.viewportMode === mode) return;
+    this.viewportMode = mode;
+    this.layout = computeLayout(mode);
+    this.applyDpr();
+    this.requestRender();
+  }
+
+  getViewportMode(): ViewportMode {
+    return this.viewportMode;
+  }
+
+  getLogicalSize(): { width: number; height: number } {
+    return { width: this.layout.width, height: this.layout.height };
+  }
+
+  getAnimationAnchors(): Layout["anchors"] {
+    return this.layout.anchors;
+  }
+
+  getCardDimensions(): { w: number; h: number } {
+    return { w: this.layout.cardW, h: this.layout.cardH };
   }
 
   setHoveredCard(index: number): void {
@@ -135,7 +165,8 @@ export class GameRenderer {
       this.layout,
       colorblind,
       cardSkin,
-      this.profile.get()
+      this.profile.get(),
+      this.viewportMode === "mobile-portrait"
     );
 
     // 3. Table cards (center)
@@ -151,8 +182,10 @@ export class GameRenderer {
     // 5. Animations overlay
     this.animations.draw(this.ctx);
 
-    // 6. HUD
-    this.drawHUD();
+    // 6. HUD (desktop only to avoid duplicated text in portrait mobile layout)
+    if (this.viewportMode === "desktop") {
+      this.drawHUD();
+    }
   }
 
   private drawTableCards(colorblind: boolean, cardSkin: CardSkin): void {
@@ -427,8 +460,8 @@ export class GameRenderer {
 
   canvasCoords(clientX: number, clientY: number): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
-    const sx = 1024 / rect.width;
-    const sy = 720 / rect.height;
+    const sx = this.layout.width / rect.width;
+    const sy = this.layout.height / rect.height;
     return {
       x: (clientX - rect.left) * sx,
       y: (clientY - rect.top) * sy,

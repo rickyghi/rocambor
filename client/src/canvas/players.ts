@@ -16,7 +16,8 @@ export function drawPlayers(
   layout: Layout,
   colorblind: boolean,
   cardSkin: CardSkin,
-  profile: PlayerProfile
+  profile: PlayerProfile,
+  compactMode = false
 ): void {
   if (!state.game) return;
 
@@ -46,24 +47,28 @@ export function drawPlayers(
         : fallbackAvatarAt(seat);
     const avatarFallback = fallbackAvatarAt(seat);
 
-    // Draw name badge
-    drawNameBadge(
-      ctx,
-      coords.x,
-      coords.y,
-      player,
-      seat,
-      isMyTurn,
-      isResting,
-      isSelf,
-      displayName,
-      avatarUrl,
-      avatarFallback
-    );
+    if (!compactMode) {
+      // Draw name badge
+      drawNameBadge(
+        ctx,
+        pos,
+        coords.x,
+        coords.y,
+        player,
+        seat,
+        isMyTurn,
+        isResting,
+        isSelf,
+        player ? player.connected : true,
+        displayName,
+        avatarUrl,
+        avatarFallback
+      );
 
-    // Draw score
-    const score = state.game.scores[seat] || 0;
-    drawScore(ctx, coords.x, coords.y + (pos === "self" ? -20 : 20), score);
+      // Draw score
+      const score = state.game.scores[seat] || 0;
+      drawScore(ctx, coords.x, coords.y + (pos === "self" ? -20 : 20), score);
+    }
 
     // Draw opponent card backs
     if (pos !== "self" && !isResting) {
@@ -83,12 +88,12 @@ export function drawPlayers(
 
     // Draw trick count
     const tricks = state.game.tricks[seat] || 0;
-    if (state.game.phase === "play" || state.game.phase === "post_hand") {
+    if (!compactMode && (state.game.phase === "play" || state.game.phase === "post_hand")) {
       drawTricks(ctx, coords.x, coords.y + (pos === "self" ? -40 : 40), tricks);
     }
 
     // Disconnected indicator
-    if (player && !player.connected) {
+    if (!compactMode && player && !player.connected) {
       ctx.save();
       ctx.fillStyle = "rgba(176,46,46,0.85)";
       ctx.font = `bold 11px ${FONT_SANS}`;
@@ -101,6 +106,7 @@ export function drawPlayers(
 
 function drawNameBadge(
   ctx: CanvasRenderingContext2D,
+  pos: Position,
   x: number,
   y: number,
   player: PlayerInfo | undefined,
@@ -108,6 +114,7 @@ function drawNameBadge(
   isMyTurn: boolean,
   isResting: boolean,
   isSelf: boolean,
+  isConnected: boolean,
   displayName: string,
   avatarUrl: string,
   avatarFallback: string
@@ -118,11 +125,12 @@ function drawNameBadge(
   ctx.save();
 
   // Background pill
-  ctx.font = `${isMyTurn ? "bold " : ""}13px ${FONT_SANS}`;
+  ctx.font = `${isMyTurn ? "700 " : "600 "}15px ${FONT_SANS}`;
   const textW = ctx.measureText(label).width || 60;
-  const avatarSize = 18;
-  const pillW = Math.max(textW + 36 + avatarSize, 112);
-  const pillH = 24;
+  const avatarSize = 24;
+  const indicatorSize = 8;
+  const pillW = Math.max(textW + 56 + avatarSize + indicatorSize, 156);
+  const pillH = 34;
 
   ctx.fillStyle = isMyTurn
     ? "rgba(248,246,240,0.96)"
@@ -132,15 +140,20 @@ function drawNameBadge(
 
   ctx.strokeStyle = isMyTurn ? "#C8A651" : "rgba(13,13,13,0.12)";
   ctx.lineWidth = isMyTurn ? 2 : 1;
+  if (isMyTurn) {
+    ctx.shadowColor = "rgba(200,166,81,0.35)";
+    ctx.shadowBlur = 16;
+  }
   roundRect(ctx, x - pillW / 2, y - pillH / 2, pillW, pillH, 12);
   ctx.stroke();
+  ctx.shadowBlur = 0;
 
   // Name text
   ctx.fillStyle = isMyTurn ? "#8a6a24" : isResting ? "#666" : "#0D0D0D";
   ctx.textAlign = "left";
   ctx.textBaseline = "middle";
 
-  const avatarX = x - pillW / 2 + 12;
+  const avatarX = x - pillW / 2 + 10;
   const avatarY = y;
   const img = getAvatarImage(avatarUrl, avatarFallback);
   if (img) {
@@ -166,7 +179,29 @@ function drawNameBadge(
     ctx.restore();
   }
 
-  ctx.fillText(label, avatarX + avatarSize + 8, y);
+  ctx.fillText(label, avatarX + avatarSize + 10, y);
+
+  const dotX = x + pillW / 2 - 12;
+  ctx.fillStyle = isConnected ? "#2f9e44" : "#B02E2E";
+  ctx.beginPath();
+  ctx.arc(dotX, y, indicatorSize / 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (!isSelf) {
+    const direction = pos === "left" ? "LEFT" : pos === "across" ? "ACROSS" : "RIGHT";
+    ctx.fillStyle = "rgba(248,246,240,0.95)";
+    roundRect(ctx, x - 36, y - 30, 72, 14, 7);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(13,13,13,0.12)";
+    ctx.lineWidth = 1;
+    roundRect(ctx, x - 36, y - 30, 72, 14, 7);
+    ctx.stroke();
+
+    ctx.fillStyle = "#6d5a2f";
+    ctx.font = `700 9px ${FONT_SANS}`;
+    ctx.textAlign = "center";
+    ctx.fillText(direction, x, y - 23);
+  }
 
   ctx.restore();
 }
@@ -179,15 +214,15 @@ function drawScore(
 ): void {
   ctx.save();
   ctx.fillStyle = "rgba(248,246,240,0.92)";
-  roundRect(ctx, x - 20, y - 10, 40, 20, 10);
+  roundRect(ctx, x - 24, y - 12, 48, 24, 12);
   ctx.fill();
   ctx.strokeStyle = "rgba(13,13,13,0.12)";
   ctx.lineWidth = 1;
-  roundRect(ctx, x - 20, y - 10, 40, 20, 10);
+  roundRect(ctx, x - 24, y - 12, 48, 24, 12);
   ctx.stroke();
 
   ctx.fillStyle = "#0D0D0D";
-  ctx.font = `bold 13px ${FONT_SANS}`;
+  ctx.font = `700 15px ${FONT_SANS}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(String(score), x, y);
@@ -202,18 +237,18 @@ function drawTricks(
 ): void {
   if (tricks === 0) return;
   ctx.save();
-  ctx.fillStyle = "rgba(248,246,240,0.9)";
-  roundRect(ctx, x - 16, y - 8, 32, 16, 8);
+  ctx.fillStyle = "rgba(248,246,240,0.95)";
+  roundRect(ctx, x - 24, y - 10, 48, 20, 10);
   ctx.fill();
   ctx.strokeStyle = "rgba(13,13,13,0.12)";
   ctx.lineWidth = 1;
-  roundRect(ctx, x - 16, y - 8, 32, 16, 8);
+  roundRect(ctx, x - 24, y - 10, 48, 20, 10);
   ctx.stroke();
   ctx.fillStyle = "#8a6a24";
-  ctx.font = `bold 11px ${FONT_SANS}`;
+  ctx.font = `700 12px ${FONT_SANS}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(`${tricks}T`, x, y);
+  ctx.fillText(`T${tricks}`, x, y);
   ctx.restore();
 }
 

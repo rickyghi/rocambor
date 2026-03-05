@@ -47,8 +47,73 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 10px 12px 0;
   gap: 10px;
+  padding: 10px 12px 0;
+}
+
+.game-mobile-summary,
+.game-opponents-strip {
+  display: none;
+}
+
+.game-status-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+}
+
+.game-phase-rail {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.phase-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(13, 13, 13, 0.1);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink60);
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.phase-chip.done {
+  color: #7b6022;
+  border-color: rgba(200, 166, 81, 0.48);
+}
+
+.phase-chip.active {
+  color: #7b6022;
+  border-color: rgba(200, 166, 81, 0.75);
+  box-shadow: 0 0 10px rgba(200, 166, 81, 0.24);
+}
+
+.game-trick-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.trick-history-empty {
+  font-size: 12px;
+  color: var(--ink60);
+}
+
+.trick-chip {
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(13, 13, 13, 0.12);
+  background: rgba(248, 246, 240, 0.8);
+  color: #6f5b2f;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .game-header-left,
@@ -65,8 +130,8 @@
 }
 
 .game-profile-avatar {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   object-fit: cover;
   border: 1px solid rgba(13, 13, 13, 0.14);
@@ -79,7 +144,16 @@
   text-overflow: ellipsis;
 }
 
+.game-table-stack {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .game-canvas-wrap {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -88,9 +162,43 @@
   overflow: hidden;
 }
 
+.auction-announcement {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  z-index: 4;
+  width: min(86%, 760px);
+  padding: 10px 14px;
+  text-align: center;
+  pointer-events: none;
+  border: 1px solid rgba(200, 166, 81, 0.45);
+}
+
+.auction-announcement-main {
+  font-size: clamp(20px, 2.2vw, 30px);
+  font-family: var(--font-serif);
+  color: #7b6022;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.auction-announcement-lead {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--ink60);
+  font-weight: 600;
+}
+
 #game-canvas {
   image-rendering: auto;
   display: block;
+}
+
+.game-dom-layers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .table-watermark-text {
@@ -129,6 +237,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.game-hand-dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 84px;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  padding: 0 8px;
+}
+
+.hand-row {
+  pointer-events: auto;
 }
 
 .control-group {
@@ -181,13 +305,13 @@
 
 @media (max-width: 900px) {
   .game-shell {
-    padding: 8px 8px 0;
+    padding: 8px;
+    gap: 8px;
   }
 
   .game-header {
-    min-height: 58px;
+    min-height: 56px;
     padding: 8px;
-    gap: 6px;
   }
 
   .game-profile-name {
@@ -197,6 +321,128 @@
   .game-profile-btn {
     min-width: 44px;
     justify-content: center;
+  }
+
+  .auction-announcement {
+    width: min(92%, 560px);
+    top: 8px;
+    padding: 8px 10px;
+  }
+
+  .auction-announcement-main {
+    font-size: clamp(16px, 4.8vw, 24px);
+  }
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  .game-shell {
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .game-status-rail {
+    display: none;
+  }
+
+  .game-mobile-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+    border-radius: var(--rMd);
+  }
+
+  .mobile-summary-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    border-radius: 999px;
+    border: 1px solid rgba(13, 13, 13, 0.1);
+    background: rgba(255, 255, 255, 0.66);
+    color: var(--ink80);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+  }
+
+  .mobile-summary-chip.turn {
+    border-color: rgba(200, 166, 81, 0.54);
+    color: #7b6022;
+  }
+
+  .mobile-summary-chip.turn.mine {
+    box-shadow: 0 0 10px rgba(200, 166, 81, 0.28);
+  }
+
+  .game-opponents-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding: 8px;
+    border-radius: var(--rMd);
+  }
+
+  .mobile-opponent {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px;
+    border-radius: 10px;
+    border: 1px solid rgba(13, 13, 13, 0.1);
+    background: rgba(255, 255, 255, 0.66);
+    min-height: 92px;
+  }
+
+  .mobile-opponent.active-turn {
+    border-color: rgba(200, 166, 81, 0.75);
+    box-shadow: 0 0 12px rgba(200, 166, 81, 0.2);
+  }
+
+  .mobile-opponent.disconnected {
+    opacity: 0.65;
+  }
+
+  .mobile-opponent-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid rgba(13, 13, 13, 0.16);
+  }
+
+  .mobile-opponent-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+    gap: 1px;
+  }
+
+  .mobile-opponent-seat {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink60);
+    font-weight: 700;
+  }
+
+  .mobile-opponent-name {
+    max-width: 100%;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink80);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-opponent-stats {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #6f5b2f;
+    font-size: 11px;
+    font-weight: 700;
   }
 
   .game-settings-btn {
@@ -215,24 +461,276 @@
     font-weight: 700;
   }
 
-  .game-dom-layers {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
+  .game-table-stack {
+    gap: 8px;
+    min-height: 0;
   }
 
-  .hand-overlay {
-    bottom: 6px;
+  .game-canvas-wrap {
+    min-height: clamp(220px, 38vh, 420px);
+    align-items: flex-start;
   }
 
-  .hand-row {
-    width: calc(100% - 8px);
-    max-width: none;
+  .auction-announcement {
+    width: min(96%, 430px);
+    top: 6px;
   }
 
   .game-controls-bar {
-    margin: 0 8px 8px;
+    margin: 0;
+    min-height: 64px;
     position: sticky;
-    bottom: 8px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .game-hand-dock {
+    position: static;
+    padding: 0;
+    pointer-events: auto;
+    z-index: 2;
+  }
+
+  .hand-row {
+    width: 100%;
+    max-width: none;
+    justify-content: flex-start;
+    padding: 8px;
+    gap: 8px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .hand-card-wrap {
+    scroll-snap-align: center;
+    min-width: 82px;
+    min-height: 112px;
+  }
+
+  .control-group {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .control-row {
+    gap: 6px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 430px) and (orientation: portrait) {
+  .game-shell {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .game-header {
+    min-height: 54px;
+    padding: 6px 8px;
+    gap: 6px;
+  }
+
+  .game-header-center {
+    font-size: 13px;
+  }
+
+  .game-mobile-summary,
+  .game-opponents-strip {
+    padding: 6px;
+    gap: 5px;
+  }
+
+  .mobile-summary-chip {
+    min-height: 28px;
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .mobile-opponent {
+    min-height: 84px;
+    padding: 5px 4px;
+  }
+
+  .mobile-opponent-avatar {
+    width: 26px;
+    height: 26px;
+  }
+
+  .mobile-opponent-name {
+    font-size: 11px;
+  }
+
+  .mobile-opponent-stats {
+    font-size: 10px;
+    gap: 5px;
+  }
+
+  .auction-announcement {
+    top: 4px;
+    padding: 7px 8px;
+  }
+
+  .auction-announcement-main {
+    font-size: clamp(14px, 5.2vw, 20px);
+  }
+
+  .auction-announcement-lead {
+    font-size: 11px;
+  }
+
+  .game-controls-bar {
+    min-height: 60px;
+    padding: 7px 6px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .hand-row {
+    padding: 6px;
+    gap: 6px;
+  }
+
+  .hand-card-wrap {
+    min-width: 78px;
+    min-height: 108px;
+  }
+}
+
+@media (max-width: 390px) and (orientation: portrait) {
+  .game-header-center {
+    font-size: 12px;
+  }
+
+  .game-mobile-summary {
+    gap: 4px;
+  }
+
+  .mobile-summary-chip {
+    min-height: 26px;
+    font-size: 10px;
+    padding: 2px 7px;
+  }
+
+  .game-opponents-strip {
+    gap: 4px;
+  }
+
+  .mobile-opponent {
+    min-height: 80px;
+    border-radius: 8px;
+  }
+
+  .mobile-opponent-avatar {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mobile-opponent-seat {
+    font-size: 9px;
+  }
+
+  .mobile-opponent-name {
+    font-size: 10px;
+  }
+
+  .mobile-opponent-stats {
+    font-size: 9px;
+  }
+
+  .game-canvas-wrap {
+    min-height: clamp(200px, 36vh, 340px);
+  }
+
+  .game-controls-bar {
+    min-height: 56px;
+  }
+
+  .control-label {
+    font-size: 11px;
+  }
+
+  .controls-hint {
+    font-size: 12px;
+  }
+
+  .hand-row {
+    gap: 5px;
+  }
+
+  .hand-card-wrap {
+    min-width: 74px;
+    min-height: 104px;
+  }
+}
+
+@media (max-width: 360px) and (orientation: portrait) {
+  .game-shell {
+    padding: 5px;
+    gap: 5px;
+  }
+
+  .game-header {
+    min-height: 50px;
+    padding: 6px;
+  }
+
+  .game-profile-avatar {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mobile-summary-chip {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+
+  .mobile-opponent {
+    min-height: 74px;
+    padding: 4px 3px;
+  }
+
+  .mobile-opponent-avatar {
+    width: 22px;
+    height: 22px;
+  }
+
+  .mobile-opponent-name {
+    font-size: 9px;
+  }
+
+  .mobile-opponent-stats {
+    font-size: 8px;
+  }
+
+  .game-canvas-wrap {
+    min-height: clamp(188px, 34vh, 300px);
+  }
+
+  .auction-announcement {
+    padding: 6px;
+  }
+
+  .auction-announcement-main {
+    font-size: clamp(13px, 5vw, 18px);
+  }
+
+  .game-controls-bar {
+    min-height: 54px;
+    padding: 6px 5px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .control-label {
+    font-size: 10px;
+  }
+
+  .controls-hint {
+    font-size: 11px;
+  }
+
+  .hand-row {
+    padding: 5px;
+    gap: 4px;
+  }
+
+  .hand-card-wrap {
+    min-width: 70px;
+    min-height: 98px;
   }
 }

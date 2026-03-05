@@ -10,6 +10,7 @@ import { GameRenderer } from "../canvas/renderer";
 import { renderGameHeaderMarkup } from "../components/layout/AppHeader";
 import { renderFeltBackgroundMarkup } from "../components/layout/FeltBackground";
 import { openProfileModal } from "../components/profile/ProfileModal";
+import { buildDiceBearUrl, fallbackAvatarAt } from "../lib/avatars";
 import {
   detectSpritesheetSupport,
   ensureSpritesheetCss,
@@ -20,10 +21,12 @@ import type { S2CMessage } from "../protocol";
 import { GameControls } from "../ui/controls";
 import { openSettingsModal } from "../ui/settings-modal";
 import { showToast } from "../ui/toast";
+import { escapeHtml } from "../utils/escape";
 
 export class GameScreen implements Screen {
   private ctx!: AppContext;
   private container!: HTMLElement;
+  private rootEl!: HTMLElement;
   private canvas!: HTMLCanvasElement;
   private renderer!: GameRenderer;
   private controls!: GameControls;
@@ -33,9 +36,17 @@ export class GameScreen implements Screen {
   private headerAvatar!: HTMLImageElement;
   private headerName!: HTMLElement;
   private soundToggleBtn!: HTMLButtonElement;
+  private mobileSummary!: HTMLElement;
+  private opponentsStrip!: HTMLElement;
+  private phaseRail!: HTMLElement;
+  private trickHistory!: HTMLElement;
+  private auctionBanner!: HTMLElement;
+  private auctionBannerMain!: HTMLElement;
+  private auctionBannerLead!: HTMLElement;
 
   private domLayers!: HTMLElement;
   private trickLayer!: HTMLElement;
+  private handDock!: HTMLElement;
   private handLayer!: HTMLElement;
   private spriteMode = false;
 
@@ -45,7 +56,10 @@ export class GameScreen implements Screen {
   private lastTouchTs = 0;
   private pendingPlayCard: string | null = null;
   private headerTicker: number | null = null;
+  private auctionBannerTimer: number | null = null;
   private lastInvalidToastTs = 0;
+  private recentTrickWinners: number[] = [];
+  private isMobilePortrait = false;
 
   mount(container: HTMLElement, ctx: AppContext): void {
     this.ctx = ctx;
@@ -61,26 +75,37 @@ export class GameScreen implements Screen {
         ${renderFeltBackgroundMarkup()}
         <div class="game-shell">
           ${renderGameHeaderMarkup()}
+          <div class="game-mobile-summary rc-panel rc-panel-noise" id="game-mobile-summary"></div>
+          <div class="game-opponents-strip rc-panel rc-panel-noise" id="game-opponents-strip" role="list" aria-label="Opponents"></div>
+          <div class="game-status-rail rc-panel rc-panel-noise">
+            <div class="game-phase-rail" id="game-phase-rail"></div>
+            <div class="game-trick-history" id="game-trick-history"></div>
+          </div>
 
-          <div class="game-canvas-wrap">
-            <canvas id="game-canvas"></canvas>
-
-            <div id="game-dom-layers" class="game-dom-layers" hidden>
-              <div class="trick-overlay" aria-hidden="true">
-                <div class="trick-overlay-inner" id="trick-layer"></div>
+          <div class="game-table-stack">
+            <div class="game-canvas-wrap">
+              <div class="auction-announcement rc-panel rc-panel-noise" id="auction-announcement" hidden>
+                <div class="auction-announcement-main" id="auction-announcement-main"></div>
+                <div class="auction-announcement-lead" id="auction-announcement-lead"></div>
               </div>
+              <canvas id="game-canvas"></canvas>
 
-              <div class="hand-overlay">
-                <div class="hand-row rc-panel rc-panel-noise" id="hand-layer" role="listbox" aria-label="Your hand"></div>
+              <div id="game-dom-layers" class="game-dom-layers" hidden>
+                <div class="trick-overlay" aria-hidden="true">
+                  <div class="trick-overlay-inner" id="trick-layer"></div>
+                </div>
               </div>
+            </div>
+            <div class="game-controls-bar rc-panel rc-panel-noise" id="game-controls"></div>
+            <div class="game-hand-dock" id="game-hand-dock" aria-label="Your hand area">
+              <div class="hand-row rc-panel rc-panel-noise" id="hand-layer" role="listbox" aria-label="Your hand"></div>
             </div>
           </div>
         </div>
-
-        <div class="game-controls-bar rc-panel rc-panel-noise" id="game-controls"></div>
       </div>
     `;
 
+    this.rootEl = container.querySelector(".game-screen") as HTMLElement;
     this.canvas = container.querySelector("#game-canvas") as HTMLCanvasElement;
     const canvasCtx = this.canvas.getContext("2d")!;
 
@@ -96,9 +121,17 @@ export class GameScreen implements Screen {
     this.headerAvatar = container.querySelector(".game-profile-avatar") as HTMLImageElement;
     this.headerName = container.querySelector(".game-profile-name") as HTMLElement;
     this.soundToggleBtn = container.querySelector(".game-sound-btn") as HTMLButtonElement;
+    this.mobileSummary = container.querySelector("#game-mobile-summary") as HTMLElement;
+    this.opponentsStrip = container.querySelector("#game-opponents-strip") as HTMLElement;
+    this.phaseRail = container.querySelector("#game-phase-rail") as HTMLElement;
+    this.trickHistory = container.querySelector("#game-trick-history") as HTMLElement;
+    this.auctionBanner = container.querySelector("#auction-announcement") as HTMLElement;
+    this.auctionBannerMain = container.querySelector("#auction-announcement-main") as HTMLElement;
+    this.auctionBannerLead = container.querySelector("#auction-announcement-lead") as HTMLElement;
 
     this.domLayers = container.querySelector("#game-dom-layers") as HTMLElement;
     this.trickLayer = container.querySelector("#trick-layer") as HTMLElement;
+    this.handDock = container.querySelector("#game-hand-dock") as HTMLElement;
     this.handLayer = container.querySelector("#hand-layer") as HTMLElement;
 
     this.controls = new GameControls(
@@ -118,8 +151,16 @@ export class GameScreen implements Screen {
     }
 
     this.updateHeader();
+    this.updateMobileSummary();
+    this.updateMobileOpponents();
+    this.updatePhaseRail();
+    this.updateTrickHistory();
+    this.updateAuctionLead();
     this.configureSpritesheetMode();
-    this.headerTicker = window.setInterval(() => this.updateHeader(), 1000);
+    this.headerTicker = window.setInterval(() => {
+      this.updateHeader();
+      this.updateMobileSummary();
+    }, 1000);
   }
 
   unmount(): void {
@@ -142,6 +183,10 @@ export class GameScreen implements Screen {
       clearInterval(this.headerTicker);
       this.headerTicker = null;
     }
+    if (this.auctionBannerTimer !== null) {
+      clearTimeout(this.auctionBannerTimer);
+      this.auctionBannerTimer = null;
+    }
   }
 
   private bindEvents(): void {
@@ -158,6 +203,7 @@ export class GameScreen implements Screen {
         onApplied: () => {
           this.renderer.requestRender();
           this.updateHeader();
+          this.updateMobileSummary();
         },
       });
     });
@@ -166,6 +212,7 @@ export class GameScreen implements Screen {
       const next = !this.ctx.settings.get("soundEnabled");
       this.ctx.settings.set("soundEnabled", next);
       this.updateHeader();
+      this.updateMobileSummary();
     });
 
     this.canvas.addEventListener("click", this.handleCanvasClick);
@@ -183,17 +230,24 @@ export class GameScreen implements Screen {
         this.renderer.requestRender();
         this.handlePhaseTransitions();
         this.updateHeader();
+        this.updateMobileSummary();
+        this.updateMobileOpponents();
+        this.updatePhaseRail();
+        this.updateTrickHistory();
+        this.updateAuctionLead();
         this.renderDomCardLayers();
       }),
 
       this.ctx.profile.subscribe(() => {
         this.renderer.requestRender();
         this.updateHeader();
+        this.updateMobileOpponents();
       }),
 
       this.ctx.settings.subscribe(() => {
         this.renderer.requestRender();
         this.updateHeader();
+        this.updateMobileSummary();
       }),
 
       this.ctx.connection.on("EVENT", (msg: S2CMessage) => {
@@ -202,6 +256,7 @@ export class GameScreen implements Screen {
       }),
       this.ctx.connection.on("_latency", () => {
         this.updateHeader();
+        this.updateMobileSummary();
       }),
 
       this.ctx.connection.on("ERROR", (msg: S2CMessage) => {
@@ -222,6 +277,7 @@ export class GameScreen implements Screen {
 
     this.spriteMode = supported;
     this.domLayers.hidden = !supported;
+    this.syncCardPresentationMode();
 
     if (supported) {
       ensureSpritesheetCss();
@@ -231,6 +287,7 @@ export class GameScreen implements Screen {
         this.spriteMode = false;
         this.domLayers.hidden = true;
         this.renderer.setCanvasCardLayers({ hand: true, table: true });
+        this.syncCardPresentationMode();
         return;
       }
       this.renderer.setCanvasCardLayers({ hand: false, table: false });
@@ -239,6 +296,16 @@ export class GameScreen implements Screen {
     }
 
     this.renderer.setCanvasCardLayers({ hand: true, table: true });
+    this.syncCardPresentationMode();
+  }
+
+  private syncCardPresentationMode(): void {
+    this.rootEl.classList.toggle("sprite-mode", this.spriteMode);
+    this.handDock.hidden = !this.spriteMode;
+    if (!this.spriteMode) {
+      this.handLayer.innerHTML = "";
+      this.trickLayer.innerHTML = "";
+    }
   }
 
   private renderDomCardLayers(): void {
@@ -289,6 +356,7 @@ export class GameScreen implements Screen {
       this.spriteMode = false;
       this.domLayers.hidden = true;
       this.renderer.setCanvasCardLayers({ hand: true, table: true });
+      this.syncCardPresentationMode();
       showToast("Using fallback card renderer.", "info", 1200);
     }
   }
@@ -488,9 +556,13 @@ export class GameScreen implements Screen {
     switch (newPhase) {
       case "dealing":
         this.ctx.sounds.cardDeal();
+        this.recentTrickWinners = [];
+        this.updateTrickHistory();
         break;
       case "auction":
-        if (this.ctx.state.isMyTurn) showToast("Your turn to bid", "info", 1800);
+        if (this.ctx.state.isMyTurn) {
+          this.showAuctionAnnouncement("Your turn to bid", 1500);
+        }
         break;
       case "penetro_choice":
         if (this.ctx.state.isMyTurn) {
@@ -501,7 +573,6 @@ export class GameScreen implements Screen {
         if (this.ctx.state.isMyTurn) showToast("Choose trump suit", "info", 1800);
         break;
       case "exchange":
-        if (this.ctx.state.canExchangeNow) showToast("Select cards to exchange", "info", 1800);
         this.ctx.state.clearSelection();
         this.renderDomCardLayers();
         break;
@@ -520,10 +591,41 @@ export class GameScreen implements Screen {
       case "TRICK_WON": {
         this.ctx.sounds.trickWin();
         const winner = payload.winner as number;
+        this.recentTrickWinners.push(winner);
+        if (this.recentTrickWinners.length > 3) this.recentTrickWinners.shift();
+        this.updateTrickHistory();
         const rel = this.ctx.state.relativePosition(winner as any);
         const label = rel === "self" ? "You" : this.ctx.state.game?.players[winner]?.handle || rel;
         showToast(`${label} won the trick`, "info", 1300);
-        this.renderer.addAnimation(new TrickWinAnimation(512, 340, 600));
+        const anchors = this.renderer.getAnimationAnchors();
+        this.renderer.addAnimation(new TrickWinAnimation(anchors.trickCenter.x, anchors.trickCenter.y, 600));
+        break;
+      }
+
+      case "AUCTION_ACTION": {
+        const seat = Number(payload.seat);
+        const value = String(payload.value || "pass");
+        const actor = this.seatLabelForAnnouncements(seat);
+        if (value === "pass") {
+          this.showAuctionAnnouncement(`${actor} passes`, 1400);
+        } else {
+          this.showAuctionAnnouncement(`${actor} bids ${this.bidLabel(value)}`, 1700);
+        }
+        this.updateAuctionLead(
+          String(payload.currentBid || "pass"),
+          payload.currentBidder === null || payload.currentBidder === undefined
+            ? null
+            : Number(payload.currentBidder)
+        );
+        break;
+      }
+
+      case "AUCTION_WIN": {
+        const seat = Number(payload.ombre);
+        const bid = String(payload.bid || "");
+        const actor = this.seatLabelForAnnouncements(seat);
+        this.showAuctionAnnouncement(`${actor} wins auction with ${this.bidLabel(bid)}`, 2600);
+        this.updateAuctionLead(bid, seat);
         break;
       }
 
@@ -532,30 +634,47 @@ export class GameScreen implements Screen {
         const seat = payload.seat as number | undefined;
         if (seat !== undefined) {
           const relPos = this.ctx.state.relativePosition(seat as any);
-          const positions: Record<string, { x: number; y: number }> = {
-            self: { x: 512, y: 570 },
-            left: { x: 120, y: 280 },
-            across: { x: 512, y: 100 },
-            right: { x: 904, y: 280 },
-          };
-          const from = positions[relPos] || positions.across;
-          this.renderer.addAnimation(new CardPlayAnimation(from.x, from.y, 512, 340, 76, 108, 250));
+          const anchors = this.renderer.getAnimationAnchors();
+          const cardSize = this.renderer.getCardDimensions();
+          const from = anchors.playFrom[relPos] || anchors.playFrom.across;
+          this.renderer.addAnimation(
+            new CardPlayAnimation(
+              from.x,
+              from.y,
+              anchors.trickCenter.x,
+              anchors.trickCenter.y,
+              cardSize.w,
+              cardSize.h,
+              250
+            )
+          );
         }
         break;
       }
 
       case "DEAL": {
         this.ctx.sounds.cardDeal();
+        const anchors = this.renderer.getAnimationAnchors();
+        const cardSize = this.renderer.getCardDimensions();
         const dealTargets = [
-          { x: 512, y: 570 },
-          { x: 120, y: 280 },
-          { x: 512, y: 100 },
-          { x: 904, y: 280 },
+          anchors.playFrom.self,
+          anchors.playFrom.left,
+          anchors.playFrom.across,
+          anchors.playFrom.right,
         ];
         for (let i = 0; i < dealTargets.length; i++) {
           const target = dealTargets[i];
           this.renderer.addAnimation(
-            new CardDealAnimation(512, 340, target.x, target.y, 76, 108, i * 80, 300)
+            new CardDealAnimation(
+              anchors.dealSource.x,
+              anchors.dealSource.y,
+              target.x,
+              target.y,
+              cardSize.w,
+              cardSize.h,
+              i * 80,
+              300
+            )
           );
         }
         break;
@@ -569,12 +688,13 @@ export class GameScreen implements Screen {
   private updateHeader(): void {
     const game = this.ctx.state.game;
     const profile = this.ctx.profile.get();
+    const compact = this.isMobilePortrait;
 
     const metaParts: string[] = [];
     if (game) {
       metaParts.push(`Round ${game.handNo}`);
-      if (game.contract) metaParts.push(`Contract: ${String(game.contract).replace("_", " ")}`);
-      if (game.trump) metaParts.push(`Trump: ${game.trump}`);
+      if (!compact && game.contract) metaParts.push(`Contract: ${String(game.contract).replace("_", " ")}`);
+      if (!compact && game.trump) metaParts.push(`Trump: ${game.trump}`);
       if (typeof game.turnDeadline === "number") {
         const secs = Math.max(0, Math.ceil((game.turnDeadline - Date.now()) / 1000));
         metaParts.push(`Turn: ${secs}s`);
@@ -587,7 +707,7 @@ export class GameScreen implements Screen {
       this.headerMeta.classList.remove("urgent");
     }
 
-    if (this.ctx.connection.latencyMs !== null) {
+    if (!compact && this.ctx.connection.latencyMs !== null) {
       metaParts.push(`Ping: ${Math.round(this.ctx.connection.latencyMs)}ms`);
     }
 
@@ -603,12 +723,217 @@ export class GameScreen implements Screen {
     this.soundToggleBtn.setAttribute("aria-pressed", String(soundOn));
   }
 
+  private updateMobileSummary(): void {
+    if (!this.isMobilePortrait) {
+      this.mobileSummary.innerHTML = "";
+      return;
+    }
+
+    const game = this.ctx.state.game;
+    if (!game) {
+      this.mobileSummary.innerHTML = `<span class="mobile-summary-chip">Waiting for game state</span>`;
+      return;
+    }
+
+    const chips: string[] = [`<span class="mobile-summary-chip">Round ${game.handNo}</span>`];
+    if (game.contract) {
+      chips.push(`<span class="mobile-summary-chip">Contract ${escapeHtml(this.bidLabel(game.contract))}</span>`);
+    }
+    if (game.trump) {
+      chips.push(`<span class="mobile-summary-chip">Trump ${escapeHtml(game.trump)}</span>`);
+    }
+
+    if (game.turn !== null) {
+      const actor = this.seatLabelForAnnouncements(game.turn);
+      const secs = typeof game.turnDeadline === "number"
+        ? ` · ${Math.max(0, Math.ceil((game.turnDeadline - Date.now()) / 1000))}s`
+        : "";
+      const mine = game.turn === this.ctx.state.mySeat ? " mine" : "";
+      chips.push(`<span class="mobile-summary-chip turn${mine}">${escapeHtml(`${actor} turn${secs}`)}</span>`);
+    }
+
+    this.mobileSummary.innerHTML = chips.join("");
+  }
+
+  private updateMobileOpponents(): void {
+    if (!this.isMobilePortrait) {
+      this.opponentsStrip.innerHTML = "";
+      return;
+    }
+
+    const game = this.ctx.state.game;
+    if (!game || this.ctx.state.mySeat === null) {
+      this.opponentsStrip.innerHTML = "";
+      return;
+    }
+
+    const seats = ([
+      { pos: "left", label: "Left" },
+      { pos: "across", label: "Across" },
+      { pos: "right", label: "Right" },
+    ] as const)
+      .map(({ pos, label }) => {
+        const seat = this.ctx.state.seatAtPosition(pos);
+        if (seat === null) return "";
+        const player = game.players[seat];
+        const name = player?.handle || `Seat ${seat}`;
+        const score = game.scores[seat] || 0;
+        const tricks = game.tricks[seat] || 0;
+        const active = game.turn === seat ? " active-turn" : "";
+        const disconnected = player && !player.connected ? " disconnected" : "";
+        const avatarUrl = player?.isBot
+          ? buildDiceBearUrl(name || `bot-${seat}`, "bottts-neutral")
+          : buildDiceBearUrl(name || `seat-${seat}`, "identicon");
+        const fallback = fallbackAvatarAt(seat);
+        const aria = `${label} seat ${name}, score ${score}, tricks ${tricks}`;
+
+        return `
+          <div class="mobile-opponent${active}${disconnected}" role="listitem" aria-label="${escapeHtml(aria)}">
+            <img class="mobile-opponent-avatar" src="${avatarUrl}" data-fallback="${fallback}" alt="" />
+            <div class="mobile-opponent-meta">
+              <span class="mobile-opponent-seat">${label}</span>
+              <span class="mobile-opponent-name">${escapeHtml(name)}</span>
+            </div>
+            <div class="mobile-opponent-stats">
+              <span>S ${score}</span>
+              <span>T ${tricks}</span>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    this.opponentsStrip.innerHTML = seats;
+
+    this.opponentsStrip.querySelectorAll<HTMLImageElement>(".mobile-opponent-avatar").forEach((img) => {
+      img.onerror = () => {
+        const fallback = img.dataset.fallback;
+        if (!fallback) return;
+        img.onerror = null;
+        img.src = fallback;
+      };
+    });
+  }
+
+  private updatePhaseRail(): void {
+    const game = this.ctx.state.game;
+    if (!game) {
+      this.phaseRail.innerHTML = "";
+      return;
+    }
+
+    const stage = game.phase === "penetro_choice"
+      ? "auction"
+      : game.phase === "trump_choice"
+        ? "trump"
+        : game.phase === "exchange"
+          ? "exchange"
+          : game.phase === "play" || game.phase === "post_hand" || game.phase === "match_end"
+            ? "play"
+            : "auction";
+
+    const order = ["auction", "trump", "exchange", "play"] as const;
+    const activeIdx = order.indexOf(stage);
+
+    this.phaseRail.innerHTML = order
+      .map((name, idx) => {
+        const active = idx === activeIdx ? " active" : "";
+        const done = idx < activeIdx ? " done" : "";
+        const label = name === "trump" ? "Trump" : name[0].toUpperCase() + name.slice(1);
+        return `<span class="phase-chip${active}${done}">${label}</span>`;
+      })
+      .join("");
+  }
+
+  private updateTrickHistory(): void {
+    const winners = this.recentTrickWinners.slice(-3);
+    if (!winners.length) {
+      this.trickHistory.innerHTML = `<span class="trick-history-empty">No tricks yet</span>`;
+      return;
+    }
+
+    this.trickHistory.innerHTML = winners
+      .map((seat) => `<span class="trick-chip">${this.seatLabelForAnnouncements(seat)}</span>`)
+      .join("");
+  }
+
+  private updateAuctionLead(currentBid?: string, currentBidder?: number | null): void {
+    const game = this.ctx.state.game;
+    if (!game) return;
+
+    const bid = currentBid ?? game.auction.currentBid;
+    const bidder = currentBidder === undefined ? game.auction.currentBidder : currentBidder;
+
+    if (bid === "pass" || bidder === null) {
+      this.auctionBannerLead.textContent = "No leading bid yet";
+    } else {
+      this.auctionBannerLead.textContent =
+        `Leading bid: ${this.bidLabel(bid)} by ${this.seatLabelForAnnouncements(bidder)}`;
+    }
+
+    this.syncAuctionBannerVisibility();
+  }
+
+  private showAuctionAnnouncement(text: string, ttlMs: number): void {
+    this.auctionBannerMain.textContent = text;
+    this.syncAuctionBannerVisibility();
+
+    if (this.auctionBannerTimer !== null) {
+      clearTimeout(this.auctionBannerTimer);
+      this.auctionBannerTimer = null;
+    }
+
+    this.auctionBannerTimer = window.setTimeout(() => {
+      this.auctionBannerMain.textContent = "";
+      this.syncAuctionBannerVisibility();
+      this.auctionBannerTimer = null;
+    }, ttlMs);
+  }
+
+  private syncAuctionBannerVisibility(): void {
+    const phase = this.ctx.state.game?.phase;
+    const hasMain = Boolean(this.auctionBannerMain.textContent?.trim());
+    const visible = phase === "auction" || hasMain;
+    this.auctionBannerLead.style.display = visible ? "block" : "none";
+    this.auctionBanner.hidden = !visible;
+  }
+
+  private seatLabelForAnnouncements(seat: number): string {
+    if (this.ctx.state.mySeat === seat) return "You";
+    const handle = this.ctx.state.game?.players[seat]?.handle;
+    return handle || `Seat ${seat}`;
+  }
+
+  private bidLabel(value: string): string {
+    const labels: Record<string, string> = {
+      pass: "Pass",
+      entrada: "Entrada",
+      oros: "Entrada Oros",
+      volteo: "Volteo",
+      solo: "Solo",
+      solo_oros: "Solo Oros",
+      contrabola: "Contrabola",
+      bola: "Bola",
+    };
+    return labels[value] || value;
+  }
+
   private handleResize = (): void => {
     const wrap = this.container.querySelector(".game-canvas-wrap") as HTMLElement | null;
     if (!wrap || !this.canvas) return;
 
+    const narrow = window.matchMedia("(max-width: 900px)").matches;
+    const portrait = window.matchMedia("(orientation: portrait)").matches;
+    const mobilePortrait = narrow && portrait;
+
+    this.isMobilePortrait = mobilePortrait;
+    this.rootEl.classList.toggle("mobile-portrait-mode", mobilePortrait);
+    this.renderer.setViewportMode(mobilePortrait ? "mobile-portrait" : "desktop");
+
     const wrapRect = wrap.getBoundingClientRect();
-    const targetRatio = 1024 / 720;
+    if (wrapRect.width <= 0 || wrapRect.height <= 0) return;
+    const logical = this.renderer.getLogicalSize();
+    const targetRatio = logical.width / logical.height;
     const wrapRatio = wrapRect.width / wrapRect.height;
 
     let displayW: number;
@@ -624,5 +949,8 @@ export class GameScreen implements Screen {
 
     this.canvas.style.width = `${displayW}px`;
     this.canvas.style.height = `${displayH}px`;
+    this.updateHeader();
+    this.updateMobileSummary();
+    this.updateMobileOpponents();
   };
 }
