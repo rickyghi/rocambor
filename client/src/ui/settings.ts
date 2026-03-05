@@ -2,6 +2,7 @@ import type { TableTheme } from "../styles/design-tokens";
 
 export interface Settings {
   soundEnabled: boolean;
+  espadaObligatoria: boolean;
   soundVolume: number;
   colorblindMode: boolean;
   tableTheme: TableTheme;
@@ -14,6 +15,7 @@ const STORAGE_KEY = "rocambor_settings";
 
 const DEFAULTS: Settings = {
   soundEnabled: true,
+  espadaObligatoria: true,
   soundVolume: 0.7,
   colorblindMode: false,
   tableTheme: "classic",
@@ -62,6 +64,9 @@ export class SettingsManager {
         }
         if (typeof merged.reduceMotion !== "boolean") {
           merged.reduceMotion = DEFAULTS.reduceMotion;
+        }
+        if (typeof merged.espadaObligatoria !== "boolean") {
+          merged.espadaObligatoria = DEFAULTS.espadaObligatoria;
         }
         return merged;
       }

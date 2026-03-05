@@ -136,7 +136,6 @@ export class ClientState {
     if (!this.game || this.mySeat === null) return false;
     if (this.game.phase !== "play") return false;
     if (this.game.turn !== this.mySeat) return false;
-    if (this.game.ombre !== this.mySeat) return false;
     if (this.game.table.length !== 0) return false;
 
     const contract = this.game.contract;

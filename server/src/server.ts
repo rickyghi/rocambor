@@ -286,7 +286,8 @@ function attachPreRoomMessageHandler(
           const { roomId, code, room } = router.createRoom(
             msg.mode,
             id,
-            msg.target
+            msg.target,
+            msg.rules
           );
           const conn = room.attach(ws, id, playerId);
 

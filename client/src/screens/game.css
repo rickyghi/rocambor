@@ -139,6 +139,13 @@
   gap: 8px;
 }
 
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .control-label {
   font-size: 12px;
   letter-spacing: 0.08em;

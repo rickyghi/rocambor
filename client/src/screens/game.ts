@@ -492,6 +492,11 @@ export class GameScreen implements Screen {
       case "auction":
         if (this.ctx.state.isMyTurn) showToast("Your turn to bid", "info", 1800);
         break;
+      case "penetro_choice":
+        if (this.ctx.state.isMyTurn) {
+          showToast("Choose whether to play Penetro", "info", 1800);
+        }
+        break;
       case "trump_choice":
         if (this.ctx.state.isMyTurn) showToast("Choose trump suit", "info", 1800);
         break;

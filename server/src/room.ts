@@ -6,7 +6,6 @@ import {
   ALL_SEATS,
   GameState,
   Bid,
-  BID_VAL,
   Contract,
   Mode,
   PlayerInfo,
@@ -24,6 +23,13 @@ const TURN_MS = 25_000;
 const BOT_DELAY_MIN = 600;
 const BOT_DELAY_MAX = 1200;
 const POST_HAND_DELAY = 3000;
+const RANKED_BID_ORDER: readonly Bid[] = [
+  "entrada",
+  "oros",
+  "volteo",
+  "solo",
+  "solo_oros",
+] as const;
 
 export interface Conn {
   id: string;
@@ -42,6 +48,9 @@ export interface RoomConfig {
   code: string;
   gameTarget?: number;
   creatorId: string;
+  rules?: {
+    espadaObligatoria?: boolean;
+  };
 }
 
 export class Room {
@@ -87,7 +96,10 @@ export class Room {
       players: {},
       gameTarget: config.gameTarget || 12,
       seq: 0,
-      rules: { espadaObligatoria: true, penetroEnabled: true },
+      rules: {
+        espadaObligatoria: config.rules?.espadaObligatoria ?? true,
+        penetroEnabled: true,
+      },
     };
 
     createRoomRecord(id, config.mode).catch(() => {});
@@ -593,6 +605,9 @@ export class Room {
       case "BID":
         this.applyBid(seat, action.payload as Bid);
         break;
+      case "PENETRO_DECISION":
+        this.handlePenetroDecision(seat, Boolean(action.payload));
+        break;
       case "CHOOSE_TRUMP":
         this.chooseTrump(seat, action.payload as Suit);
         break;
@@ -623,6 +638,14 @@ export class Room {
     };
   }
 
+  private bidRank(value: Bid): number {
+    return RANKED_BID_ORDER.indexOf(value);
+  }
+
+  private isRankedBid(value: Bid): boolean {
+    return this.bidRank(value) >= 0;
+  }
+
   // ---- Auction ----
   applyBid(seat: SeatIndex, value: Bid): void {
     if (this.state.phase !== "auction" || this.state.turn !== seat) return;
@@ -639,9 +662,36 @@ export class Room {
       a.currentBid === "pass" && a.passed.length === a.order.length - 1;
     const isLast = a.order.indexOf(seat) === a.order.length - 1;
     const isContrabolaAllowed = value === "contrabola" && allPassSoFar && isLast;
+    const openingStage = a.currentBid === "pass";
 
-    if (!isContrabolaAllowed) {
-      if (value !== "pass" && BID_VAL[value] <= BID_VAL[a.currentBid]) {
+    if (value === "contrabola" && !isContrabolaAllowed) {
+      return this.errorSeat(
+        seat,
+        "CONTRABOLA_ONLY_LAST_ALL_PASS",
+        "Contrabola is only allowed for the last active player after all others pass."
+      );
+    }
+
+    if (openingStage) {
+      if (value !== "pass" && !isContrabolaAllowed) {
+        if (value === "oros" || value === "solo_oros") {
+          return this.errorSeat(
+            seat,
+            "OPENING_BID_RESTRICTED",
+            "Opening bids may only be entrada, volteo, or solo."
+          );
+        }
+        if (value !== "entrada" && value !== "volteo" && value !== "solo") {
+          return this.errorSeat(seat, "BAD_BID", "Invalid opening bid");
+        }
+      }
+    } else if (value !== "pass") {
+      if (!this.isRankedBid(value)) {
+        return this.errorSeat(seat, "BAD_BID", "Must beat previous bid");
+      }
+      const currentRank = this.bidRank(a.currentBid);
+      const nextRank = this.bidRank(value);
+      if (currentRank < 0 || nextRank <= currentRank) {
         return this.errorSeat(seat, "BAD_BID", "Must beat previous bid");
       }
     }
@@ -673,7 +723,7 @@ export class Room {
         this.state.trump = top.s;
         this.event("TRUMP_SET", { method: "volteo", suit: this.state.trump });
         this.startExchange();
-      } else if (a.currentBid === "contrabola" || a.currentBid === "bola") {
+      } else if (a.currentBid === "contrabola") {
         this.startExchange();
       } else {
         this.state.phase = "trump_choice";
@@ -707,12 +757,6 @@ export class Room {
   private onPassOut(): void {
     const spadilleHolder = this.findSpadilleHolder();
 
-    if (this.state.mode === "quadrille" && this.state.rules.penetroEnabled) {
-      if (spadilleHolder === null) {
-        return this.startPenetro();
-      }
-    }
-
     if (this.state.rules.espadaObligatoria && spadilleHolder !== null) {
       this.state.ombre = spadilleHolder;
       this.state.contract = "entrada";
@@ -725,6 +769,11 @@ export class Room {
       return;
     }
 
+    if (this.state.mode === "quadrille" && this.state.rules.penetroEnabled) {
+      this.startPenetroChoice();
+      return;
+    }
+
     this.event("AUCTION_PASS_OUT", {});
     this.newHand();
   }
@@ -734,6 +783,37 @@ export class Room {
       if (this.hands[s].some((c) => c.s === "espadas" && c.r === 1)) return s;
     }
     return null;
+  }
+
+  private startPenetroChoice(): void {
+    const resting = this.restSeat();
+    this.state.phase = "penetro_choice";
+    this.state.turn = resting;
+    this.event("PENETRO_CHOICE", { restingPlayer: resting });
+    this.patch(this.state);
+    this.armTimer();
+    this.botMaybeAct();
+  }
+
+  private handlePenetroDecision(seat: SeatIndex, accept: boolean): void {
+    if (this.state.phase !== "penetro_choice") {
+      return this.errorSeat(seat, "WRONG_PHASE");
+    }
+
+    const resting = this.restSeat();
+    if (seat !== resting || this.state.turn !== seat) {
+      return this.errorSeat(seat, "NOT_RESTING_PLAYER");
+    }
+
+    if (accept) {
+      this.event("PENETRO_ACCEPTED", { seat });
+      this.startPenetro();
+      return;
+    }
+
+    this.event("PENETRO_DECLINED", { seat });
+    this.event("AUCTION_PASS_OUT", {});
+    this.newHand();
   }
 
   // ---- Trump choice ----
@@ -959,7 +1039,6 @@ export class Room {
   private canCloseHandNow(seat: SeatIndex): boolean {
     if (this.state.phase !== "play" || this.state.turn !== seat) return false;
     if (this.table.length !== 0) return false;
-    if (this.state.ombre !== seat) return false;
     if (!this.state.contract) return false;
     if (
       this.state.contract === "bola" ||
@@ -996,7 +1075,7 @@ export class Room {
       return this.errorSeat(
         seat,
         "BAD_CLOSE",
-        "You can only close after taking the first five tricks"
+        "You can only close after taking five consecutive tricks"
       );
     }
     this.event("HAND_CLOSED", { seat });
@@ -1373,6 +1452,8 @@ export class Room {
           return this.chooseTrump(conn.seat, msg.suit as Suit);
         case "EXCHANGE":
           return this.finishExchange(conn.seat, (msg.discardIds as string[]) || []);
+        case "PENETRO_DECISION":
+          return this.handlePenetroDecision(conn.seat, Boolean(msg.accept));
         case "CLOSE_HAND":
           return this.closeHand(conn.seat);
         case "PLAY":

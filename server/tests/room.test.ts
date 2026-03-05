@@ -119,6 +119,58 @@ describe("Room - auction", () => {
     expect(room.state.auction.currentBid).toBe("volteo");
   });
 
+  it("rejects restricted opening bids (oros / solo_oros)", () => {
+    const turn = room.state.turn!;
+    const seatConn = room.conns.find((c) => c.seat === turn)!;
+
+    room.applyBid(turn, "oros");
+    expect(room.state.auction.currentBid).toBe("pass");
+    expect(room.state.turn).toBe(turn);
+
+    room.applyBid(turn, "solo_oros");
+    expect(room.state.auction.currentBid).toBe("pass");
+    expect(room.state.turn).toBe(turn);
+
+    const msgs = (seatConn.ws as any)._sent.map((s: string) => JSON.parse(s));
+    expect(msgs.some((m: any) => m.type === "ERROR" && m.code === "OPENING_BID_RESTRICTED")).toBe(true);
+  });
+
+  it("supports ladder overcalls across families", () => {
+    const [s0, s1, s2] = room.state.auction.order;
+
+    room.applyBid(s0, "entrada");
+    expect(room.state.auction.currentBid).toBe("entrada");
+
+    room.applyBid(s1, "oros");
+    expect(room.state.auction.currentBid).toBe("oros");
+
+    room.applyBid(s2, "volteo");
+    expect(room.state.auction.currentBid).toBe("volteo");
+
+    room.applyBid(s0, "solo");
+    expect(room.state.auction.currentBid).toBe("solo");
+
+    room.applyBid(s1, "solo_oros");
+    expect(room.state.auction.currentBid).toBe("solo_oros");
+  });
+
+  it("rejects contrabola unless last active player after all-pass", () => {
+    const turn = room.state.turn!;
+    const seatConn = room.conns.find((c) => c.seat === turn)!;
+
+    room.applyBid(turn, "contrabola");
+    expect(room.state.auction.currentBid).toBe("pass");
+    expect(room.state.turn).toBe(turn);
+
+    const msgs = (seatConn.ws as any)._sent.map((s: string) => JSON.parse(s));
+    expect(
+      msgs.some(
+        (m: any) =>
+          m.type === "ERROR" && m.code === "CONTRABOLA_ONLY_LAST_ALL_PASS"
+      )
+    ).toBe(true);
+  });
+
   it("all pass triggers passout handling", () => {
     const order = room.state.auction.order.slice();
     for (const seat of order) {
@@ -198,6 +250,168 @@ describe("Room - trump choice", () => {
     expect(room.state.trump).toBeNull(); // rejected
     room.chooseTrump(0, "oros");
     expect(room.state.trump).toBe("oros");
+  });
+});
+
+describe("Room - penetro choice", () => {
+  function allPass(room: Room): void {
+    const order = room.state.auction.order.slice();
+    for (const seat of order) {
+      room.applyBid(seat, "pass");
+    }
+  }
+
+  it("enters penetro_choice in quadrille pass-out when espada obligatoria is off", () => {
+    const room = makeRoom("quadrille");
+    addHuman(room, 0);
+    addHuman(room, 1);
+    addHuman(room, 2);
+    addHuman(room, 3);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+    (room as any).botMaybeAct = () => {};
+
+    room.state.rules.espadaObligatoria = false;
+    for (const seat of room.seatsActive()) {
+      room.hands[seat] = room.hands[seat].filter(
+        (card) => !(card.s === "espadas" && card.r === 1)
+      );
+      room.state.handsCount[seat] = room.hands[seat].length;
+    }
+
+    allPass(room);
+    expect(room.state.phase).toBe("penetro_choice");
+    expect(room.state.turn).toBe(room.restSeat());
+  });
+
+  it("starts penetro when resting player accepts", () => {
+    const room = makeRoom("quadrille");
+    addHuman(room, 0);
+    addHuman(room, 1);
+    addHuman(room, 2);
+    addHuman(room, 3);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+    (room as any).botMaybeAct = () => {};
+
+    room.state.rules.espadaObligatoria = false;
+    for (const seat of room.seatsActive()) {
+      room.hands[seat] = room.hands[seat].filter(
+        (card) => !(card.s === "espadas" && card.r === 1)
+      );
+      room.state.handsCount[seat] = room.hands[seat].length;
+    }
+
+    allPass(room);
+    const rest = room.restSeat();
+    const restingConn = room.conns.find((c) => c.seat === rest)!;
+    room.handle(restingConn, { type: "PENETRO_DECISION", accept: true });
+
+    expect(room.state.contract).toBe("penetro");
+    expect(room.state.phase).toBe("play");
+    expect(room.state.ombre).toBe(rest);
+  });
+
+  it("decline in penetro_choice causes redeal", () => {
+    const room = makeRoom("quadrille");
+    addHuman(room, 0);
+    addHuman(room, 1);
+    addHuman(room, 2);
+    addHuman(room, 3);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+    (room as any).botMaybeAct = () => {};
+
+    room.state.rules.espadaObligatoria = false;
+    for (const seat of room.seatsActive()) {
+      room.hands[seat] = room.hands[seat].filter(
+        (card) => !(card.s === "espadas" && card.r === 1)
+      );
+      room.state.handsCount[seat] = room.hands[seat].length;
+    }
+
+    allPass(room);
+    const rest = room.restSeat();
+    const restingConn = room.conns.find((c) => c.seat === rest)!;
+    room.handle(restingConn, { type: "PENETRO_DECISION", accept: false });
+
+    expect(room.state.phase).toBe("auction");
+    expect(room.state.contract).toBeNull();
+  });
+
+  it("rejects penetro decision from non-resting player", () => {
+    const room = makeRoom("quadrille");
+    addHuman(room, 0);
+    const nonRest = addHuman(room, 2);
+    addHuman(room, 1);
+    addHuman(room, 3);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+    (room as any).botMaybeAct = () => {};
+
+    room.state.rules.espadaObligatoria = false;
+    for (const seat of room.seatsActive()) {
+      room.hands[seat] = room.hands[seat].filter(
+        (card) => !(card.s === "espadas" && card.r === 1)
+      );
+      room.state.handsCount[seat] = room.hands[seat].length;
+    }
+
+    allPass(room);
+    room.handle(nonRest.conn, { type: "PENETRO_DECISION", accept: true });
+    expect(room.state.phase).toBe("penetro_choice");
+
+    const msgs = (nonRest.ws as any)._sent.map((s: string) => JSON.parse(s));
+    expect(
+      msgs.some(
+        (m: any) => m.type === "ERROR" && m.code === "NOT_RESTING_PLAYER"
+      )
+    ).toBe(true);
+  });
+
+  it("timeout in penetro_choice auto-declines", () => {
+    const room = makeRoom("quadrille");
+    addHuman(room, 0);
+    addHuman(room, 1);
+    addHuman(room, 2);
+    addHuman(room, 3);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+    (room as any).botMaybeAct = () => {};
+
+    room.state.rules.espadaObligatoria = false;
+    for (const seat of room.seatsActive()) {
+      room.hands[seat] = room.hands[seat].filter(
+        (card) => !(card.s === "espadas" && card.r === 1)
+      );
+      room.state.handsCount[seat] = room.hands[seat].length;
+    }
+
+    allPass(room);
+    (room as any).onTimeout();
+
+    expect(room.state.phase).toBe("auction");
+    expect(room.state.contract).toBeNull();
+  });
+
+  it("with espada obligatoria off, pass-out does not force spadille holder", () => {
+    const room = makeRoom("quadrille");
+    addHuman(room, 0);
+    addHuman(room, 1);
+    addHuman(room, 2);
+    addHuman(room, 3);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+    (room as any).botMaybeAct = () => {};
+
+    room.state.rules.espadaObligatoria = false;
+    room.hands[0][0] = { s: "espadas", r: 1, id: "forced-e1" } as any;
+    room.state.handsCount[0] = room.hands[0].length;
+
+    allPass(room);
+
+    expect(room.state.phase).toBe("penetro_choice");
+    expect(room.state.contract).toBeNull();
   });
 });
 
@@ -600,6 +814,26 @@ describe("Room - implied bola", () => {
     (room as any).trickWinners = [0, 0, 0, 0, 0];
 
     room.handle(conn, { type: "CLOSE_HAND" });
+    expect(room.state.phase).toBe("post_hand");
+    expect(room.state.contract).toBe("entrada");
+  });
+
+  it("allows any eligible player to close after five consecutive tricks", () => {
+    const room = makeRoom();
+    addHuman(room, 0);
+    const other = addHuman(room, 1);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+
+    room.state.phase = "play";
+    room.state.ombre = 0;
+    room.state.contract = "entrada";
+    room.state.trump = "oros";
+    room.state.turn = 1;
+    room.state.tricks = { 0: 0, 1: 5, 2: 0, 3: 0 };
+    (room as any).trickWinners = [1, 1, 1, 1, 1];
+
+    room.handle(other.conn, { type: "CLOSE_HAND" });
     expect(room.state.phase).toBe("post_hand");
     expect(room.state.contract).toBe("entrada");
   });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateHand, decideBid, decideTrump, decidePlay, BotContext } from "../src/bot";
+import { evaluateHand, decideBid, decideTrump, decidePlay, botAct, BotContext } from "../src/bot";
 import { Card, Suit, SeatIndex, Bid } from "../../shared/types";
 
 function card(s: Suit, r: number): Card {
@@ -90,7 +90,7 @@ describe("decideBid", () => {
     ];
     const ctx = makeCtx({ hand, originalHand: hand });
     const bid = decideBid(ctx);
-    expect(["entrada", "oros", "volteo", "solo", "solo_oros", "bola"]).toContain(bid);
+    expect(["entrada", "oros", "volteo", "solo", "solo_oros"]).toContain(bid);
     expect(bid).not.toBe("pass");
   });
 
@@ -124,7 +124,7 @@ describe("decideBid", () => {
     const bid = decideBid(ctx);
     // Should either pass or bid higher than solo
     if (bid !== "pass") {
-      expect(["solo_oros", "bola"].includes(bid)).toBe(true);
+      expect(["solo_oros"].includes(bid)).toBe(true);
     }
   });
 
@@ -146,6 +146,11 @@ describe("decideBid", () => {
     });
     const bid = decideBid(ctx);
     expect(bid).toBe("solo_oros");
+  });
+
+  it("declines penetro choice", () => {
+    const action = botAct(makeCtx({ phase: "penetro_choice" }));
+    expect(action).toEqual({ type: "PENETRO_DECISION", payload: false });
   });
 });
 

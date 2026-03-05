@@ -13,6 +13,11 @@ export const C2SMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("CREATE_ROOM"),
     mode: ModeSchema,
     target: z.number().int().min(6).max(30).optional(),
+    rules: z
+      .object({
+        espadaObligatoria: z.boolean().optional(),
+      })
+      .optional(),
   }),
   z.object({ type: z.literal("JOIN_ROOM"), code: z.string().min(4).max(8) }),
   z.object({ type: z.literal("SPECTATE"), roomId: z.string() }),
@@ -25,6 +30,7 @@ export const C2SMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("EXCHANGE"),
     discardIds: z.array(z.string()).max(9),
   }),
+  z.object({ type: z.literal("PENETRO_DECISION"), accept: z.boolean() }),
   z.object({ type: z.literal("CLOSE_HAND") }),
   z.object({ type: z.literal("PLAY"), cardId: z.string().min(1) }),
   z.object({ type: z.literal("REMATCH") }),

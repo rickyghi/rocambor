@@ -225,6 +225,9 @@ export class HomeScreen implements Screen {
               type: "CREATE_ROOM",
               mode,
               target: Number.isNaN(target) ? undefined : target,
+              rules: {
+                espadaObligatoria: this.ctx.settings.get("espadaObligatoria"),
+              },
             });
           },
         },

@@ -36,6 +36,8 @@ export class GameControls {
 
     if (phase === "auction" && myTurn) {
       html = this.renderAuction();
+    } else if (phase === "penetro_choice" && myTurn) {
+      html = this.renderPenetroChoice();
     } else if (phase === "trump_choice" && myTurn) {
       html = this.renderTrumpChoice();
     } else if (phase === "exchange" && canExchange) {
@@ -44,6 +46,8 @@ export class GameControls {
       html = this.renderPlay();
     } else if (phase === "auction" && !myTurn) {
       html = `<div class="controls-hint">Waiting for ${this.seatLabel(game.turn)}...</div>`;
+    } else if (phase === "penetro_choice" && !myTurn) {
+      html = `<div class="controls-hint">Waiting for the resting player to decide Penetro...</div>`;
     } else if (phase === "exchange" && !canExchange) {
       html = `<div class="controls-hint">Waiting for exchange...</div>`;
     } else if (phase === "play" && !myTurn) {
@@ -62,22 +66,23 @@ export class GameControls {
 
   private renderAuction(): string {
     const currentBid = this.state.game!.auction.currentBid;
-    const bids: Array<{ value: Bid; label: string; minVal: number }> = [
-      { value: "entrada", label: "Entrada", minVal: 1 },
-      { value: "oros", label: "Oros", minVal: 2 },
-      { value: "volteo", label: "Volteo", minVal: 3 },
-      { value: "solo", label: "Solo", minVal: 4 },
-      { value: "solo_oros", label: "Solo Oros", minVal: 5 },
+    const bidRank = (bid: Bid): number =>
+      ({ entrada: 0, oros: 1, volteo: 2, solo: 3, solo_oros: 4 } as Partial<Record<Bid, number>>)[bid] ?? -1;
+    const opening = currentBid === "pass";
+    const rankedBids: Array<{ value: Bid; label: string }> = [
+      { value: "entrada", label: "Entrada" },
+      { value: "oros", label: "Entrada Oros" },
+      { value: "volteo", label: "Volteo" },
+      { value: "solo", label: "Solo" },
+      { value: "solo_oros", label: "Solo Oros" },
     ];
 
-    const currentVal =
-      ({ pass: 0, entrada: 1, oros: 2, volteo: 3, solo: 4, solo_oros: 5, bola: 6, contrabola: 99 } as Record<string, number>)[currentBid] || 0;
+    const legal = opening
+      ? rankedBids.filter((b) => b.value === "entrada" || b.value === "volteo" || b.value === "solo")
+      : rankedBids.filter((b) => bidRank(b.value) > bidRank(currentBid));
 
-    const btns = bids
-      .map(
-        (b) =>
-          `<button class="bid-btn" data-bid="${b.value}" ${b.minVal <= currentVal ? "disabled" : ""}>${b.label}</button>`
-      )
+    const btns = legal
+      .map((b) => `<button class="bid-btn" data-bid="${b.value}">${b.label}</button>`)
       .join("");
 
     // Contrabola: only when all others passed and you're last in order
@@ -93,6 +98,19 @@ export class GameControls {
         ${btns}
         ${showContrabola ? `<button class="bid-btn contrabola-btn" data-bid="contrabola">Contrabola</button>` : ""}
         <button class="bid-btn pass-btn" data-bid="pass">Pass</button>
+      </div>
+    `;
+  }
+
+  private renderPenetroChoice(): string {
+    return `
+      <div class="control-group">
+        <span class="control-label">Penetro</span>
+        <span class="controls-hint">No active bidder. As resting player, choose whether to play Penetro.</span>
+        <div class="control-row">
+          <button class="bid-btn penetro-btn" data-accept="false">Decline</button>
+          <button class="bid-btn penetro-btn" data-accept="true">Play Penetro</button>
+        </div>
       </div>
     `;
   }
@@ -187,8 +205,8 @@ export class GameControls {
 
     return `
       <div class="control-group">
-        <span class="control-label">First Five Won</span>
-        <span class="controls-hint">Close hand now, or play a card to continue and imply Bola.</span>
+        <span class="control-label">Five Consecutive Tricks</span>
+        <span class="controls-hint">Close hand now, or continue playing to imply Bola.</span>
         <button class="exchange-btn secondary" data-action="close-hand">Close Hand</button>
       </div>
     `;
@@ -227,6 +245,15 @@ export class GameControls {
           this.conn.send({ type: "EXCHANGE", discardIds: [] });
           this.state.clearSelection();
         }
+      });
+    });
+
+    this.container.querySelectorAll<HTMLButtonElement>(".penetro-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        this.conn.send({
+          type: "PENETRO_DECISION",
+          accept: btn.dataset.accept === "true",
+        });
       });
     });
 

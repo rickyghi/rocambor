@@ -1,4 +1,4 @@
-import { Card, Suit, Bid, SeatIndex, BID_VAL } from "../../shared/types";
+import { Card, Suit, Bid, SeatIndex } from "../../shared/types";
 import {
   evalTrumpPointsExact,
   legalPlays,
@@ -30,6 +30,22 @@ export interface BotContext {
   table: Card[];
   talonLength: number;
 }
+
+const RANKED_BID_ORDER: readonly Bid[] = [
+  "entrada",
+  "oros",
+  "volteo",
+  "solo",
+  "solo_oros",
+] as const;
+
+const BID_RANK: Record<string, number> = RANKED_BID_ORDER.reduce(
+  (acc, bid, idx) => {
+    acc[bid] = idx;
+    return acc;
+  },
+  {} as Record<string, number>
+);
 
 export function evaluateHand(hand: Card[]): { bestSuit: Suit; points: number } {
   let bestSuit: Suit = "oros";
@@ -140,6 +156,7 @@ export function decideBid(ctx: BotContext): Bid {
     a.currentBid === "pass" && a.passed.length === a.order.length - 1;
   const isLast =
     a.order.indexOf(ctx.seat) === a.order.length - 1;
+  const openingStage = a.currentBid === "pass";
 
   if (allPass && isLast && bid === "pass") {
     if (bestStrength >= 21) {
@@ -149,21 +166,41 @@ export function decideBid(ctx: BotContext): Bid {
     }
   }
 
-  // Ensure bid beats current
-  if (bid !== "pass" && BID_VAL[bid] <= BID_VAL[a.currentBid]) {
-    const candidates = ladder
-      .map((x) => x.bid)
-      .filter((b) => BID_VAL[b] > BID_VAL[a.currentBid]);
-    // Prefer the cheapest legal overcall, not an unnecessarily high jump.
-    bid = candidates.length ? candidates[candidates.length - 1] : "pass";
+  if (openingStage) {
+    if (bid === "solo_oros") bid = "solo";
+    if (bid === "oros") bid = bestStrength >= 31 ? "volteo" : "entrada";
+  } else if (bid !== "pass" && bid !== "contrabola") {
+    const currentRank = BID_RANK[a.currentBid];
+    const bidRank = BID_RANK[bid];
+    if (currentRank === undefined || bidRank === undefined || bidRank <= currentRank) {
+      const candidates = RANKED_BID_ORDER.filter((candidate) => {
+        const rank = BID_RANK[candidate];
+        return rank > currentRank;
+      });
+
+      // Prefer the smallest legal overcall.
+      bid = candidates.length ? candidates[0] : "pass";
+    }
   }
 
   // Weak hands should still pass when table is already competitive
-  if (bid !== "pass" && bestStrength < 25 && BID_VAL[a.currentBid] >= BID_VAL["entrada"]) {
+  const currentRank = BID_RANK[a.currentBid];
+  if (
+    bid !== "pass" &&
+    bid !== "contrabola" &&
+    bestStrength < 25 &&
+    currentRank !== undefined &&
+    currentRank >= BID_RANK["entrada"]
+  ) {
     bid = "pass";
   }
 
   return bid;
+}
+
+export function decidePenetroDecision(): boolean {
+  // Conservative policy for resting bot: decline explicit penetro.
+  return false;
 }
 
 export function decideTrump(ctx: BotContext): Suit {
@@ -307,12 +344,14 @@ export function decidePlay(ctx: BotContext): string | null {
 }
 
 export function botAct(ctx: BotContext): {
-  type: "BID" | "CHOOSE_TRUMP" | "EXCHANGE" | "PLAY";
+  type: "BID" | "PENETRO_DECISION" | "CHOOSE_TRUMP" | "EXCHANGE" | "PLAY";
   payload: unknown;
 } | null {
   switch (ctx.phase) {
     case "auction":
       return { type: "BID", payload: decideBid(ctx) };
+    case "penetro_choice":
+      return { type: "PENETRO_DECISION", payload: decidePenetroDecision() };
     case "trump_choice":
       return { type: "CHOOSE_TRUMP", payload: decideTrump(ctx) };
     case "exchange":

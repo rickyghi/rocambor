@@ -41,7 +41,12 @@ export class Lobby {
 
     if (queue.length >= need) {
       const matched = queue.splice(0, need);
-      const { roomId, code, room } = this.router.createRoom(mode, matched[0].clientId);
+      const { roomId, code, room } = this.router.createRoom(
+        mode,
+        matched[0].clientId,
+        undefined,
+        { espadaObligatoria: true }
+      );
 
       // Seat all matched players
       const seats = room.allSeats();
