@@ -76,7 +76,7 @@ export class HomeScreen implements Screen {
           <main class="home-main">
             <section class="home-hero rc-panel rc-panel-noise">
               <div class="home-logo-wrap">
-                <img src="/logo/wordmark.png" alt="Rocambor" class="home-logo-img" />
+                <img src="/assets/rocambor/logo-final.png" alt="Rocambor" class="home-logo-img" />
                 <h1 class="home-logo-fallback">ROCAMBOR</h1>
                 <p class="home-tagline tagline-smallcaps">THE GAME OF OMBRE</p>
               </div>

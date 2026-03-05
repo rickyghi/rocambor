@@ -41,13 +41,17 @@ function ensureAssetsLoaded(): void {
       watermarkReady = true;
     };
     watermarkImage.onerror = () => {
+      if (watermarkImage && !watermarkImage.src.endsWith("/assets/rocambor/logo-final.png")) {
+        watermarkImage.src = "/assets/rocambor/logo-final.png";
+        return;
+      }
       if (watermarkImage && !watermarkImage.src.endsWith("/brand/rocambor-watermark.svg")) {
         watermarkImage.src = "/brand/rocambor-watermark.svg";
         return;
       }
       watermarkReady = false;
     };
-    watermarkImage.src = "/assets/rocambor/rocambor-watermark.svg";
+    watermarkImage.src = "/assets/rocambor/logo-final.png";
   }
 }
 
@@ -172,15 +176,13 @@ export function drawTableBackground(
   // Center-table watermark logo (subtle, unobtrusive).
   ctx.save();
   if (watermarkReady && watermarkImage) {
-    const targetW = width > 760 ? Math.min(560, width * 0.52) : Math.min(360, width * 0.62);
+    const targetW = width > 760 ? Math.min(640, width * 0.58) : Math.min(420, width * 0.72);
     const ratio = watermarkImage.width > 0 ? watermarkImage.height / watermarkImage.width : 0.3;
     const targetH = targetW * ratio;
     const x = width / 2 - targetW / 2;
     const y = height / 2 - targetH / 2 - 14;
-    ctx.globalAlpha = 0.08;
-    ctx.filter = "blur(0.8px)";
+    ctx.globalAlpha = 0.6;
     ctx.drawImage(watermarkImage, x, y, targetW, targetH);
-    ctx.filter = "none";
   } else {
     ctx.globalAlpha = 0.06;
     ctx.fillStyle = "rgba(200,166,81,0.6)";
