@@ -40,7 +40,9 @@ export function drawPlayers(
     const avatarUrl = isSelf
       ? profile.avatar
       : player
-        ? buildDiceBearUrl(player.handle || `Seat-${seat}`, "identicon")
+        ? player.isBot
+          ? buildDiceBearUrl(player.handle || `bot-${seat}`, "bottts-neutral")
+          : buildDiceBearUrl(player.handle || `Seat-${seat}`, "identicon")
         : fallbackAvatarAt(seat);
     const avatarFallback = fallbackAvatarAt(seat);
 
