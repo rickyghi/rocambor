@@ -178,13 +178,13 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
   },
   {
     id: "clasica",
-    label: "Clasica (Fournier)",
-    description: "Traditional Heraclio Fournier card art",
-    author: "Heraclio Fournier",
+    label: "Spanish Deck",
+    description: "Classic Spanish deck artwork imported from local PNG assets",
+    author: "gjenkins20 / local import",
     theme: "classic",
     rarity: "legendary",
     imageMode: true,
-    imagePath: "/cards/clasica",
+    imagePath: "/cards/spanish_deck",
     // Procedural fallback properties (used for cards without images)
     faceColor: "#F8F6F0",
     faceBorderColor: "#C8A651",

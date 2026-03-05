@@ -12,6 +12,7 @@ export interface Settings {
 }
 
 const STORAGE_KEY = "rocambor_settings";
+const DEFAULT_CARD_SKIN = "clasica";
 
 const DEFAULTS: Settings = {
   soundEnabled: true,
@@ -19,7 +20,7 @@ const DEFAULTS: Settings = {
   soundVolume: 0.7,
   colorblindMode: false,
   tableTheme: "classic",
-  cardSkin: "rocambor",
+  cardSkin: DEFAULT_CARD_SKIN,
   animationSpeed: "normal",
   reduceMotion: false,
 };
@@ -61,6 +62,9 @@ export class SettingsManager {
         const merged = { ...DEFAULTS, ...parsed };
         if (typeof merged.cardSkin !== "string" || !merged.cardSkin.trim()) {
           merged.cardSkin = DEFAULTS.cardSkin;
+        } else if (merged.cardSkin === "rocambor") {
+          // Migrate existing clients from the old default to the new imported deck.
+          merged.cardSkin = DEFAULT_CARD_SKIN;
         }
         if (typeof merged.reduceMotion !== "boolean") {
           merged.reduceMotion = DEFAULTS.reduceMotion;
