@@ -26,6 +26,18 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+async function loadImageWithFallback(srcs: string[]): Promise<HTMLImageElement> {
+  let lastError: Error | null = null;
+  for (const src of srcs) {
+    try {
+      return await loadImage(src);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+  throw lastError ?? new Error("Failed to load image candidates");
+}
+
 export function preloadSkinImages(
   skinId: string,
   basePath: string
@@ -58,9 +70,8 @@ export function preloadSkinImages(
     for (const suit of suits) {
       for (const rank of ranks) {
         const key = imageKey(suit, rank);
-        const src = `${basePath}/${key}.png`;
         tasks.push(
-          loadImage(src)
+          loadImageWithFallback([`${basePath}/${key}.png`, `${basePath}/${key}.svg`])
             .then((img) => { images.set(key, img); })
             .catch(() => { /* Missing card — procedural fallback */ })
         );
@@ -68,7 +79,7 @@ export function preloadSkinImages(
     }
 
     tasks.push(
-      loadImage(`${basePath}/back.png`)
+      loadImageWithFallback([`${basePath}/back.png`, `${basePath}/back.svg`])
         .then((img) => { backImg = img; })
         .catch(() => { /* Missing back — procedural fallback */ })
     );
