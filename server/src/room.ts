@@ -12,7 +12,7 @@ import {
   PlayerInfo,
   S2CMessage,
 } from "../../shared/types";
-import { makeDeck, legalPlays, trickWinner, generateSeed } from "./engine";
+import { makeDeck, legalPlays, trickWinner, generateSeed, isTrump } from "./engine";
 import { botAct, BotContext, decideExchange } from "./bot";
 import {
   saveHandResult,
@@ -55,6 +55,7 @@ export class Room {
   table: Card[] = [];
   playOrder: SeatIndex[] = [];
   trickWinners: SeatIndex[] = [];
+  private trickLeadTrumpFlags: boolean[] = [];
   timer: NodeJS.Timeout | null = null;
   private timerEpoch = 0;
   restIndex = 0;
@@ -446,6 +447,7 @@ export class Room {
     this.table = [];
     this.playOrder = [];
     this.trickWinners = [];
+    this.trickLeadTrumpFlags = [];
 
     // Reset state
     this.state.ombre = null;
@@ -966,7 +968,29 @@ export class Room {
   }
 
   private canImplyBolaByContinuation(seat: SeatIndex): boolean {
-    return this.canCloseHandNow(seat);
+    if (this.state.phase !== "play" || this.state.turn !== seat) return false;
+    if (this.table.length !== 0) return false;
+    if (this.state.ombre !== seat) return false;
+    if (!this.state.contract) return false;
+    if (
+      this.state.contract === "bola" ||
+      this.state.contract === "contrabola" ||
+      this.state.contract === "penetro"
+    ) {
+      return false;
+    }
+
+    // Implicit bola only happens by continuing into trick 6:
+    // the first five completed tricks must all be won by ombre and
+    // each of those first five tricks must have been led in trump.
+    if (this.trickWinners.length !== 5) return false;
+    if (this.trickLeadTrumpFlags.length < 5) return false;
+    const firstFiveWinners = this.trickWinners.slice(0, 5);
+    const firstFiveTrumpLeads = this.trickLeadTrumpFlags.slice(0, 5);
+    return (
+      firstFiveWinners.every((w) => w === seat) &&
+      firstFiveTrumpLeads.every((isTrumpLed) => isTrumpLed)
+    );
   }
 
   closeHand(seat: SeatIndex): void {
@@ -1016,10 +1040,13 @@ export class Room {
     const needed = this.state.contract === "penetro" ? 4 : 3;
 
     if (this.table.length === needed) {
+      const ledCard = this.table[0];
+      const ledWasTrump = this.state.trump ? isTrump(this.state.trump, ledCard) : false;
       const winIdx = trickWinner(this.state.trump, this.table[0].s, this.table);
       const winner = this.playOrder[winIdx];
       this.state.tricks[winner]++;
       this.trickWinners.push(winner);
+      this.trickLeadTrumpFlags.push(ledWasTrump);
 
       this.event("TRICK_TAKEN", { winner, cards: this.table });
 

@@ -552,7 +552,7 @@ describe("Room - play rules", () => {
 });
 
 describe("Room - implied bola", () => {
-  it("implies bola when ombre wins first five tricks and continues", () => {
+  it("implies bola only when ombre won first five trump-led tricks and continues", () => {
     const room = makeRoom();
     addHuman(room, 0);
     room.startGame();
@@ -566,9 +566,30 @@ describe("Room - implied bola", () => {
     room.hands[0] = [{ s: "copas", r: 12, id: "c12" } as any];
     room.state.handsCount[0] = 1;
     (room as any).trickWinners = [0, 0, 0, 0, 0];
+    (room as any).trickLeadTrumpFlags = [true, true, true, true, true];
 
     room.playCard(0 as SeatIndex, "c12");
     expect(room.state.contract).toBe("bola");
+  });
+
+  it("does not imply bola if any of first five tricks was not trump-led", () => {
+    const room = makeRoom();
+    addHuman(room, 0);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+
+    room.state.phase = "play";
+    room.state.ombre = 0;
+    room.state.contract = "entrada";
+    room.state.trump = "oros";
+    room.state.turn = 0;
+    room.hands[0] = [{ s: "copas", r: 12, id: "c12" } as any];
+    room.state.handsCount[0] = 1;
+    (room as any).trickWinners = [0, 0, 0, 0, 0];
+    (room as any).trickLeadTrumpFlags = [true, true, false, true, true];
+
+    room.playCard(0 as SeatIndex, "c12");
+    expect(room.state.contract).toBe("entrada");
   });
 
   it("allows ombre to close hand after first five tricks", () => {
