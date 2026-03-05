@@ -1,4 +1,5 @@
 import {
+  avatarFromSeed,
   buildDiceBearUrl,
   buildInitialsAvatarDataUrl,
   createAvatarPresets,
@@ -13,7 +14,10 @@ import {
 import { showModal } from "../../ui/modal";
 
 function isNameSeedAvatar(name: string, avatar: string): boolean {
-  return avatar === buildDiceBearUrl(name, "identicon");
+  return (
+    avatar === avatarFromSeed(name) ||
+    avatar === buildDiceBearUrl(name, "identicon")
+  );
 }
 
 export interface ProfileModalOptions {
@@ -25,7 +29,7 @@ export interface ProfileModalOptions {
 export function openProfileModal(profile: ProfileManager, options: ProfileModalOptions = {}): void {
   const current = profile.get();
   let useNameSeed = isNameSeedAvatar(current.name, current.avatar);
-  let selectedAvatar = current.avatar || buildDiceBearUrl(current.name, "identicon");
+  let selectedAvatar = current.avatar || avatarFromSeed(current.name);
   let baseSeed = current.name || randomAvatarSeed();
   let presets = createAvatarPresets(baseSeed);
 
@@ -68,7 +72,7 @@ export function openProfileModal(profile: ProfileManager, options: ProfileModalO
     const fallback = fallbackAvatarAt(Math.abs(normalized.charCodeAt(0) || 0) % 12);
     const initials = buildInitialsAvatarDataUrl(normalized);
     const avatar = useNameSeedInput.checked
-      ? buildDiceBearUrl(normalized, "identicon")
+      ? avatarFromSeed(normalized)
       : selectedAvatar;
     previewName.textContent = normalized;
     previewAvatar.src = avatar;
@@ -120,14 +124,14 @@ export function openProfileModal(profile: ProfileManager, options: ProfileModalO
 
   nameInput.addEventListener("input", () => {
     if (useNameSeedInput.checked) {
-      selectedAvatar = buildDiceBearUrl(normalizeProfileName(nameInput.value) || "Player", "identicon");
+      selectedAvatar = avatarFromSeed(normalizeProfileName(nameInput.value) || "Player");
     }
     setPreview();
   });
 
   useNameSeedInput.addEventListener("change", () => {
     if (useNameSeedInput.checked) {
-      selectedAvatar = buildDiceBearUrl(normalizeProfileName(nameInput.value) || "Player", "identicon");
+      selectedAvatar = avatarFromSeed(normalizeProfileName(nameInput.value) || "Player");
     }
     renderAvatarGrid();
     setPreview();
@@ -166,7 +170,7 @@ export function openProfileModal(profile: ProfileManager, options: ProfileModalO
           }
 
           const avatar = useNameSeedInput.checked
-            ? buildDiceBearUrl(normalized, "identicon")
+            ? avatarFromSeed(normalized)
             : selectedAvatar;
 
           const saveErr = profile.set({ name: normalized, avatar });

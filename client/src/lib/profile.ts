@@ -1,4 +1,4 @@
-import { buildDiceBearUrl, fallbackAvatarAt } from "./avatars";
+import { avatarFromSeed, fallbackAvatarAt } from "./avatars";
 import {
   PLAYER_AVATAR_LEGACY_KEY,
   PLAYER_AVATAR_KEY,
@@ -32,7 +32,7 @@ export function validateProfileName(input: string): string | null {
 }
 
 function fallbackAvatar(name: string): string {
-  return buildDiceBearUrl(name || DEFAULT_NAME, "identicon");
+  return avatarFromSeed(name || DEFAULT_NAME);
 }
 
 function loadName(): string {
@@ -46,7 +46,13 @@ function loadName(): string {
 
 function loadAvatar(name: string): string {
   const raw = readStorageAny([PLAYER_AVATAR_KEY, PLAYER_AVATAR_LEGACY_KEY]);
-  if (raw && raw.trim()) return raw.trim();
+  if (raw && raw.trim()) {
+    const avatar = raw.trim();
+    if (/api\.dicebear\.com/i.test(avatar)) {
+      return fallbackAvatar(name);
+    }
+    return avatar;
+  }
   return fallbackAvatar(name);
 }
 

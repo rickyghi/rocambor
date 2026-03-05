@@ -14,19 +14,33 @@ export interface AvatarPreset {
   fallback: string;
 }
 
-const STYLES: DiceBearStyle[] = [
-  "identicon",
-  "bottts-neutral",
-  "pixel-art-neutral",
-  "shapes",
-  "thumbs",
-  "adventurer-neutral",
-];
+const LOCAL_AVATAR_COUNT = 112;
+const PICKER_COUNT = 12;
+const PICKER_STEP = 17;
+const FALLBACKS = Array.from({ length: PICKER_COUNT }, (_, i) => localAvatarAt(i));
 
-const FALLBACKS = Array.from({ length: 12 }, (_, i) => {
-  const n = String(i + 1).padStart(2, "0");
-  return `/avatars/avatar-${n}.svg`;
-});
+function mod(n: number, m: number): number {
+  return ((n % m) + m) % m;
+}
+
+function hashSeed(value: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+export function localAvatarAt(index: number): string {
+  const idx = mod(index, LOCAL_AVATAR_COUNT) + 1;
+  return `/avatars/portraits/avatar-${String(idx).padStart(3, "0")}.png`;
+}
+
+export function avatarFromSeed(seed: string): string {
+  const safeSeed = seed.trim() || "rocambor";
+  return localAvatarAt(hashSeed(safeSeed));
+}
 
 export function buildDiceBearUrl(seed: string, style: DiceBearStyle = "identicon"): string {
   const safeSeed = encodeURIComponent(seed.trim() || "rocambor");
@@ -64,15 +78,17 @@ export function buildInitialsAvatarDataUrl(name: string): string {
 
 export function createAvatarPresets(baseSeed: string): AvatarPreset[] {
   const root = baseSeed.trim() || "rocambor";
-  return Array.from({ length: 12 }, (_, i) => {
-    const style = STYLES[i % STYLES.length];
-    const seed = `${root}-${i + 1}`;
+  const start = mod(hashSeed(root), LOCAL_AVATAR_COUNT);
+  return Array.from({ length: PICKER_COUNT }, (_, i) => {
+    const localIndex = mod(start + i * PICKER_STEP, LOCAL_AVATAR_COUNT);
+    const seed = `${root}-${localIndex + 1}`;
+    const url = localAvatarAt(localIndex);
     return {
       id: `preset-${i + 1}`,
       seed,
-      style,
-      url: buildDiceBearUrl(seed, style),
-      fallback: fallbackAvatarAt(i),
+      style: "identicon",
+      url,
+      fallback: url,
     };
   });
 }

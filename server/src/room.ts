@@ -105,6 +105,12 @@ export class Room {
   }
 
   broadcastState(): void {
+    if (this.hostSeat === null) {
+      const firstHuman = this.conns.find(
+        (c) => !c.isBot && !c.isSpectator && c.seat !== null && c.connected
+      );
+      this.hostSeat = firstHuman?.seat ?? null;
+    }
     this.updatePlayersInfo();
     this.state.hostSeat = this.hostSeat;
     for (const c of this.conns) {

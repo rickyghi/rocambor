@@ -108,7 +108,7 @@ export class LobbyScreen implements Screen {
               ${seats.join("")}
             </div>
 
-            ${mySeat !== null && (game?.hostSeat === undefined || game?.hostSeat === mySeat)
+            ${mySeat !== null && (game?.hostSeat == null || game?.hostSeat === mySeat)
               ? `<div class="lobby-actions"><button class="btn-primary" data-action="start" type="button">Start Game</button></div>`
               : ""}
           </section>
