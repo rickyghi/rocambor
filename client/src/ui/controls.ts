@@ -68,7 +68,6 @@ export class GameControls {
       { value: "volteo", label: "Volteo", minVal: 3 },
       { value: "solo", label: "Solo", minVal: 4 },
       { value: "solo_oros", label: "Solo Oros", minVal: 5 },
-      { value: "bola", label: "Bola", minVal: 6 },
     ];
 
     const currentVal =

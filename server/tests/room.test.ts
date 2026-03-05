@@ -274,9 +274,9 @@ describe("Room - exchange", () => {
     expect(room.state.turn).toBe(0);
   });
 
-  it("human-vs-bots bola via auction skips exchange and starts play", () => {
+  it("rejects bola bid in auction (bola is implicit-only)", () => {
     const qRoom = makeRoom("quadrille");
-    addHuman(qRoom, 0);
+    const { ws } = addHuman(qRoom, 0);
     qRoom.startGame();
 
     // Keep seat 0 as human, rest as bots (from fillWithBots)
@@ -291,40 +291,16 @@ describe("Room - exchange", () => {
     for (let i = 0; i < seat0Idx; i++) {
       qRoom.applyBid(order[i], "pass");
     }
-    // Seat 0 bids bola
+    // Seat 0 attempts bola (must be rejected)
+    const turnBefore = qRoom.state.turn;
     qRoom.applyBid(0 as SeatIndex, "bola");
-    // Remaining players pass
-    for (let i = seat0Idx + 1; i < order.length; i++) {
-      qRoom.applyBid(order[i], "pass");
-    }
+    expect(qRoom.state.phase).toBe("auction");
+    expect(qRoom.state.turn).toBe(turnBefore);
+    expect(qRoom.state.contract).toBeNull();
 
-    // Bola skips exchange entirely
-    expect(qRoom.state.phase).toBe("play");
-    expect(qRoom.state.turn).toBe(qRoom.nextActive(0 as SeatIndex));
-  });
-
-  it("human ombre in bola skips exchange even with multiple humans seated", () => {
-    const tRoom = makeRoom("tresillo");
-    addHuman(tRoom, 0);
-    addHuman(tRoom, 1);
-    tRoom.startGame();
-
-    // Disable bot auto-act so we can drive the auction manually
-    (tRoom as any).botMaybeAct = () => {};
-
-    const order = tRoom.state.auction.order.slice();
-    const seat0Idx = order.indexOf(0 as SeatIndex);
-
-    for (let i = 0; i < seat0Idx; i++) {
-      tRoom.applyBid(order[i], "pass");
-    }
-    tRoom.applyBid(0 as SeatIndex, "bola");
-    for (let i = seat0Idx + 1; i < order.length; i++) {
-      tRoom.applyBid(order[i], "pass");
-    }
-
-    expect(tRoom.state.phase).toBe("play");
-    expect(tRoom.state.turn).toBe(tRoom.nextActive(0 as SeatIndex));
+    const msgs = (ws as any)._sent.map((s: string) => JSON.parse(s));
+    const err = msgs.find((m: any) => m.type === "ERROR" && m.code === "BOLA_IMPLICIT_ONLY");
+    expect(err).toBeTruthy();
   });
 
   it("contrabola forces ombre to exchange exactly one card and nobody else", () => {
@@ -552,7 +528,7 @@ describe("Room - play rules", () => {
 });
 
 describe("Room - implied bola", () => {
-  it("implies bola only when ombre won first five trump-led tricks and continues", () => {
+  it("implies bola when a player wins first five tricks and continues on trick six", () => {
     const room = makeRoom();
     addHuman(room, 0);
     room.startGame();
@@ -566,13 +542,31 @@ describe("Room - implied bola", () => {
     room.hands[0] = [{ s: "copas", r: 12, id: "c12" } as any];
     room.state.handsCount[0] = 1;
     (room as any).trickWinners = [0, 0, 0, 0, 0];
-    (room as any).trickLeadTrumpFlags = [true, true, true, true, true];
 
     room.playCard(0 as SeatIndex, "c12");
     expect(room.state.contract).toBe("bola");
   });
 
-  it("does not imply bola if any of first five tricks was not trump-led", () => {
+  it("implied bola is not restricted to ombre", () => {
+    const room = makeRoom();
+    addHuman(room, 1);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+
+    room.state.phase = "play";
+    room.state.ombre = 0;
+    room.state.contract = "entrada";
+    room.state.trump = "oros";
+    room.state.turn = 1;
+    room.hands[1] = [{ s: "copas", r: 12, id: "c12" } as any];
+    room.state.handsCount[1] = 1;
+    (room as any).trickWinners = [1, 1, 1, 1, 1];
+
+    room.playCard(1 as SeatIndex, "c12");
+    expect(room.state.contract).toBe("bola");
+  });
+
+  it("does not imply bola when first five tricks are not all won by same player", () => {
     const room = makeRoom();
     addHuman(room, 0);
     room.startGame();
@@ -585,8 +579,7 @@ describe("Room - implied bola", () => {
     room.state.turn = 0;
     room.hands[0] = [{ s: "copas", r: 12, id: "c12" } as any];
     room.state.handsCount[0] = 1;
-    (room as any).trickWinners = [0, 0, 0, 0, 0];
-    (room as any).trickLeadTrumpFlags = [true, true, false, true, true];
+    (room as any).trickWinners = [0, 0, 1, 0, 0];
 
     room.playCard(0 as SeatIndex, "c12");
     expect(room.state.contract).toBe("entrada");

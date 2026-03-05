@@ -116,13 +116,11 @@ export function decideBid(ctx: BotContext): Bid {
   const ladder: Array<{ bid: Bid; minStrength: number }> =
     bestSuit === "oros"
       ? [
-          { bid: "bola", minStrength: 42 },
           { bid: "solo_oros", minStrength: 35 },
           { bid: "oros", minStrength: 30 },
           { bid: "entrada", minStrength: 25 },
         ]
       : [
-          { bid: "bola", minStrength: 42 },
           { bid: "solo", minStrength: 35 },
           { bid: "volteo", minStrength: 30 },
           { bid: "entrada", minStrength: 25 },
