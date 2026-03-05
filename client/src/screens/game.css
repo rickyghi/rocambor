@@ -24,7 +24,7 @@
 
 .felt-texture {
   background: url("/assets/rocambor/felt-texture.png") repeat;
-  background-size: 272px 271px;
+  background-size: var(--felt-tile-size);
   opacity: 0.22;
   mix-blend-mode: multiply;
 }
@@ -35,7 +35,7 @@
 
 .felt-noise {
   background: url("/assets/rocambor/noise-texture.png") repeat;
-  background-size: 740px 740px;
+  background-size: var(--noise-env-size);
   opacity: 0.04;
   mix-blend-mode: overlay;
 }

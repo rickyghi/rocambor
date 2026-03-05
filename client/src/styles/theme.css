@@ -79,6 +79,9 @@
   --focus-ring-offset: 0 0 0 4px rgba(200, 166, 81, 0.25);
 
   --overlay: rgba(13, 13, 13, 0.55);
+  --felt-tile-size: auto;
+  --noise-env-size: 420px 420px;
+  --noise-panel-size: 360px 360px;
 }
 
 html,
@@ -112,7 +115,7 @@ body::before {
   background:
     radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.46) 100%),
     url("/assets/rocambor/felt-texture.png") repeat;
-  background-size: auto, 272px 271px;
+  background-size: auto, var(--felt-tile-size);
   background-position: center, center;
   background-blend-mode: normal, multiply;
   opacity: 1;
@@ -121,7 +124,7 @@ body::before {
 body::after {
   z-index: -1;
   background: url("/assets/rocambor/noise-texture.png") repeat;
-  background-size: 740px 740px;
+  background-size: var(--noise-env-size);
   opacity: 0.045;
   mix-blend-mode: overlay;
 }

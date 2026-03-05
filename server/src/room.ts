@@ -56,6 +56,7 @@ export class Room {
   playOrder: SeatIndex[] = [];
   trickWinners: SeatIndex[] = [];
   timer: NodeJS.Timeout | null = null;
+  private timerEpoch = 0;
   restIndex = 0;
   lastActivity: number = Date.now();
   private seed: string = "";
@@ -420,10 +421,7 @@ export class Room {
 
   newHand(): void {
     this.rematchVotes.clear();
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
+    this.clearTurnTimer();
 
     if (this.state.mode === "quadrille") {
       this.restIndex = (this.restIndex + 1) % 4;
@@ -512,13 +510,21 @@ export class Room {
   }
 
   // ---- Timer ----
-  private armTimer(): void {
+  private clearTurnTimer(): void {
+    this.timerEpoch += 1;
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    delete this.state.turnDeadline;
+  }
+
+  private armTimer(): void {
+    this.clearTurnTimer();
+    const epoch = this.timerEpoch;
     this.state.turnDeadline = Date.now() + TURN_MS;
     this.timer = setTimeout(() => {
+      if (epoch !== this.timerEpoch) return;
       this.timer = null;
       this.onTimeout();
     }, TURN_MS);
@@ -1040,10 +1046,7 @@ export class Room {
 
   // ---- Scoring ----
   private finishHand(): void {
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
+    this.clearTurnTimer();
 
     const om = this.state.ombre!;
     const active =
@@ -1361,10 +1364,7 @@ export class Room {
 
   // ---- Cleanup ----
   cleanup(): void {
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
+    this.clearTurnTimer();
 
     this.event("ROOM_CLOSING", {});
 

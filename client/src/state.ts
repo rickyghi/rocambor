@@ -106,7 +106,13 @@ export class ClientState {
   get canExchangeNow(): boolean {
     if (!this.game || this.mySeat === null) return false;
     if (this.game.phase !== "exchange") return false;
-    if (this.game.turn === this.mySeat) return true;
+    if (this.game.exchange.completed.includes(this.mySeat)) return false;
+    if (
+      this.game.turn === this.mySeat ||
+      this.game.exchange.current === this.mySeat
+    ) {
+      return this.game.exchange.order.includes(this.mySeat);
+    }
 
     const contract = this.game.contract;
     if (contract === "solo" || contract === "solo_oros" || contract === "contrabola") {

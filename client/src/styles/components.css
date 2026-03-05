@@ -27,7 +27,7 @@
   position: absolute;
   inset: 0;
   background: url("/assets/rocambor/noise-texture.png") repeat;
-  background-size: 420px 420px;
+  background-size: var(--noise-panel-size);
   opacity: 0.055;
   mix-blend-mode: multiply;
   pointer-events: none;
@@ -184,6 +184,10 @@ button.ghost:hover:not(:disabled),
   text-overflow: ellipsis;
 }
 
+.game-header-center.urgent {
+  color: var(--crimson);
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -263,6 +267,85 @@ button.ghost:hover:not(:disabled),
   font-size: 13px;
   color: var(--ink60);
   font-weight: 600;
+}
+
+.settings-grid.luxe-settings {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-skin-preview {
+  width: 100%;
+  max-width: 336px;
+  border-radius: 10px;
+  border: 1px solid rgba(13, 13, 13, 0.12);
+  background: #1f3a32;
+}
+
+.settings-skin-meta {
+  min-height: 18px;
+  font-size: 12px;
+  color: var(--ink60);
+}
+
+.settings-skin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 8px;
+}
+
+.settings-skin-tile {
+  text-align: left;
+  min-height: 56px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fffcf8 0%, #f4efe5 100%);
+  box-shadow: var(--shadow-carved);
+  padding: 8px;
+  display: grid;
+  gap: 2px;
+  position: relative;
+}
+
+.settings-skin-tile.active {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px rgba(200, 166, 81, 0.2), 0 0 14px rgba(200, 166, 81, 0.18);
+}
+
+.settings-skin-tile.locked {
+  opacity: 0.68;
+}
+
+.settings-skin-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink80);
+}
+
+.settings-skin-rarity {
+  font-size: 11px;
+  color: var(--ink60);
+}
+
+.settings-skin-lock {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--crimson);
+  letter-spacing: 0.06em;
+}
+
+.settings-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-skin-status {
+  min-height: 18px;
+  font-size: 12px;
+  color: var(--ink60);
 }
 
 input,
@@ -509,12 +592,20 @@ textarea {
   transform: translateY(-8px);
 }
 
+.hand-card-wrap.legal {
+  box-shadow: 0 0 0 1px rgba(200, 166, 81, 0.28);
+}
+
 .hand-card-wrap.illegal {
   opacity: 0.45;
 }
 
 .hand-card-wrap.pending {
   border-color: color-mix(in srgb, var(--gold) 70%, #fff);
+}
+
+.invalid-shake {
+  animation: invalid-shake 120ms ease-in-out;
 }
 
 .roc-card {
@@ -583,6 +674,14 @@ textarea {
 @keyframes toast-out {
   from { opacity: 1; transform: translateY(0); }
   to { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes invalid-shake {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  50% { transform: translateX(3px); }
+  75% { transform: translateX(-2px); }
+  100% { transform: translateX(0); }
 }
 
 @media (max-width: 900px) {

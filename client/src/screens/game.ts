@@ -10,10 +10,15 @@ import { GameRenderer } from "../canvas/renderer";
 import { renderGameHeaderMarkup } from "../components/layout/AppHeader";
 import { renderFeltBackgroundMarkup } from "../components/layout/FeltBackground";
 import { openProfileModal } from "../components/profile/ProfileModal";
-import { detectSpritesheetSupport, ensureSpritesheetCss, spriteClassForCard } from "../lib/card-sprites";
+import {
+  detectSpritesheetSupport,
+  ensureSpritesheetCss,
+  spriteClassForCard,
+  verifySpritesheetClasses,
+} from "../lib/card-sprites";
 import type { S2CMessage } from "../protocol";
 import { GameControls } from "../ui/controls";
-import { showModal } from "../ui/modal";
+import { openSettingsModal } from "../ui/settings-modal";
 import { showToast } from "../ui/toast";
 
 export class GameScreen implements Screen {
@@ -39,6 +44,8 @@ export class GameScreen implements Screen {
 
   private lastTouchTs = 0;
   private pendingPlayCard: string | null = null;
+  private headerTicker: number | null = null;
+  private lastInvalidToastTs = 0;
 
   mount(container: HTMLElement, ctx: AppContext): void {
     this.ctx = ctx;
@@ -112,6 +119,7 @@ export class GameScreen implements Screen {
 
     this.updateHeader();
     this.configureSpritesheetMode();
+    this.headerTicker = window.setInterval(() => this.updateHeader(), 1000);
   }
 
   unmount(): void {
@@ -130,6 +138,10 @@ export class GameScreen implements Screen {
     this.handLayer?.removeEventListener("click", this.handleDomHandClick);
 
     window.removeEventListener("resize", this.handleResize);
+    if (this.headerTicker !== null) {
+      clearInterval(this.headerTicker);
+      this.headerTicker = null;
+    }
   }
 
   private bindEvents(): void {
@@ -142,7 +154,12 @@ export class GameScreen implements Screen {
     });
 
     this.container.querySelector(".game-settings-btn")?.addEventListener("click", () => {
-      this.openSettingsModal();
+      openSettingsModal(this.ctx.settings, {
+        onApplied: () => {
+          this.renderer.requestRender();
+          this.updateHeader();
+        },
+      });
     });
 
     this.soundToggleBtn?.addEventListener("click", () => {
@@ -183,6 +200,9 @@ export class GameScreen implements Screen {
         if (msg.type !== "EVENT") return;
         this.handleEvent(msg.name, msg.payload);
       }),
+      this.ctx.connection.on("_latency", () => {
+        this.updateHeader();
+      }),
 
       this.ctx.connection.on("ERROR", (msg: S2CMessage) => {
         if (msg.type !== "ERROR") return;
@@ -205,6 +225,14 @@ export class GameScreen implements Screen {
 
     if (supported) {
       ensureSpritesheetCss();
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      const renderable = verifySpritesheetClasses(this.ctx.state.hand);
+      if (!renderable) {
+        this.spriteMode = false;
+        this.domLayers.hidden = true;
+        this.renderer.setCanvasCardLayers({ hand: true, table: true });
+        return;
+      }
       this.renderer.setCanvasCardLayers({ hand: false, table: false });
       this.renderDomCardLayers();
       return;
@@ -239,11 +267,12 @@ export class GameScreen implements Screen {
         const selected = state.selectedCards.has(card.id);
         const isPlay = state.phase === "play" && state.isMyTurn;
         const illegal = isPlay && legalIds.length > 0 && !legalIds.includes(card.id);
+        const legal = isPlay && !illegal;
         const pending = touchConfirm && this.pendingPlayCard === card.id;
 
         return `
           <button
-            class="hand-card-wrap${selected ? " selected" : ""}${illegal ? " illegal" : ""}${pending ? " pending" : ""}"
+            class="hand-card-wrap${selected ? " selected" : ""}${illegal ? " illegal" : ""}${legal ? " legal" : ""}${pending ? " pending" : ""}"
             type="button"
             role="option"
             aria-selected="${selected ? "true" : "false"}"
@@ -255,6 +284,30 @@ export class GameScreen implements Screen {
         `;
       })
       .join("");
+
+    if (!this.validateDomSpriteRender()) {
+      this.spriteMode = false;
+      this.domLayers.hidden = true;
+      this.renderer.setCanvasCardLayers({ hand: true, table: true });
+      showToast("Using fallback card renderer.", "info", 1200);
+    }
+  }
+
+  private validateDomSpriteRender(): boolean {
+    const hand = this.ctx.state.hand;
+    if (!hand.length) return true;
+
+    const nodes = this.handLayer.querySelectorAll<HTMLElement>(".roc-card");
+    if (!nodes.length) return false;
+
+    const sample = Array.from(nodes).slice(0, 3);
+    return sample.every((node) => {
+      const style = window.getComputedStyle(node);
+      const bg = style.backgroundImage || "";
+      const w = parseFloat(style.width || "0");
+      const h = parseFloat(style.height || "0");
+      return bg.includes("url(") && !bg.includes("none") && w > 0 && h > 0;
+    });
   }
 
   private handleCanvasClick = (e: MouseEvent): void => {
@@ -339,6 +392,11 @@ export class GameScreen implements Screen {
     const game = state.game;
     if (!game) return;
 
+    if (state.phase === "exchange" && !state.canExchangeNow) {
+      this.showInvalidAction("Wait for your exchange turn.");
+      return;
+    }
+
     if (state.phase === "exchange" && state.canExchangeNow) {
       const isContrabolaOmbre = game.contract === "contrabola" && game.ombre === state.mySeat;
       if (isContrabolaOmbre && !state.selectedCards.has(cardId)) {
@@ -350,10 +408,18 @@ export class GameScreen implements Screen {
       return;
     }
 
-    if (state.phase !== "play" || !state.isMyTurn) return;
+    if (state.phase !== "play") return;
+
+    if (!state.isMyTurn) {
+      this.showInvalidAction("Wait for your turn.");
+      return;
+    }
 
     const legalIds = game.legalIds;
-    if (legalIds && !legalIds.includes(cardId)) return;
+    if (legalIds && !legalIds.includes(cardId)) {
+      this.showInvalidAction("Illegal card: follow suit if possible.");
+      return;
+    }
 
     if (!tapToConfirm) {
       this.ctx.connection.send({ type: "PLAY", cardId });
@@ -374,6 +440,21 @@ export class GameScreen implements Screen {
     state.clearSelection();
     state.toggleCardSelection(cardId);
     this.renderDomCardLayers();
+  }
+
+  private showInvalidAction(message: string): void {
+    const now = Date.now();
+    if (now - this.lastInvalidToastTs > 900) {
+      showToast(message, "warning", 1300);
+      this.lastInvalidToastTs = now;
+    }
+
+    const row = this.container.querySelector(".hand-row");
+    if (!row) return;
+    row.classList.remove("invalid-shake");
+    // Force reflow so repeated invalid actions retrigger animation.
+    void (row as HTMLElement).offsetWidth;
+    row.classList.add("invalid-shake");
   }
 
   private handlePhaseTransitions(): void {
@@ -489,8 +570,20 @@ export class GameScreen implements Screen {
       metaParts.push(`Round ${game.handNo}`);
       if (game.contract) metaParts.push(`Contract: ${String(game.contract).replace("_", " ")}`);
       if (game.trump) metaParts.push(`Trump: ${game.trump}`);
+      if (typeof game.turnDeadline === "number") {
+        const secs = Math.max(0, Math.ceil((game.turnDeadline - Date.now()) / 1000));
+        metaParts.push(`Turn: ${secs}s`);
+        this.headerMeta.classList.toggle("urgent", secs <= 5);
+      } else {
+        this.headerMeta.classList.remove("urgent");
+      }
     } else {
       metaParts.push("Waiting for game state");
+      this.headerMeta.classList.remove("urgent");
+    }
+
+    if (this.ctx.connection.latencyMs !== null) {
+      metaParts.push(`Ping: ${Math.round(this.ctx.connection.latencyMs)}ms`);
     }
 
     this.headerMeta.textContent = metaParts.join("  •  ");
@@ -503,51 +596,6 @@ export class GameScreen implements Screen {
     const soundOn = this.ctx.settings.get("soundEnabled");
     this.soundToggleBtn.textContent = soundOn ? "Sound On" : "Sound Off";
     this.soundToggleBtn.setAttribute("aria-pressed", String(soundOn));
-  }
-
-  private openSettingsModal(): void {
-    const settings = this.ctx.settings;
-    const content = document.createElement("div");
-    content.innerHTML = `
-      <div class="modal-form-group">
-        <label>
-          <input id="game-set-sound" type="checkbox" ${settings.get("soundEnabled") ? "checked" : ""} />
-          Enable sound
-        </label>
-      </div>
-      <div class="modal-form-group">
-        <label>
-          <input id="game-set-reduce-motion" type="checkbox" ${settings.get("reduceMotion") ? "checked" : ""} />
-          Reduce motion
-        </label>
-      </div>
-    `;
-
-    showModal({
-      title: "Settings",
-      size: "sm",
-      content,
-      actions: [
-        { label: "Cancel", className: "btn-secondary", onClick: () => {} },
-        {
-          label: "Save",
-          className: "btn-primary",
-          onClick: () => {
-            settings.set(
-              "soundEnabled",
-              (content.querySelector("#game-set-sound") as HTMLInputElement).checked
-            );
-            settings.set(
-              "reduceMotion",
-              (content.querySelector("#game-set-reduce-motion") as HTMLInputElement).checked
-            );
-            this.renderer.requestRender();
-            this.updateHeader();
-            showToast("Settings saved", "success", 1200);
-          },
-        },
-      ],
-    });
   }
 
   private handleResize = (): void => {

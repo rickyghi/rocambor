@@ -14,6 +14,8 @@ export class ConnectionManager {
   private listeners = new Map<string, Set<MessageHandler>>();
   private globalListeners = new Set<MessageHandler>();
   private _connected = false;
+  private lastPingSentAt: number | null = null;
+  private _latencyMs: number | null = null;
 
   constructor(private state: ClientState) {
     this.clientId = localStorage.getItem("rocambor_clientId");
@@ -45,14 +47,17 @@ export class ConnectionManager {
 
     this.ws.onopen = () => {
       this._connected = true;
+      this._latencyMs = null;
       this.reconnectAttempts = 0;
       this.reconnectDelay = 1000;
       this.startHeartbeat();
+      this.sendPing();
       this.emit("_connected", {} as any);
     };
 
     this.ws.onclose = (event) => {
       this._connected = false;
+      this._latencyMs = null;
       this.stopHeartbeat();
 
       if (
@@ -88,6 +93,7 @@ export class ConnectionManager {
       this.ws = null;
     }
     this._connected = false;
+    this._latencyMs = null;
   }
 
   send(msg: C2SMessage): void {
@@ -123,6 +129,10 @@ export class ConnectionManager {
     return this.clientId;
   }
 
+  get latencyMs(): number | null {
+    return this._latencyMs;
+  }
+
   private handleMessage(msg: S2CMessage): void {
     switch (msg.type) {
       case "WELCOME":
@@ -147,7 +157,11 @@ export class ConnectionManager {
         break;
 
       case "PONG":
-        // Heartbeat acknowledged
+        if (this.lastPingSentAt !== null) {
+          this._latencyMs = Math.max(0, Date.now() - this.lastPingSentAt);
+          this.lastPingSentAt = null;
+          this.emit("_latency", {} as any);
+        }
         break;
     }
 
@@ -197,8 +211,13 @@ export class ConnectionManager {
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = window.setInterval(() => {
-      this.send({ type: "PING" });
+      this.sendPing();
     }, 25_000);
+  }
+
+  private sendPing(): void {
+    this.lastPingSentAt = Date.now();
+    this.send({ type: "PING" });
   }
 
   private stopHeartbeat(): void {

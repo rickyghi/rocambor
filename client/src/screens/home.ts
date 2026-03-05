@@ -3,6 +3,7 @@ import "./home.css";
 import type { Screen, AppContext } from "../router";
 import { showModal } from "../ui/modal";
 import { showToast } from "../ui/toast";
+import { openSettingsModal } from "../ui/settings-modal";
 import type { Mode } from "../protocol";
 import { openProfileModal } from "../components/profile/ProfileModal";
 
@@ -267,40 +268,7 @@ export class HomeScreen implements Screen {
   }
 
   private showSettingsModal(): void {
-    const s = this.ctx.settings;
-    const content = document.createElement("div");
-    content.innerHTML = `
-      <div class="modal-form-group">
-        <label>
-          <input type="checkbox" id="set-sound" ${s.get("soundEnabled") ? "checked" : ""} />
-          Enable sound
-        </label>
-      </div>
-      <div class="modal-form-group">
-        <label>
-          <input type="checkbox" id="set-reduce-motion" ${s.get("reduceMotion") ? "checked" : ""} />
-          Reduce motion
-        </label>
-      </div>
-    `;
-
-    showModal({
-      title: "Settings",
-      size: "sm",
-      content,
-      actions: [
-        { label: "Cancel", className: "btn-secondary", onClick: () => {} },
-        {
-          label: "Save",
-          className: "btn-primary",
-          onClick: () => {
-            s.set("soundEnabled", (content.querySelector("#set-sound") as HTMLInputElement).checked);
-            s.set("reduceMotion", (content.querySelector("#set-reduce-motion") as HTMLInputElement).checked);
-            showToast("Settings saved", "success", 1400);
-          },
-        },
-      ],
-    });
+    openSettingsModal(this.ctx.settings);
   }
 
   private showRulesModal(): void {
