@@ -185,8 +185,8 @@
     inset 0 0 64px rgba(0, 0, 0, 0.3),
     0 18px 34px rgba(0, 0, 0, 0.24);
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-rows: auto minmax(320px, 1fr) auto;
+  gap: 8px;
 }
 
 .game-stage::before,
@@ -201,28 +201,28 @@
 }
 
 .game-stage::before {
-  top: 62px;
+  top: 50px;
 }
 
 .game-stage::after {
-  bottom: 200px;
+  bottom: 168px;
   opacity: 0.36;
 }
 
 .game-stage-top {
   position: relative;
   z-index: 8;
-  min-height: 92px;
+  min-height: 64px;
   display: grid;
   justify-items: center;
   align-content: start;
-  gap: 8px;
+  gap: 4px;
   pointer-events: none;
 }
 
 .arena-phase-banner {
-  width: min(88%, 780px);
-  padding: 10px 18px;
+  width: min(74%, 620px);
+  padding: 7px 14px;
   border-radius: 18px;
   border: 1px solid rgba(200, 166, 81, 0.55);
   text-align: center;
@@ -236,7 +236,7 @@
 
 .arena-phase-main {
   font-family: var(--font-display);
-  font-size: var(--phase-size);
+  font-size: clamp(18px, 1.58vw, 24px);
   font-weight: 700;
   color: #5d4621;
   line-height: 1.05;
@@ -244,16 +244,16 @@
 }
 
 .arena-phase-sub {
-  margin-top: 4px;
+  margin-top: 2px;
   font-family: var(--font-sans);
-  font-size: clamp(14px, 1.02vw, 16px);
+  font-size: clamp(12px, 0.92vw, 14px);
   color: var(--ink60);
   font-weight: 700;
 }
 
 .arena-toast-feed {
-  width: min(76%, 680px);
-  max-height: 82px;
+  width: min(62%, 540px);
+  max-height: 58px;
   overflow: hidden;
   display: grid;
   gap: 6px;
@@ -262,15 +262,15 @@
 }
 
 .arena-toast-chip {
-  min-height: 34px;
+  min-height: 28px;
   max-width: 100%;
-  padding: 7px 12px;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid rgba(13, 13, 13, 0.12);
   background: rgba(248, 246, 240, 0.95);
   box-shadow: var(--shadowSoft);
   color: #5f4b21;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   animation: arena-chip-in 190ms var(--easeLuxe);
   text-overflow: ellipsis;
@@ -322,6 +322,51 @@
   padding: 10px 12px;
   display: grid;
   gap: 8px;
+}
+
+.hero-side {
+  width: clamp(180px, 15.5vw, 228px);
+  min-height: 102px;
+  padding: 8px 9px;
+  gap: 6px;
+}
+
+.hero-side .hero-avatar-medallion {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+}
+
+.hero-side .hero-avatar {
+  width: 36px;
+  height: 36px;
+}
+
+.hero-side .hero-name {
+  font-size: clamp(14px, 0.98vw, 17px);
+}
+
+.hero-side .hero-badge {
+  min-height: 28px;
+  padding: 3px 5px;
+}
+
+.hero-side .hero-badge-label {
+  font-size: 10px;
+}
+
+.hero-side .hero-badge-icon {
+  font-size: 14px;
+}
+
+.hero-side .hero-badge-num {
+  font-size: clamp(14px, 1.02vw, 18px);
+}
+
+.hero-side .hero-trick-dot {
+  width: 14px;
+  height: 14px;
+  font-size: 8px;
 }
 
 .hero-left,
@@ -558,8 +603,8 @@
 
 .trick-overlay-inner {
   position: relative;
-  width: min(62vw, 590px);
-  min-height: 236px;
+  width: min(66vw, 680px);
+  min-height: 292px;
   border-radius: 999px;
   border: 1px solid rgba(200, 166, 81, 0.28);
   background: radial-gradient(ellipse at center, rgba(248, 246, 240, 0.12), rgba(0, 0, 0, 0));
@@ -570,8 +615,8 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 82px;
-  height: 116px;
+  width: 96px;
+  height: 138px;
   border-radius: 8px;
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
   transform: translate(-50%, -50%) translate(var(--slot-x, 0px), var(--slot-y, 0px)) rotate(var(--slot-rot, 0deg));
@@ -583,8 +628,8 @@
 }
 
 .roc-card {
-  width: 82px;
-  height: 116px;
+  width: 96px;
+  height: 138px;
   display: block;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
@@ -593,7 +638,7 @@
 .game-stage-bottom {
   z-index: 8;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .game-hand-dock {
@@ -603,17 +648,21 @@
   pointer-events: none;
 }
 
+.game-hand-dock[hidden] {
+  display: none !important;
+}
+
 .hand-row {
   pointer-events: auto;
   width: min(98%, 1210px);
   max-width: 1210px;
-  min-height: 154px;
+  min-height: 126px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   gap: 4px;
-  padding: 12px 14px;
-  border-radius: 20px;
+  padding: 8px 10px;
+  border-radius: 16px;
   border: 1px solid rgba(13, 13, 13, 0.16);
   background: rgba(248, 246, 240, 0.94);
   box-shadow: var(--shadowSoft);
@@ -667,6 +716,10 @@
   pointer-events: none;
 }
 
+.game-controls-shell[hidden] {
+  display: none !important;
+}
+
 .game-controls-shell[data-actionable="false"] {
   display: none;
 }
@@ -679,8 +732,8 @@
   width: min(94%, 1040px);
   pointer-events: auto;
   border-radius: 16px;
-  padding: 10px 12px;
-  min-height: 74px;
+  padding: 7px 10px;
+  min-height: 58px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -688,13 +741,13 @@
 
 .control-group {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   justify-items: center;
   width: 100%;
 }
 
 .control-label {
-  font-size: clamp(16px, 1.08vw, 18px);
+  font-size: clamp(14px, 1vw, 17px);
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -711,8 +764,12 @@
   gap: 8px;
 }
 
+.control-row.compact {
+  gap: 6px;
+}
+
 .controls-hint {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--ink60);
   font-weight: 600;
   text-align: center;
@@ -724,10 +781,10 @@
 .rematch-btn,
 .start-btn,
 .penetro-btn {
-  min-height: 50px;
-  min-width: 126px;
-  padding: 10px 16px;
-  font-size: 16px;
+  min-height: 48px;
+  min-width: 116px;
+  padding: 8px 12px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -743,7 +800,7 @@
 .bid-btn > span,
 .trump-btn > span,
 .penetro-btn > span {
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.05;
 }
 
@@ -756,7 +813,7 @@
 }
 
 .bid-btn.pass-btn {
-  min-width: 96px;
+  min-width: 88px;
 }
 
 .bid-btn.contrabola-btn {
@@ -836,9 +893,9 @@
 }
 
 @media (max-width: 1260px) {
-  .hero-plate {
-    width: clamp(230px, 22vw, 278px);
-    min-height: 126px;
+  .hero-side {
+    width: clamp(166px, 16vw, 214px);
+    min-height: 96px;
   }
 
   .hero-left {
@@ -870,15 +927,15 @@
     display: none;
   }
 
-  .hero-plate {
-    width: 214px;
+  .hero-side {
+    width: 188px;
   }
 
-  .hero-badges-row {
+  .hero-side .hero-badges-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .hero-badge.tricks {
+  .hero-side .hero-badge.tricks {
     grid-column: 1 / -1;
   }
 

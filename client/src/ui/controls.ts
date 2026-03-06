@@ -115,9 +115,11 @@ export class GameControls {
       <div class="control-group">
         <span class="control-label">🛡️ Choose Your Bid</span>
         ${currentBid !== "pass" ? `<span class="controls-hint">Leading bid: ${this.bidLabel(currentBid)}</span>` : ""}
-        ${btns}
-        ${showContrabola ? `<button class="bid-btn contrabola-btn" data-bid="contrabola"><span>Contrabola</span><small>Last all-pass special</small></button>` : ""}
-        <button class="bid-btn pass-btn" data-bid="pass">Pass</button>
+        <div class="control-row compact">
+          ${btns}
+          ${showContrabola ? `<button class="bid-btn contrabola-btn" data-bid="contrabola"><span>Contrabola</span><small>Last all-pass special</small></button>` : ""}
+          <button class="bid-btn pass-btn" data-bid="pass">Pass</button>
+        </div>
       </div>
     `;
   }
@@ -156,7 +158,9 @@ export class GameControls {
     return `
       <div class="control-group">
         <span class="control-label">⚔️ Choose Trump</span>
-        ${btns}
+        <div class="control-row compact">
+          ${btns}
+        </div>
       </div>
     `;
   }
@@ -172,11 +176,13 @@ export class GameControls {
       <div class="control-group">
         <span class="control-label">🃏 Select Cards To Exchange</span>
         ${requireExactOne ? `<span class="controls-hint">Select exactly 1 card</span>` : `<span class="controls-hint">Choose up to ${maxExchange} cards</span>`}
-        <span class="exchange-count">${selected} / ${maxExchange}</span>
-        <button class="exchange-btn primary" data-action="confirm" ${canConfirm ? "" : "disabled"}>
-          ${requireExactOne ? "Exchange 1 card" : `Exchange ${selected} card${selected !== 1 ? "s" : ""}`}
-        </button>
-        ${min > 0 ? "" : `<button class="exchange-btn secondary" data-action="skip">Keep All</button>`}
+        <div class="control-row compact">
+          <span class="exchange-count">${selected} / ${maxExchange}</span>
+          <button class="exchange-btn primary" data-action="confirm" ${canConfirm ? "" : "disabled"}>
+            ${requireExactOne ? "Exchange 1 card" : `Exchange ${selected} card${selected !== 1 ? "s" : ""}`}
+          </button>
+          ${min > 0 ? "" : `<button class="exchange-btn secondary" data-action="skip">Keep All</button>`}
+        </div>
       </div>
     `;
   }

@@ -41,39 +41,39 @@ export interface Layout {
 export type ViewportMode = "desktop" | "mobile-portrait";
 
 function desktopLayout(): Layout {
-  const logicalW = 1280;
-  const logicalH = 820;
+  const logicalW = 1320;
+  const logicalH = 700;
 
   return {
     mode: "desktop",
     width: logicalW,
     height: logicalH,
     scale: 1,
-    cardW: 82,
-    cardH: 118,
-    handY: 684,
+    cardW: 96,
+    cardH: 138,
+    handY: 570,
     handCenterX: logicalW / 2,
     tableCX: logicalW / 2,
-    tableCY: 390,
+    tableCY: 332,
     positions: {
-      self: { x: logicalW / 2, y: 778 },
-      left: { x: 132, y: 390 },
-      across: { x: logicalW / 2, y: 72 },
-      right: { x: logicalW - 132, y: 390 },
+      self: { x: logicalW / 2, y: 652 },
+      left: { x: 166, y: 332 },
+      across: { x: logicalW / 2, y: 66 },
+      right: { x: logicalW - 166, y: 332 },
     },
     opponentCards: {
-      left: { x: 172, y: 318, vertical: true },
-      across: { x: logicalW / 2, y: 148, vertical: false },
-      right: { x: logicalW - 172, y: 318, vertical: true },
+      left: { x: 210, y: 278, vertical: true },
+      across: { x: logicalW / 2, y: 130, vertical: false },
+      right: { x: logicalW - 210, y: 278, vertical: true },
     },
     anchors: {
-      trickCenter: { x: logicalW / 2, y: 390 },
-      dealSource: { x: logicalW / 2, y: 390 },
+      trickCenter: { x: logicalW / 2, y: 332 },
+      dealSource: { x: logicalW / 2, y: 332 },
       playFrom: {
-        self: { x: logicalW / 2, y: 684 },
-        left: { x: 172, y: 318 },
-        across: { x: logicalW / 2, y: 148 },
-        right: { x: logicalW - 172, y: 318 },
+        self: { x: logicalW / 2, y: 570 },
+        left: { x: 210, y: 278 },
+        across: { x: logicalW / 2, y: 130 },
+        right: { x: logicalW - 210, y: 278 },
       },
     },
   };
@@ -81,38 +81,38 @@ function desktopLayout(): Layout {
 
 function mobilePortraitLayout(): Layout {
   const logicalW = 760;
-  const logicalH = 1120;
+  const logicalH = 1020;
 
   return {
     mode: "mobile-portrait",
     width: logicalW,
     height: logicalH,
     scale: 1,
-    cardW: 74,
-    cardH: 106,
-    handY: 960,
+    cardW: 82,
+    cardH: 118,
+    handY: 870,
     handCenterX: logicalW / 2,
     tableCX: logicalW / 2,
-    tableCY: 470,
+    tableCY: 430,
     positions: {
-      self: { x: logicalW / 2, y: 1038 },
-      left: { x: 112, y: 496 },
-      across: { x: logicalW / 2, y: 94 },
-      right: { x: logicalW - 112, y: 496 },
+      self: { x: logicalW / 2, y: 938 },
+      left: { x: 118, y: 446 },
+      across: { x: logicalW / 2, y: 86 },
+      right: { x: logicalW - 118, y: 446 },
     },
     opponentCards: {
-      left: { x: 144, y: 372, vertical: true },
-      across: { x: logicalW / 2, y: 178, vertical: false },
-      right: { x: logicalW - 144, y: 372, vertical: true },
+      left: { x: 156, y: 328, vertical: true },
+      across: { x: logicalW / 2, y: 162, vertical: false },
+      right: { x: logicalW - 156, y: 328, vertical: true },
     },
     anchors: {
-      trickCenter: { x: logicalW / 2, y: 470 },
-      dealSource: { x: logicalW / 2, y: 470 },
+      trickCenter: { x: logicalW / 2, y: 430 },
+      dealSource: { x: logicalW / 2, y: 430 },
       playFrom: {
-        self: { x: logicalW / 2, y: 948 },
-        left: { x: 144, y: 372 },
-        across: { x: logicalW / 2, y: 178 },
-        right: { x: logicalW - 144, y: 372 },
+        self: { x: logicalW / 2, y: 854 },
+        left: { x: 156, y: 328 },
+        across: { x: logicalW / 2, y: 162 },
+        right: { x: logicalW - 156, y: 328 },
       },
     },
   };

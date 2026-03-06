@@ -325,14 +325,19 @@ export class GameScreen implements Screen {
 
   private syncCardPresentationMode(): void {
     this.rootEl.classList.toggle("sprite-mode", this.spriteMode);
-    this.handDock.hidden = !this.spriteMode;
+    this.updateHandDockVisibility();
     if (!this.spriteMode) {
       this.handLayer.innerHTML = "";
       this.trickLayer.innerHTML = "";
     }
   }
 
+  private updateHandDockVisibility(): void {
+    this.handDock.hidden = !(this.spriteMode && this.ctx.state.hand.length > 0);
+  }
+
   private renderDomCardLayers(): void {
+    this.updateHandDockVisibility();
     if (!this.spriteMode) return;
 
     const state = this.ctx.state;
@@ -400,16 +405,16 @@ export class GameScreen implements Screen {
     const mobile = this.isMobilePortrait;
     const map = mobile
       ? {
-          left: { x: "-90px", y: "10px", r: "-5deg" },
-          across: { x: "0px", y: "-68px", r: "0deg" },
-          right: { x: "90px", y: "10px", r: "5deg" },
-          self: { x: "0px", y: "88px", r: "0deg" },
+          left: { x: "-98px", y: "12px", r: "-5deg" },
+          across: { x: "0px", y: "-76px", r: "0deg" },
+          right: { x: "98px", y: "12px", r: "5deg" },
+          self: { x: "0px", y: "98px", r: "0deg" },
         }
       : {
-          left: { x: "-124px", y: "12px", r: "-6deg" },
-          across: { x: "0px", y: "-96px", r: "0deg" },
-          right: { x: "124px", y: "12px", r: "6deg" },
-          self: { x: "0px", y: "112px", r: "0deg" },
+          left: { x: "-148px", y: "14px", r: "-6deg" },
+          across: { x: "0px", y: "-114px", r: "0deg" },
+          right: { x: "148px", y: "14px", r: "6deg" },
+          self: { x: "0px", y: "132px", r: "0deg" },
         };
     const slot = map[position];
     return `--slot-x:${slot.x};--slot-y:${slot.y};--slot-rot:${slot.r}`;
@@ -886,9 +891,10 @@ export class GameScreen implements Screen {
     const roleLabel = game.resting === seat ? "RESTING" : this.capLabel(position).toUpperCase();
     const turnTag = game.turn === seat ? `<span class="hero-turn-tag">TURN</span>` : "";
     const stateTag = game.resting === seat ? `<span class="hero-state-tag">Resting</span>` : "";
+    const sideClass = isSelf ? "" : " hero-side";
 
     return `
-      <section class="hero-plate hero-${position}${active}${resting}${disconnected}" aria-label="${escapeHtml(
+      <section class="hero-plate hero-${position}${sideClass}${active}${resting}${disconnected}" aria-label="${escapeHtml(
         `${name}, ${roleLabel.toLowerCase()}, score ${score}, cards ${cards}, tricks ${tricks}`
       )}">
         <div class="hero-main-row">
