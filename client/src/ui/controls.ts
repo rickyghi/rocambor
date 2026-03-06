@@ -63,6 +63,11 @@ export class GameControls {
     this.container.innerHTML = html;
     this.container.dataset.actionable = actionable ? "true" : "false";
     this.container.setAttribute("aria-hidden", actionable ? "false" : "true");
+    const shell = this.container.closest(".game-controls-shell") as HTMLElement | null;
+    if (shell) {
+      shell.dataset.actionable = actionable ? "true" : "false";
+      shell.hidden = !actionable;
+    }
     this.attachHandlers();
   }
 
@@ -108,8 +113,8 @@ export class GameControls {
 
     return `
       <div class="control-group">
-        <span class="control-label">Choose Your Bid</span>
-        ${currentBid !== "pass" ? `<span class="controls-hint">Current leading bid: ${this.bidLabel(currentBid)}</span>` : ""}
+        <span class="control-label">🛡️ Choose Your Bid</span>
+        ${currentBid !== "pass" ? `<span class="controls-hint">Leading bid: ${this.bidLabel(currentBid)}</span>` : ""}
         ${btns}
         ${showContrabola ? `<button class="bid-btn contrabola-btn" data-bid="contrabola"><span>Contrabola</span><small>Last all-pass special</small></button>` : ""}
         <button class="bid-btn pass-btn" data-bid="pass">Pass</button>
@@ -120,7 +125,7 @@ export class GameControls {
   private renderPenetroChoice(): string {
     return `
       <div class="control-group">
-        <span class="control-label">Penetro</span>
+        <span class="control-label">🛡️ Penetro</span>
         <span class="controls-hint">No active bidder. As resting player, choose whether to play Penetro.</span>
         <div class="control-row">
           <button class="bid-btn penetro-btn" data-accept="false"><span>Decline</span><small>Redeal hand</small></button>
@@ -150,7 +155,7 @@ export class GameControls {
 
     return `
       <div class="control-group">
-        <span class="control-label">Choose Trump</span>
+        <span class="control-label">⚔️ Choose Trump</span>
         ${btns}
       </div>
     `;
@@ -165,7 +170,7 @@ export class GameControls {
 
     return `
       <div class="control-group">
-        <span class="control-label">Select Cards To Exchange</span>
+        <span class="control-label">🃏 Select Cards To Exchange</span>
         ${requireExactOne ? `<span class="controls-hint">Select exactly 1 card</span>` : `<span class="controls-hint">Choose up to ${maxExchange} cards</span>`}
         <span class="exchange-count">${selected} / ${maxExchange}</span>
         <button class="exchange-btn primary" data-action="confirm" ${canConfirm ? "" : "disabled"}>

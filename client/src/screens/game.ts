@@ -34,6 +34,7 @@ export class GameScreen implements Screen {
 
   private headerMain!: HTMLElement;
   private headerSub!: HTMLElement;
+  private headerTarget!: HTMLElement;
   private headerTrump!: HTMLElement;
   private headerPing!: HTMLElement;
   private headerAvatar!: HTMLImageElement;
@@ -42,6 +43,7 @@ export class GameScreen implements Screen {
   private mobileSummary!: HTMLElement;
   private opponentsStrip!: HTMLElement;
   private heroPlates!: HTMLElement;
+  private selfHeroPlate!: HTMLElement;
   private phaseBanner!: HTMLElement;
   private phaseBannerMain!: HTMLElement;
   private phaseBannerSub!: HTMLElement;
@@ -85,27 +87,33 @@ export class GameScreen implements Screen {
           ${renderGameHeaderMarkup()}
           <div class="game-mobile-summary rc-panel rc-panel-noise" id="game-mobile-summary"></div>
           <div class="game-opponents-strip rc-panel rc-panel-noise" id="game-opponents-strip" role="list" aria-label="Opponents"></div>
-          <div class="game-table-stack">
-            <div class="game-canvas-wrap">
-              <div class="hero-plates-layer" id="hero-plates-layer" aria-hidden="true"></div>
+          <div class="game-stage rc-table-stage">
+            <div class="game-stage-top">
               <div class="arena-phase-banner rc-panel rc-panel-noise" id="arena-phase-banner">
                 <div class="arena-phase-main" id="arena-phase-main"></div>
                 <div class="arena-phase-sub" id="arena-phase-sub"></div>
               </div>
               <div class="arena-toast-feed" id="arena-toast-feed" aria-live="polite"></div>
-              <canvas id="game-canvas"></canvas>
-
-              <div id="game-dom-layers" class="game-dom-layers" hidden>
-                <div class="trick-overlay" aria-hidden="true">
-                  <div class="trick-overlay-inner" id="trick-layer"></div>
+            </div>
+            <div class="game-stage-mid">
+              <div class="game-canvas-wrap">
+                <div class="hero-plates-layer" id="hero-plates-layer" aria-hidden="true"></div>
+                <canvas id="game-canvas"></canvas>
+                <div id="game-dom-layers" class="game-dom-layers" hidden>
+                  <div class="trick-overlay" aria-hidden="true">
+                    <div class="trick-overlay-inner" id="trick-layer"></div>
+                  </div>
                 </div>
               </div>
             </div>
-            <div class="game-controls-shell">
-              <div class="game-controls-bar rc-panel rc-panel-noise" id="game-controls"></div>
-            </div>
-            <div class="game-hand-dock" id="game-hand-dock" aria-label="Your hand area">
-              <div class="hand-row rc-panel rc-panel-noise" id="hand-layer" role="listbox" aria-label="Your hand"></div>
+            <div class="game-stage-bottom">
+              <div class="hero-self-slot" id="hero-self-slot" aria-hidden="true"></div>
+              <div class="game-hand-dock" id="game-hand-dock" aria-label="Your hand area">
+                <div class="hand-row rc-panel rc-panel-noise" id="hand-layer" role="listbox" aria-label="Your hand"></div>
+              </div>
+              <div class="game-controls-shell" data-actionable="false">
+                <div class="game-controls-bar rc-panel rc-panel-noise" id="game-controls"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -126,6 +134,7 @@ export class GameScreen implements Screen {
 
     this.headerMain = container.querySelector("#game-header-main") as HTMLElement;
     this.headerSub = container.querySelector("#game-header-sub") as HTMLElement;
+    this.headerTarget = container.querySelector("#game-target-shield") as HTMLElement;
     this.headerTrump = container.querySelector("#game-trump-medallion") as HTMLElement;
     this.headerPing = container.querySelector("#game-header-ping") as HTMLElement;
     this.headerAvatar = container.querySelector(".game-profile-avatar") as HTMLImageElement;
@@ -134,6 +143,7 @@ export class GameScreen implements Screen {
     this.mobileSummary = container.querySelector("#game-mobile-summary") as HTMLElement;
     this.opponentsStrip = container.querySelector("#game-opponents-strip") as HTMLElement;
     this.heroPlates = container.querySelector("#hero-plates-layer") as HTMLElement;
+    this.selfHeroPlate = container.querySelector("#hero-self-slot") as HTMLElement;
     this.phaseBanner = container.querySelector("#arena-phase-banner") as HTMLElement;
     this.phaseBannerMain = container.querySelector("#arena-phase-main") as HTMLElement;
     this.phaseBannerSub = container.querySelector("#arena-phase-sub") as HTMLElement;
@@ -390,16 +400,16 @@ export class GameScreen implements Screen {
     const mobile = this.isMobilePortrait;
     const map = mobile
       ? {
-          left: { x: "-84px", y: "8px", r: "-5deg" },
-          across: { x: "0px", y: "-64px", r: "0deg" },
-          right: { x: "84px", y: "8px", r: "5deg" },
-          self: { x: "0px", y: "78px", r: "0deg" },
+          left: { x: "-90px", y: "10px", r: "-5deg" },
+          across: { x: "0px", y: "-68px", r: "0deg" },
+          right: { x: "90px", y: "10px", r: "5deg" },
+          self: { x: "0px", y: "88px", r: "0deg" },
         }
       : {
-          left: { x: "-108px", y: "10px", r: "-6deg" },
-          across: { x: "0px", y: "-82px", r: "0deg" },
-          right: { x: "108px", y: "10px", r: "6deg" },
-          self: { x: "0px", y: "98px", r: "0deg" },
+          left: { x: "-124px", y: "12px", r: "-6deg" },
+          across: { x: "0px", y: "-96px", r: "0deg" },
+          right: { x: "124px", y: "12px", r: "6deg" },
+          self: { x: "0px", y: "112px", r: "0deg" },
         };
     const slot = map[position];
     return `--slot-x:${slot.x};--slot-y:${slot.y};--slot-rot:${slot.r}`;
@@ -766,6 +776,7 @@ export class GameScreen implements Screen {
           : null;
       this.headerSub.textContent = seconds !== null ? `${turnName} · ${seconds}s` : turnName;
       this.headerSub.classList.toggle("urgent", seconds !== null && seconds <= 5);
+      this.headerTarget.textContent = `🎯 ${game.gameTarget}`;
       this.headerTrump.textContent = game.trump
         ? `Trump ${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`
         : "Trump --";
@@ -773,11 +784,12 @@ export class GameScreen implements Screen {
       this.headerMain.textContent = "Waiting for game state";
       this.headerSub.textContent = "";
       this.headerSub.classList.remove("urgent");
+      this.headerTarget.textContent = "🎯 --";
       this.headerTrump.textContent = "Trump --";
     }
 
     const latency = this.ctx.connection.latencyMs;
-    this.headerPing.textContent = latency === null ? "Ping --" : `Ping ${Math.round(latency)}ms`;
+    this.headerPing.textContent = latency === null ? "⏳ --" : `⏳ ${Math.round(latency)}ms`;
 
     this.headerName.textContent = profile.name;
     this.headerAvatar.src = profile.avatar || this.ctx.profile.getFallbackAvatar();
@@ -786,7 +798,7 @@ export class GameScreen implements Screen {
     };
 
     const soundOn = this.ctx.settings.get("soundEnabled");
-    this.soundToggleBtn.textContent = soundOn ? "Sound On" : "Sound Off";
+    this.soundToggleBtn.textContent = soundOn ? "🔊 On" : "🔇 Off";
     this.soundToggleBtn.setAttribute("aria-pressed", String(soundOn));
   }
 
@@ -802,13 +814,14 @@ export class GameScreen implements Screen {
       return;
     }
 
-    const chips: string[] = [`<span class="mobile-summary-chip">Round ${game.handNo}</span>`];
+    const chips: string[] = [`<span class="mobile-summary-chip">🧾 Round ${game.handNo}</span>`];
     if (game.contract) {
-      chips.push(`<span class="mobile-summary-chip">Contract ${escapeHtml(this.bidLabel(game.contract))}</span>`);
+      chips.push(`<span class="mobile-summary-chip">🛡️ ${escapeHtml(this.bidLabel(game.contract))}</span>`);
     }
     if (game.trump) {
-      chips.push(`<span class="mobile-summary-chip">Trump ${escapeHtml(game.trump)}</span>`);
+      chips.push(`<span class="mobile-summary-chip">${escapeHtml(`${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`)}</span>`);
     }
+    chips.push(`<span class="mobile-summary-chip">🎯 ${game.gameTarget}</span>`);
 
     if (game.turn !== null) {
       const actor = this.seatLabelForAnnouncements(game.turn);
@@ -816,7 +829,7 @@ export class GameScreen implements Screen {
         ? ` · ${Math.max(0, Math.ceil((game.turnDeadline - Date.now()) / 1000))}s`
         : "";
       const mine = game.turn === this.ctx.state.mySeat ? " mine" : "";
-      chips.push(`<span class="mobile-summary-chip turn${mine}">${escapeHtml(`${actor} turn${secs}`)}</span>`);
+      chips.push(`<span class="mobile-summary-chip turn${mine}">${escapeHtml(`⏳ ${actor}${secs}`)}</span>`);
     }
 
     this.mobileSummary.innerHTML = chips.join("");
@@ -826,56 +839,17 @@ export class GameScreen implements Screen {
     const game = this.ctx.state.game;
     if (!game || this.ctx.state.mySeat === null) {
       this.heroPlates.innerHTML = "";
+      this.selfHeroPlate.innerHTML = "";
       return;
     }
 
-    const positions = (["left", "across", "right", "self"] as const).map((position) => {
-      const seat = this.ctx.state.seatAtPosition(position);
-      if (seat === null) return "";
-      const player = game.players[seat];
-      const isSelf = position === "self";
-      const name = isSelf ? this.ctx.profile.get().name : player?.handle || `Seat ${seat}`;
-      const avatar = isSelf
-        ? this.ctx.profile.get().avatar || this.ctx.profile.getFallbackAvatar()
-        : player?.isBot
-          ? buildDiceBearUrl(name, "bottts-neutral")
-          : buildDiceBearUrl(name, "identicon");
-      const fallback = fallbackAvatarAt(seat);
-      const active = game.turn === seat ? " active-turn" : "";
-      const resting = game.resting === seat ? " resting" : "";
-      const disconnected = player && !player.connected ? " disconnected" : "";
-      const score = game.scores[seat] || 0;
-      const cards = game.handsCount[seat] || 0;
-      const tricks = game.tricks[seat] || 0;
-      const roleLabel = isSelf ? "You" : this.capLabel(position);
-      const turnTag = game.turn === seat ? `<span class="hero-turn-tag">TURN</span>` : "";
-      const stateTag = game.resting === seat ? `<span class="hero-state-tag">Resting</span>` : "";
+    const sidePositions: Array<"left" | "across" | "right"> = ["left", "across", "right"];
+    this.heroPlates.innerHTML = sidePositions
+      .map((position) => this.renderHeroPlateMarkup(position))
+      .join("");
+    this.selfHeroPlate.innerHTML = this.renderHeroPlateMarkup("self");
 
-      return `
-        <section class="hero-plate hero-${position}${active}${resting}${disconnected}" aria-label="${escapeHtml(
-          `${name} ${roleLabel}, score ${score}, cards ${cards}, tricks ${tricks}`
-        )}">
-          <div class="hero-main-row">
-            <img class="hero-avatar" src="${avatar}" data-fallback="${fallback}" alt="" />
-            <div class="hero-id-col">
-              <span class="hero-seat">${roleLabel}</span>
-              <span class="hero-name">${escapeHtml(name)}</span>
-            </div>
-            ${turnTag}
-            ${stateTag}
-          </div>
-          <div class="hero-badges-row">
-            <span class="hero-badge shield">Score ${score}</span>
-            <span class="hero-badge">Cards ${cards}</span>
-            <span class="hero-badge">Tricks ${tricks}</span>
-          </div>
-          <div class="hero-trick-dots">${this.renderTrickDots(tricks)}</div>
-        </section>
-      `;
-    });
-
-    this.heroPlates.innerHTML = positions.join("");
-    this.heroPlates.querySelectorAll<HTMLImageElement>(".hero-avatar").forEach((img) => {
+    this.container.querySelectorAll<HTMLImageElement>(".hero-avatar").forEach((img) => {
       img.onerror = () => {
         const fallback = img.dataset.fallback;
         if (!fallback) return;
@@ -885,12 +859,65 @@ export class GameScreen implements Screen {
     });
   }
 
+  private renderHeroPlateMarkup(
+    position: "self" | "left" | "across" | "right"
+  ): string {
+    const game = this.ctx.state.game;
+    if (!game) return "";
+
+    const seat = this.ctx.state.seatAtPosition(position);
+    if (seat === null) return "";
+
+    const player = game.players[seat];
+    const isSelf = position === "self";
+    const name = isSelf ? this.ctx.profile.get().name : player?.handle || `Seat ${seat}`;
+    const avatar = isSelf
+      ? this.ctx.profile.get().avatar || this.ctx.profile.getFallbackAvatar()
+      : player?.isBot
+        ? buildDiceBearUrl(name || `bot-${seat}`, "bottts-neutral")
+        : buildDiceBearUrl(name || `seat-${seat}`, "identicon");
+    const fallback = fallbackAvatarAt(seat);
+    const active = game.turn === seat ? " active-turn" : "";
+    const resting = game.resting === seat ? " resting" : "";
+    const disconnected = player && !player.connected ? " disconnected" : "";
+    const score = game.scores[seat] || 0;
+    const cards = game.handsCount[seat] || 0;
+    const tricks = game.tricks[seat] || 0;
+    const roleLabel = game.resting === seat ? "RESTING" : this.capLabel(position).toUpperCase();
+    const turnTag = game.turn === seat ? `<span class="hero-turn-tag">TURN</span>` : "";
+    const stateTag = game.resting === seat ? `<span class="hero-state-tag">Resting</span>` : "";
+
+    return `
+      <section class="hero-plate hero-${position}${active}${resting}${disconnected}" aria-label="${escapeHtml(
+        `${name}, ${roleLabel.toLowerCase()}, score ${score}, cards ${cards}, tricks ${tricks}`
+      )}">
+        <div class="hero-main-row">
+          <span class="hero-avatar-medallion">
+            <img class="hero-avatar" src="${avatar}" data-fallback="${fallback}" alt="" />
+          </span>
+          <div class="hero-id-col">
+            <span class="hero-seat">${escapeHtml(roleLabel)}</span>
+            <span class="hero-name">${escapeHtml(name)}</span>
+          </div>
+          ${turnTag}
+          ${stateTag}
+        </div>
+        <div class="hero-badges-row">
+          <span class="hero-badge score"><span class="hero-badge-icon">🏆</span><span class="hero-badge-label">Score</span><span class="hero-badge-num">${score}</span></span>
+          <span class="hero-badge cards"><span class="hero-badge-icon">🃏</span><span class="hero-badge-label">Cards</span><span class="hero-badge-num">${cards}</span></span>
+          <span class="hero-badge tricks"><span class="hero-badge-icon">🎯</span><span class="hero-badge-label">Tricks</span><span class="hero-badge-num">${tricks}</span></span>
+        </div>
+        <div class="hero-trick-dots" aria-label="${escapeHtml(`Tricks won ${tricks}`)}">${this.renderTrickDots(tricks)}</div>
+      </section>
+    `;
+  }
+
   private renderTrickDots(tricks: number): string {
     const maxDots = 6;
     const filled = Math.max(0, Math.min(maxDots, tricks));
     const dots = Array.from({ length: maxDots }, (_, idx) => {
       const active = idx < filled ? " filled" : "";
-      return `<span class="hero-trick-dot${active}" aria-hidden="true"></span>`;
+      return `<span class="hero-trick-dot${active}" aria-hidden="true">${idx < filled ? "◆" : "◌"}</span>`;
     });
     return dots.join("");
   }
@@ -935,8 +962,8 @@ export class GameScreen implements Screen {
               <span class="mobile-opponent-name">${escapeHtml(name)}</span>
             </div>
             <div class="mobile-opponent-stats">
-              <span>S ${score}</span>
-              <span>T ${tricks}</span>
+              <span>🏆 ${score}</span>
+              <span>🎯 ${tricks}</span>
             </div>
           </div>
         `;
@@ -963,7 +990,7 @@ export class GameScreen implements Screen {
       return;
     }
 
-    this.phaseBannerMain.textContent = this.phaseLabel(game.phase);
+    this.phaseBannerMain.textContent = this.phaseLabel(game.phase).toUpperCase();
     this.phaseBanner.classList.toggle("your-turn", this.ctx.state.isMyTurn);
 
     const bid = currentBid ?? game.auction.currentBid;
@@ -1015,6 +1042,9 @@ export class GameScreen implements Screen {
   }
 
   private pushArenaToast(text: string): void {
+    while (this.arenaToastFeed.childElementCount >= 3) {
+      this.arenaToastFeed.firstElementChild?.remove();
+    }
     const chip = document.createElement("div");
     chip.className = "arena-toast-chip";
     chip.textContent = text;

@@ -249,16 +249,16 @@ export class GameRenderer {
     const mobile = this.viewportMode === "mobile-portrait";
     const offsets = mobile
       ? {
-          left: { x: -78, y: 8 },
-          across: { x: 0, y: -66 },
-          right: { x: 78, y: 8 },
-          self: { x: 0, y: 80 },
+          left: { x: -88, y: 10 },
+          across: { x: 0, y: -72 },
+          right: { x: 88, y: 10 },
+          self: { x: 0, y: 90 },
         }
       : {
-          left: { x: -98, y: 8 },
-          across: { x: 0, y: -82 },
-          right: { x: 98, y: 8 },
-          self: { x: 0, y: 98 },
+          left: { x: -120, y: 12 },
+          across: { x: 0, y: -94 },
+          right: { x: 120, y: 12 },
+          self: { x: 0, y: 110 },
         };
 
     if (rel) {
