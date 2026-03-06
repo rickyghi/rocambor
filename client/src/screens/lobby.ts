@@ -4,7 +4,7 @@ import type { Screen, AppContext } from "../router";
 import { showToast } from "../ui/toast";
 import type { SeatIndex } from "../protocol";
 import { escapeHtml } from "../utils/escape";
-import { buildDiceBearUrl, fallbackAvatarAt } from "../lib/avatars";
+import { buildBotAvatarUrl, buildDiceBearUrl, fallbackAvatarAt } from "../lib/avatars";
 
 export class LobbyScreen implements Screen {
   private ctx!: AppContext;
@@ -66,7 +66,11 @@ export class LobbyScreen implements Screen {
         } else if (player.isBot) {
           badge = "BOT";
           statusClass = "bot";
-          avatar = buildDiceBearUrl(player.handle || `bot-${i}`, "bottts-neutral");
+          avatar = buildBotAvatarUrl(
+            player.handle || `bot-${i}`,
+            i,
+            game?.roomCode || this.ctx.state.roomCode
+          );
         } else if (!player.connected) {
           badge = "OFFLINE";
           statusClass = "offline";

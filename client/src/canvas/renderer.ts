@@ -237,7 +237,43 @@ export class GameRenderer {
         colorblind,
         { skin: cardSkin }
       );
+      if (seat !== undefined) {
+        this.drawTrickCardLabel(
+          slot.x,
+          slot.y + this.layout.cardH / 2 + 18,
+          this.trickCardLabel(seat)
+        );
+      }
     }
+  }
+
+  private trickCardLabel(seat: SeatIndex): string {
+    const rel = this.state.relativePosition(seat);
+    if (rel === "self") return "YOU";
+    const pos = rel.toUpperCase();
+    const handle = this.state.game?.players[seat]?.handle;
+    return handle ? `${pos} · ${handle}` : pos;
+  }
+
+  private drawTrickCardLabel(x: number, y: number, label: string): void {
+    if (!label) return;
+    this.ctx.save();
+    this.ctx.font = `700 12px ${FONT_SANS}`;
+    this.ctx.textAlign = "center";
+    this.ctx.textBaseline = "middle";
+    const textW = Math.ceil(this.ctx.measureText(label).width);
+    const w = Math.max(70, textW + 14);
+    const h = 22;
+    this.ctx.fillStyle = "rgba(248,246,240,0.95)";
+    this.roundRect(x - w / 2, y - h / 2, w, h, 11);
+    this.ctx.fill();
+    this.ctx.strokeStyle = "rgba(13,13,13,0.14)";
+    this.ctx.lineWidth = 1;
+    this.roundRect(x - w / 2, y - h / 2, w, h, 11);
+    this.ctx.stroke();
+    this.ctx.fillStyle = "#554322";
+    this.ctx.fillText(label, x, y);
+    this.ctx.restore();
   }
 
   private trickSlot(

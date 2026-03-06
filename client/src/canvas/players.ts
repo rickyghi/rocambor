@@ -3,7 +3,7 @@ import type { Layout } from "./layout";
 import type { SeatIndex, PlayerInfo } from "../protocol";
 import { drawCard, type CardSkin } from "./cards";
 import type { PlayerProfile } from "../lib/profile";
-import { buildDiceBearUrl, fallbackAvatarAt } from "../lib/avatars";
+import { buildBotAvatarUrl, buildDiceBearUrl, fallbackAvatarAt } from "../lib/avatars";
 import { getAvatarImage } from "./avatar-cache";
 
 type Position = "self" | "left" | "across" | "right";
@@ -42,7 +42,7 @@ export function drawPlayers(
       ? profile.avatar
       : player
         ? player.isBot
-          ? buildDiceBearUrl(player.handle || `bot-${seat}`, "bottts-neutral")
+          ? buildBotAvatarUrl(player.handle || `bot-${seat}`, seat, state.game?.roomCode)
           : buildDiceBearUrl(player.handle || `Seat-${seat}`, "identicon")
         : fallbackAvatarAt(seat);
     const avatarFallback = fallbackAvatarAt(seat);

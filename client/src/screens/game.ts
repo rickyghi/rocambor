@@ -10,7 +10,7 @@ import { GameRenderer } from "../canvas/renderer";
 import { renderGameHeaderMarkup } from "../components/layout/AppHeader";
 import { renderFeltBackgroundMarkup } from "../components/layout/FeltBackground";
 import { openProfileModal } from "../components/profile/ProfileModal";
-import { buildDiceBearUrl, fallbackAvatarAt } from "../lib/avatars";
+import { buildBotAvatarUrl, buildDiceBearUrl, fallbackAvatarAt } from "../lib/avatars";
 import {
   detectSpritesheetSupport,
   ensureSpritesheetCss,
@@ -357,9 +357,11 @@ export class GameScreen implements Screen {
         const rel = seat === undefined ? null : state.relativePosition(seat);
         const slot = this.trickSlotForPosition(rel ?? "across");
         const winnerClass = trickWinner !== null && seat === trickWinner ? " winner" : "";
+        const actorLabel = this.trickActorLabel(seat);
         return `
           <div class="trick-card-wrap${winnerClass}" style="${slot}">
             <div class="${spriteClassForCard(card)}"></div>
+            ${actorLabel ? `<div class="trick-card-label">${escapeHtml(actorLabel)}</div>` : ""}
           </div>
         `;
       })
@@ -879,7 +881,11 @@ export class GameScreen implements Screen {
     const avatar = isSelf
       ? this.ctx.profile.get().avatar || this.ctx.profile.getFallbackAvatar()
       : player?.isBot
-        ? buildDiceBearUrl(name || `bot-${seat}`, "bottts-neutral")
+        ? buildBotAvatarUrl(
+            player.handle || `bot-${seat}`,
+            seat,
+            game.roomCode || this.ctx.state.roomCode
+          )
         : buildDiceBearUrl(name || `seat-${seat}`, "identicon");
     const fallback = fallbackAvatarAt(seat);
     const active = game.turn === seat ? " active-turn" : "";
@@ -888,14 +894,16 @@ export class GameScreen implements Screen {
     const score = game.scores[seat] || 0;
     const cards = game.handsCount[seat] || 0;
     const tricks = game.tricks[seat] || 0;
-    const roleLabel = game.resting === seat ? "RESTING" : this.capLabel(position).toUpperCase();
+    const roleLabel = this.capLabel(position).toUpperCase();
+    const ombreTag = game.ombre === seat ? `<span class="hero-ombre-tag">👑 OMBRE</span>` : "";
     const turnTag = game.turn === seat ? `<span class="hero-turn-tag">TURN</span>` : "";
     const stateTag = game.resting === seat ? `<span class="hero-state-tag">Resting</span>` : "";
     const sideClass = isSelf ? "" : " hero-side";
+    const roleText = game.ombre === seat ? `${roleLabel.toLowerCase()}, ombre` : roleLabel.toLowerCase();
 
     return `
       <section class="hero-plate hero-${position}${sideClass}${active}${resting}${disconnected}" aria-label="${escapeHtml(
-        `${name}, ${roleLabel.toLowerCase()}, score ${score}, cards ${cards}, tricks ${tricks}`
+        `${name}, ${roleText}, score ${score}, cards ${cards}, tricks ${tricks}`
       )}">
         <div class="hero-main-row">
           <span class="hero-avatar-medallion">
@@ -905,8 +913,11 @@ export class GameScreen implements Screen {
             <span class="hero-seat">${escapeHtml(roleLabel)}</span>
             <span class="hero-name">${escapeHtml(name)}</span>
           </div>
-          ${turnTag}
-          ${stateTag}
+          <div class="hero-tags">
+            ${ombreTag}
+            ${turnTag}
+            ${stateTag}
+          </div>
         </div>
         <div class="hero-badges-row">
           <span class="hero-badge score"><span class="hero-badge-icon">🏆</span><span class="hero-badge-label">Score</span><span class="hero-badge-num">${score}</span></span>
@@ -954,8 +965,13 @@ export class GameScreen implements Screen {
         const tricks = game.tricks[seat] || 0;
         const active = game.turn === seat ? " active-turn" : "";
         const disconnected = player && !player.connected ? " disconnected" : "";
+        const isOmbre = game.ombre === seat;
         const avatarUrl = player?.isBot
-          ? buildDiceBearUrl(name || `bot-${seat}`, "bottts-neutral")
+          ? buildBotAvatarUrl(
+              player.handle || `bot-${seat}`,
+              seat,
+              game.roomCode || this.ctx.state.roomCode
+            )
           : buildDiceBearUrl(name || `seat-${seat}`, "identicon");
         const fallback = fallbackAvatarAt(seat);
         const aria = `${label} seat ${name}, score ${score}, tricks ${tricks}`;
@@ -967,6 +983,7 @@ export class GameScreen implements Screen {
               <span class="mobile-opponent-seat">${label}</span>
               <span class="mobile-opponent-name">${escapeHtml(name)}</span>
             </div>
+            ${isOmbre ? `<span class="mobile-opponent-ombre">👑 OMBRE</span>` : ""}
             <div class="mobile-opponent-stats">
               <span>🏆 ${score}</span>
               <span>🎯 ${tricks}</span>
@@ -1065,6 +1082,15 @@ export class GameScreen implements Screen {
     if (this.ctx.state.mySeat === seat) return "You";
     const handle = this.ctx.state.game?.players[seat]?.handle;
     return handle || `Seat ${seat}`;
+  }
+
+  private trickActorLabel(seat: number | undefined): string {
+    if (seat === undefined) return "";
+    const rel = this.ctx.state.relativePosition(seat as SeatIndex);
+    if (rel === "self") return "YOU";
+    const relLabel = rel.toUpperCase();
+    const handle = this.ctx.state.game?.players[seat]?.handle;
+    return handle ? `${relLabel} · ${handle}` : relLabel;
   }
 
   private bidLabel(value: string): string {

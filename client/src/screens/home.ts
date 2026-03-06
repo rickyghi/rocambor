@@ -78,7 +78,6 @@ export class HomeScreen implements Screen {
               <div class="home-logo-wrap">
                 <img src="/assets/rocambor/logo-final.png" alt="Rocambor" class="home-logo-img" />
                 <h1 class="home-logo-fallback">ROCAMBOR</h1>
-                <p class="home-tagline tagline-smallcaps">THE GAME OF OMBRE</p>
               </div>
 
               <div class="ornament-divider" aria-hidden="true"></div>

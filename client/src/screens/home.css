@@ -75,13 +75,6 @@
   color: var(--ink80);
 }
 
-.home-tagline {
-  margin: 0;
-  font-family: var(--font-serif);
-  color: color-mix(in srgb, var(--gold) 78%, var(--ink));
-  font-size: 12px;
-}
-
 .home-modes {
   display: flex;
   justify-content: center;

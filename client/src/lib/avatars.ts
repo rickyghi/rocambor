@@ -47,6 +47,17 @@ export function buildDiceBearUrl(seed: string, style: DiceBearStyle = "identicon
   return `https://api.dicebear.com/7.x/${style}/svg?seed=${safeSeed}`;
 }
 
+export function buildBotAvatarUrl(
+  handle: string,
+  seat: number,
+  roomCode?: string | null
+): string {
+  const safeHandle = (handle || "bot").trim().toLowerCase();
+  const safeRoom = (roomCode || "room").trim().toLowerCase();
+  const seed = `${safeRoom}-seat-${seat}-${safeHandle}`;
+  return buildDiceBearUrl(seed, "bottts-neutral");
+}
+
 export function fallbackAvatarAt(index: number): string {
   return FALLBACKS[((index % FALLBACKS.length) + FALLBACKS.length) % FALLBACKS.length];
 }
