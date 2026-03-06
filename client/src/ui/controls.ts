@@ -33,34 +33,36 @@ export class GameControls {
     const phase = game.phase;
 
     let html = "";
+    let actionable = false;
 
     if (phase === "auction" && myTurn) {
       html = this.renderAuction();
+      actionable = true;
     } else if (phase === "penetro_choice" && myTurn) {
       html = this.renderPenetroChoice();
+      actionable = true;
     } else if (phase === "trump_choice" && myTurn) {
       html = this.renderTrumpChoice();
+      actionable = true;
     } else if (phase === "exchange" && canExchange) {
       html = this.renderExchange();
+      actionable = true;
     } else if (phase === "play" && myTurn) {
       html = this.renderPlay();
-    } else if (phase === "auction" && !myTurn) {
-      html = `<div class="controls-hint">Waiting for ${this.seatLabel(game.turn)}...</div>`;
-    } else if (phase === "penetro_choice" && !myTurn) {
-      html = `<div class="controls-hint">Waiting for the resting player to decide Penetro...</div>`;
-    } else if (phase === "exchange" && !canExchange) {
-      html = `<div class="controls-hint">Waiting for exchange...</div>`;
-    } else if (phase === "play" && !myTurn) {
-      html = `<div class="controls-hint">Waiting for ${this.seatLabel(game.turn)}...</div>`;
+      actionable = this.state.canCloseHandNow;
     } else if (phase === "post_hand") {
-      html = `<div class="controls-hint">Hand complete - next hand starting...</div>`;
+      html = "";
     } else if (phase === "match_end") {
       html = this.renderMatchEnd();
+      actionable = true;
     } else if (phase === "lobby") {
       html = this.renderLobby();
+      actionable = true;
     }
 
     this.container.innerHTML = html;
+    this.container.dataset.actionable = actionable ? "true" : "false";
+    this.container.setAttribute("aria-hidden", actionable ? "false" : "true");
     this.attachHandlers();
   }
 
@@ -82,7 +84,19 @@ export class GameControls {
       : rankedBids.filter((b) => bidRank(b.value) > bidRank(currentBid));
 
     const btns = legal
-      .map((b) => `<button class="bid-btn" data-bid="${b.value}">${b.label}</button>`)
+      .map((b) => {
+        const helper =
+          b.value === "entrada"
+            ? "Open standard game"
+            : b.value === "volteo"
+              ? "Trump from talon"
+              : b.value === "solo"
+                ? "No exchange for ombre"
+                : b.value === "oros"
+                  ? "Entrada with Oros trump"
+                  : "Solo with Oros trump";
+        return `<button class="bid-btn" data-bid="${b.value}"><span>${b.label}</span><small>${helper}</small></button>`;
+      })
       .join("");
 
     // Contrabola: only when all others passed and you're last in order
@@ -94,9 +108,10 @@ export class GameControls {
 
     return `
       <div class="control-group">
-        <span class="control-label">Auction</span>
+        <span class="control-label">Choose Your Bid</span>
+        ${currentBid !== "pass" ? `<span class="controls-hint">Current leading bid: ${this.bidLabel(currentBid)}</span>` : ""}
         ${btns}
-        ${showContrabola ? `<button class="bid-btn contrabola-btn" data-bid="contrabola">Contrabola</button>` : ""}
+        ${showContrabola ? `<button class="bid-btn contrabola-btn" data-bid="contrabola"><span>Contrabola</span><small>Last all-pass special</small></button>` : ""}
         <button class="bid-btn pass-btn" data-bid="pass">Pass</button>
       </div>
     `;
@@ -108,8 +123,8 @@ export class GameControls {
         <span class="control-label">Penetro</span>
         <span class="controls-hint">No active bidder. As resting player, choose whether to play Penetro.</span>
         <div class="control-row">
-          <button class="bid-btn penetro-btn" data-accept="false">Decline</button>
-          <button class="bid-btn penetro-btn" data-accept="true">Play Penetro</button>
+          <button class="bid-btn penetro-btn" data-accept="false"><span>Decline</span><small>Redeal hand</small></button>
+          <button class="bid-btn penetro-btn" data-accept="true"><span>Play Penetro</span><small>Resting player enters</small></button>
         </div>
       </div>
     `;
@@ -129,7 +144,7 @@ export class GameControls {
     const btns = suits
       .map(
         (s) =>
-          `<button class="trump-btn" data-suit="${s.value}" style="--suit-color: ${s.color}" ${orosOnly && s.value !== "oros" ? "disabled" : ""}>${s.symbol} ${s.label}</button>`
+          `<button class="trump-btn" data-suit="${s.value}" style="--suit-color: ${s.color}" ${orosOnly && s.value !== "oros" ? "disabled" : ""}><span>${s.symbol} ${s.label}</span></button>`
       )
       .join("");
 
@@ -150,8 +165,8 @@ export class GameControls {
 
     return `
       <div class="control-group">
-        <span class="control-label">Exchange</span>
-        ${requireExactOne ? `<span class="controls-hint">Select exactly 1 card</span>` : ""}
+        <span class="control-label">Select Cards To Exchange</span>
+        ${requireExactOne ? `<span class="controls-hint">Select exactly 1 card</span>` : `<span class="controls-hint">Choose up to ${maxExchange} cards</span>`}
         <span class="exchange-count">${selected} / ${maxExchange}</span>
         <button class="exchange-btn primary" data-action="confirm" ${canConfirm ? "" : "disabled"}>
           ${requireExactOne ? "Exchange 1 card" : `Exchange ${selected} card${selected !== 1 ? "s" : ""}`}
@@ -178,7 +193,7 @@ export class GameControls {
       if (isSolo) return { min: 0, max: 0 };
       return { min: 0, max: isOros ? 6 : 8 };
     }
-    return { min: 0, max: 5 };
+    return { min: 0, max: Math.min(this.state.hand.length, game.exchange.talonSize) };
   }
 
   private renderMatchEnd(): string {
@@ -200,7 +215,7 @@ export class GameControls {
 
   private renderPlay(): string {
     if (!this.state.canCloseHandNow) {
-      return `<div class="controls-hint">Click a card to play</div>`;
+      return "";
     }
 
     return `
@@ -278,6 +293,19 @@ export class GameControls {
     if (rel === "self") return "you";
     const player = this.state.game?.players[seat];
     return escapeHtml(player?.handle || rel);
+  }
+
+  private bidLabel(value: string): string {
+    const labels: Record<string, string> = {
+      entrada: "Entrada",
+      oros: "Entrada Oros",
+      volteo: "Volteo",
+      solo: "Solo",
+      solo_oros: "Solo Oros",
+      contrabola: "Contrabola",
+      pass: "Pass",
+    };
+    return labels[value] || value;
   }
 
   update(): void {

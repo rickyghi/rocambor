@@ -11,6 +11,12 @@ interface QueueEntry {
   joinedAt: number;
 }
 
+interface MatchParticipant {
+  ws: WebSocket;
+  clientId: string;
+  seat: SeatIndex | null;
+}
+
 export class Lobby {
   private queues: Record<Mode, QueueEntry[]> = {
     tresillo: [],
@@ -27,7 +33,7 @@ export class Lobby {
     playerId: string,
     ws: WebSocket,
     mode: Mode
-  ): { status: "queued"; position: number } | { status: "matched"; roomId: string; code: string; room: Room } {
+  ): { status: "queued"; position: number } | { status: "matched"; roomId: string; code: string; room: Room; participants: MatchParticipant[] } {
     // Remove if already in any queue (prevents cross-mode duplicate entries)
     this.leaveQueue(clientId);
 
@@ -50,16 +56,23 @@ export class Lobby {
 
       // Seat all matched players
       const seats = room.allSeats();
+      const participants: MatchParticipant[] = [];
       for (let i = 0; i < matched.length; i++) {
         const entry = matched[i];
         const conn = room.attach(entry.ws, entry.clientId, entry.playerId);
-        conn.seat = seats[i];
+        const seat = seats[i];
+        room.handle(conn, { type: "TAKE_SEAT", seat });
+        participants.push({
+          ws: entry.ws,
+          clientId: entry.clientId,
+          seat: conn.seat,
+        });
       }
 
       // Auto-start with bots for remaining seats
       room.startGame();
 
-      return { status: "matched", roomId, code, room };
+      return { status: "matched", roomId, code, room, participants };
     }
 
     return { status: "queued", position: queue.length };

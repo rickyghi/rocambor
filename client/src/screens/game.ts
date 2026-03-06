@@ -17,7 +17,7 @@ import {
   spriteClassForCard,
   verifySpritesheetClasses,
 } from "../lib/card-sprites";
-import type { S2CMessage } from "../protocol";
+import type { Card, S2CMessage, SeatIndex } from "../protocol";
 import { GameControls } from "../ui/controls";
 import { openSettingsModal } from "../ui/settings-modal";
 import { showToast } from "../ui/toast";
@@ -32,17 +32,20 @@ export class GameScreen implements Screen {
   private controls!: GameControls;
   private unsubscribes: Array<() => void> = [];
 
-  private headerMeta!: HTMLElement;
+  private headerMain!: HTMLElement;
+  private headerSub!: HTMLElement;
+  private headerTrump!: HTMLElement;
+  private headerPing!: HTMLElement;
   private headerAvatar!: HTMLImageElement;
   private headerName!: HTMLElement;
   private soundToggleBtn!: HTMLButtonElement;
   private mobileSummary!: HTMLElement;
   private opponentsStrip!: HTMLElement;
-  private phaseRail!: HTMLElement;
-  private trickHistory!: HTMLElement;
-  private auctionBanner!: HTMLElement;
-  private auctionBannerMain!: HTMLElement;
-  private auctionBannerLead!: HTMLElement;
+  private heroPlates!: HTMLElement;
+  private phaseBanner!: HTMLElement;
+  private phaseBannerMain!: HTMLElement;
+  private phaseBannerSub!: HTMLElement;
+  private arenaToastFeed!: HTMLElement;
 
   private domLayers!: HTMLElement;
   private trickLayer!: HTMLElement;
@@ -58,7 +61,12 @@ export class GameScreen implements Screen {
   private headerTicker: number | null = null;
   private auctionBannerTimer: number | null = null;
   private lastInvalidToastTs = 0;
-  private recentTrickWinners: number[] = [];
+  private trickDisplayOverlay: {
+    cards: Card[];
+    playOrder: SeatIndex[];
+    winner: SeatIndex;
+  } | null = null;
+  private trickOverlayTimer: number | null = null;
   private isMobilePortrait = false;
 
   mount(container: HTMLElement, ctx: AppContext): void {
@@ -77,17 +85,14 @@ export class GameScreen implements Screen {
           ${renderGameHeaderMarkup()}
           <div class="game-mobile-summary rc-panel rc-panel-noise" id="game-mobile-summary"></div>
           <div class="game-opponents-strip rc-panel rc-panel-noise" id="game-opponents-strip" role="list" aria-label="Opponents"></div>
-          <div class="game-status-rail rc-panel rc-panel-noise">
-            <div class="game-phase-rail" id="game-phase-rail"></div>
-            <div class="game-trick-history" id="game-trick-history"></div>
-          </div>
-
           <div class="game-table-stack">
             <div class="game-canvas-wrap">
-              <div class="auction-announcement rc-panel rc-panel-noise" id="auction-announcement" hidden>
-                <div class="auction-announcement-main" id="auction-announcement-main"></div>
-                <div class="auction-announcement-lead" id="auction-announcement-lead"></div>
+              <div class="hero-plates-layer" id="hero-plates-layer" aria-hidden="true"></div>
+              <div class="arena-phase-banner rc-panel rc-panel-noise" id="arena-phase-banner">
+                <div class="arena-phase-main" id="arena-phase-main"></div>
+                <div class="arena-phase-sub" id="arena-phase-sub"></div>
               </div>
+              <div class="arena-toast-feed" id="arena-toast-feed" aria-live="polite"></div>
               <canvas id="game-canvas"></canvas>
 
               <div id="game-dom-layers" class="game-dom-layers" hidden>
@@ -96,7 +101,9 @@ export class GameScreen implements Screen {
                 </div>
               </div>
             </div>
-            <div class="game-controls-bar rc-panel rc-panel-noise" id="game-controls"></div>
+            <div class="game-controls-shell">
+              <div class="game-controls-bar rc-panel rc-panel-noise" id="game-controls"></div>
+            </div>
             <div class="game-hand-dock" id="game-hand-dock" aria-label="Your hand area">
               <div class="hand-row rc-panel rc-panel-noise" id="hand-layer" role="listbox" aria-label="Your hand"></div>
             </div>
@@ -117,17 +124,20 @@ export class GameScreen implements Screen {
       ctx.profile
     );
 
-    this.headerMeta = container.querySelector("#game-header-meta") as HTMLElement;
+    this.headerMain = container.querySelector("#game-header-main") as HTMLElement;
+    this.headerSub = container.querySelector("#game-header-sub") as HTMLElement;
+    this.headerTrump = container.querySelector("#game-trump-medallion") as HTMLElement;
+    this.headerPing = container.querySelector("#game-header-ping") as HTMLElement;
     this.headerAvatar = container.querySelector(".game-profile-avatar") as HTMLImageElement;
     this.headerName = container.querySelector(".game-profile-name") as HTMLElement;
     this.soundToggleBtn = container.querySelector(".game-sound-btn") as HTMLButtonElement;
     this.mobileSummary = container.querySelector("#game-mobile-summary") as HTMLElement;
     this.opponentsStrip = container.querySelector("#game-opponents-strip") as HTMLElement;
-    this.phaseRail = container.querySelector("#game-phase-rail") as HTMLElement;
-    this.trickHistory = container.querySelector("#game-trick-history") as HTMLElement;
-    this.auctionBanner = container.querySelector("#auction-announcement") as HTMLElement;
-    this.auctionBannerMain = container.querySelector("#auction-announcement-main") as HTMLElement;
-    this.auctionBannerLead = container.querySelector("#auction-announcement-lead") as HTMLElement;
+    this.heroPlates = container.querySelector("#hero-plates-layer") as HTMLElement;
+    this.phaseBanner = container.querySelector("#arena-phase-banner") as HTMLElement;
+    this.phaseBannerMain = container.querySelector("#arena-phase-main") as HTMLElement;
+    this.phaseBannerSub = container.querySelector("#arena-phase-sub") as HTMLElement;
+    this.arenaToastFeed = container.querySelector("#arena-toast-feed") as HTMLElement;
 
     this.domLayers = container.querySelector("#game-dom-layers") as HTMLElement;
     this.trickLayer = container.querySelector("#trick-layer") as HTMLElement;
@@ -139,6 +149,7 @@ export class GameScreen implements Screen {
       ctx.connection,
       ctx.state
     );
+    this.renderer.setDomPlatesEnabled(true);
 
     this.bindEvents();
     this.setupSubscriptions();
@@ -153,9 +164,8 @@ export class GameScreen implements Screen {
     this.updateHeader();
     this.updateMobileSummary();
     this.updateMobileOpponents();
-    this.updatePhaseRail();
-    this.updateTrickHistory();
-    this.updateAuctionLead();
+    this.renderHeroPlates();
+    this.updatePhaseBanner();
     this.configureSpritesheetMode();
     this.headerTicker = window.setInterval(() => {
       this.updateHeader();
@@ -186,6 +196,10 @@ export class GameScreen implements Screen {
     if (this.auctionBannerTimer !== null) {
       clearTimeout(this.auctionBannerTimer);
       this.auctionBannerTimer = null;
+    }
+    if (this.trickOverlayTimer !== null) {
+      clearTimeout(this.trickOverlayTimer);
+      this.trickOverlayTimer = null;
     }
   }
 
@@ -232,9 +246,8 @@ export class GameScreen implements Screen {
         this.updateHeader();
         this.updateMobileSummary();
         this.updateMobileOpponents();
-        this.updatePhaseRail();
-        this.updateTrickHistory();
-        this.updateAuctionLead();
+        this.renderHeroPlates();
+        this.updatePhaseBanner();
         this.renderDomCardLayers();
       }),
 
@@ -242,6 +255,7 @@ export class GameScreen implements Screen {
         this.renderer.requestRender();
         this.updateHeader();
         this.updateMobileOpponents();
+        this.renderHeroPlates();
       }),
 
       this.ctx.settings.subscribe(() => {
@@ -318,11 +332,18 @@ export class GameScreen implements Screen {
     const legalIds = game.legalIds || [];
     const touchConfirm = window.matchMedia("(hover: none)").matches;
 
-    this.trickLayer.innerHTML = game.table
+    const trickCards = game.table.length ? game.table : this.trickDisplayOverlay?.cards ?? [];
+    const trickOrder = game.table.length ? game.playOrder : this.trickDisplayOverlay?.playOrder ?? [];
+    const trickWinner = game.table.length ? null : this.trickDisplayOverlay?.winner ?? null;
+
+    this.trickLayer.innerHTML = trickCards
       .map((card, index) => {
-        const angle = (index - 1) * 6;
+        const seat = trickOrder[index];
+        const rel = seat === undefined ? null : state.relativePosition(seat);
+        const slot = this.trickSlotForPosition(rel ?? "across");
+        const winnerClass = trickWinner !== null && seat === trickWinner ? " winner" : "";
         return `
-          <div class="trick-card-wrap" style="transform: rotate(${angle}deg)">
+          <div class="trick-card-wrap${winnerClass}" style="${slot}">
             <div class="${spriteClassForCard(card)}"></div>
           </div>
         `;
@@ -330,12 +351,13 @@ export class GameScreen implements Screen {
       .join("");
 
     this.handLayer.innerHTML = state.hand
-      .map((card) => {
+      .map((card, index) => {
         const selected = state.selectedCards.has(card.id);
         const isPlay = state.phase === "play" && state.isMyTurn;
         const illegal = isPlay && legalIds.length > 0 && !legalIds.includes(card.id);
         const legal = isPlay && !illegal;
         const pending = touchConfirm && this.pendingPlayCard === card.id;
+        const fan = this.handFanStyle(index, state.hand.length);
 
         return `
           <button
@@ -344,6 +366,7 @@ export class GameScreen implements Screen {
             role="option"
             aria-selected="${selected ? "true" : "false"}"
             data-card-id="${card.id}"
+            style="${fan}"
             ${illegal ? "disabled" : ""}
           >
             <div class="${spriteClassForCard(card)}"></div>
@@ -359,6 +382,38 @@ export class GameScreen implements Screen {
       this.syncCardPresentationMode();
       showToast("Using fallback card renderer.", "info", 1200);
     }
+  }
+
+  private trickSlotForPosition(
+    position: "self" | "left" | "across" | "right"
+  ): string {
+    const mobile = this.isMobilePortrait;
+    const map = mobile
+      ? {
+          left: { x: "-84px", y: "8px", r: "-5deg" },
+          across: { x: "0px", y: "-64px", r: "0deg" },
+          right: { x: "84px", y: "8px", r: "5deg" },
+          self: { x: "0px", y: "78px", r: "0deg" },
+        }
+      : {
+          left: { x: "-108px", y: "10px", r: "-6deg" },
+          across: { x: "0px", y: "-82px", r: "0deg" },
+          right: { x: "108px", y: "10px", r: "6deg" },
+          self: { x: "0px", y: "98px", r: "0deg" },
+        };
+    const slot = map[position];
+    return `--slot-x:${slot.x};--slot-y:${slot.y};--slot-rot:${slot.r}`;
+  }
+
+  private handFanStyle(index: number, count: number): string {
+    if (this.isMobilePortrait) return "";
+    const mid = (count - 1) / 2;
+    const delta = index - mid;
+    const spread = Math.min(22, 120 / Math.max(4, count));
+    const rotate = delta * spread * 0.45;
+    const x = delta * 2.1;
+    const y = Math.abs(delta) * 0.95;
+    return `--fan-rot:${rotate.toFixed(2)}deg;--fan-x:${x.toFixed(2)}px;--fan-y:${y.toFixed(2)}px`;
   }
 
   private validateDomSpriteRender(): boolean {
@@ -556,8 +611,9 @@ export class GameScreen implements Screen {
     switch (newPhase) {
       case "dealing":
         this.ctx.sounds.cardDeal();
-        this.recentTrickWinners = [];
-        this.updateTrickHistory();
+        this.trickDisplayOverlay = null;
+        this.renderer.setResolvedTrickOverlay(null);
+        this.updatePhaseBanner();
         break;
       case "auction":
         if (this.ctx.state.isMyTurn) {
@@ -579,6 +635,7 @@ export class GameScreen implements Screen {
       case "play":
         if (oldPhase === "exchange") this.ctx.state.clearSelection();
         this.renderDomCardLayers();
+        this.updatePhaseBanner();
         break;
       default:
         break;
@@ -591,12 +648,11 @@ export class GameScreen implements Screen {
       case "TRICK_WON": {
         this.ctx.sounds.trickWin();
         const winner = payload.winner as number;
-        this.recentTrickWinners.push(winner);
-        if (this.recentTrickWinners.length > 3) this.recentTrickWinners.shift();
-        this.updateTrickHistory();
         const rel = this.ctx.state.relativePosition(winner as any);
         const label = rel === "self" ? "You" : this.ctx.state.game?.players[winner]?.handle || rel;
-        showToast(`${label} won the trick`, "info", 1300);
+        this.pushArenaToast(`${label} won the trick`);
+        this.applyTrickOverlayFromEvent(payload);
+        this.renderHeroPlates();
         const anchors = this.renderer.getAnimationAnchors();
         this.renderer.addAnimation(new TrickWinAnimation(anchors.trickCenter.x, anchors.trickCenter.y, 600));
         break;
@@ -608,10 +664,12 @@ export class GameScreen implements Screen {
         const actor = this.seatLabelForAnnouncements(seat);
         if (value === "pass") {
           this.showAuctionAnnouncement(`${actor} passes`, 1400);
+          this.pushArenaToast(`${actor} passes`);
         } else {
           this.showAuctionAnnouncement(`${actor} bids ${this.bidLabel(value)}`, 1700);
+          this.pushArenaToast(`${actor} bids ${this.bidLabel(value)}`);
         }
-        this.updateAuctionLead(
+        this.updatePhaseBanner(
           String(payload.currentBid || "pass"),
           payload.currentBidder === null || payload.currentBidder === undefined
             ? null
@@ -625,7 +683,8 @@ export class GameScreen implements Screen {
         const bid = String(payload.bid || "");
         const actor = this.seatLabelForAnnouncements(seat);
         this.showAuctionAnnouncement(`${actor} wins auction with ${this.bidLabel(bid)}`, 2600);
-        this.updateAuctionLead(bid, seat);
+        this.pushArenaToast(`${actor} wins with ${this.bidLabel(bid)}`);
+        this.updatePhaseBanner(bid, seat);
         break;
       }
 
@@ -648,6 +707,14 @@ export class GameScreen implements Screen {
               250
             )
           );
+        }
+        break;
+      }
+
+      case "TRUMP_SET": {
+        const suit = String(payload.suit || "");
+        if (suit) {
+          this.pushArenaToast(`Trump set to ${this.capSuit(suit)}`);
         }
         break;
       }
@@ -688,30 +755,30 @@ export class GameScreen implements Screen {
   private updateHeader(): void {
     const game = this.ctx.state.game;
     const profile = this.ctx.profile.get();
-    const compact = this.isMobilePortrait;
-
-    const metaParts: string[] = [];
     if (game) {
-      metaParts.push(`Round ${game.handNo}`);
-      if (!compact && game.contract) metaParts.push(`Contract: ${String(game.contract).replace("_", " ")}`);
-      if (!compact && game.trump) metaParts.push(`Trump: ${game.trump}`);
-      if (typeof game.turnDeadline === "number") {
-        const secs = Math.max(0, Math.ceil((game.turnDeadline - Date.now()) / 1000));
-        metaParts.push(`Turn: ${secs}s`);
-        this.headerMeta.classList.toggle("urgent", secs <= 5);
-      } else {
-        this.headerMeta.classList.remove("urgent");
-      }
+      const phase = this.phaseLabel(game.phase);
+      this.headerMain.textContent = `Round ${game.handNo} · ${phase} · Target ${game.gameTarget}`;
+      const turnName =
+        game.turn === null ? "Waiting" : this.seatLabelForAnnouncements(game.turn);
+      const seconds =
+        typeof game.turnDeadline === "number"
+          ? Math.max(0, Math.ceil((game.turnDeadline - Date.now()) / 1000))
+          : null;
+      this.headerSub.textContent = seconds !== null ? `${turnName} · ${seconds}s` : turnName;
+      this.headerSub.classList.toggle("urgent", seconds !== null && seconds <= 5);
+      this.headerTrump.textContent = game.trump
+        ? `Trump ${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`
+        : "Trump --";
     } else {
-      metaParts.push("Waiting for game state");
-      this.headerMeta.classList.remove("urgent");
+      this.headerMain.textContent = "Waiting for game state";
+      this.headerSub.textContent = "";
+      this.headerSub.classList.remove("urgent");
+      this.headerTrump.textContent = "Trump --";
     }
 
-    if (!compact && this.ctx.connection.latencyMs !== null) {
-      metaParts.push(`Ping: ${Math.round(this.ctx.connection.latencyMs)}ms`);
-    }
+    const latency = this.ctx.connection.latencyMs;
+    this.headerPing.textContent = latency === null ? "Ping --" : `Ping ${Math.round(latency)}ms`;
 
-    this.headerMeta.textContent = metaParts.join("  •  ");
     this.headerName.textContent = profile.name;
     this.headerAvatar.src = profile.avatar || this.ctx.profile.getFallbackAvatar();
     this.headerAvatar.onerror = () => {
@@ -753,6 +820,79 @@ export class GameScreen implements Screen {
     }
 
     this.mobileSummary.innerHTML = chips.join("");
+  }
+
+  private renderHeroPlates(): void {
+    const game = this.ctx.state.game;
+    if (!game || this.ctx.state.mySeat === null) {
+      this.heroPlates.innerHTML = "";
+      return;
+    }
+
+    const positions = (["left", "across", "right", "self"] as const).map((position) => {
+      const seat = this.ctx.state.seatAtPosition(position);
+      if (seat === null) return "";
+      const player = game.players[seat];
+      const isSelf = position === "self";
+      const name = isSelf ? this.ctx.profile.get().name : player?.handle || `Seat ${seat}`;
+      const avatar = isSelf
+        ? this.ctx.profile.get().avatar || this.ctx.profile.getFallbackAvatar()
+        : player?.isBot
+          ? buildDiceBearUrl(name, "bottts-neutral")
+          : buildDiceBearUrl(name, "identicon");
+      const fallback = fallbackAvatarAt(seat);
+      const active = game.turn === seat ? " active-turn" : "";
+      const resting = game.resting === seat ? " resting" : "";
+      const disconnected = player && !player.connected ? " disconnected" : "";
+      const score = game.scores[seat] || 0;
+      const cards = game.handsCount[seat] || 0;
+      const tricks = game.tricks[seat] || 0;
+      const roleLabel = isSelf ? "You" : this.capLabel(position);
+      const turnTag = game.turn === seat ? `<span class="hero-turn-tag">TURN</span>` : "";
+      const stateTag = game.resting === seat ? `<span class="hero-state-tag">Resting</span>` : "";
+
+      return `
+        <section class="hero-plate hero-${position}${active}${resting}${disconnected}" aria-label="${escapeHtml(
+          `${name} ${roleLabel}, score ${score}, cards ${cards}, tricks ${tricks}`
+        )}">
+          <div class="hero-main-row">
+            <img class="hero-avatar" src="${avatar}" data-fallback="${fallback}" alt="" />
+            <div class="hero-id-col">
+              <span class="hero-seat">${roleLabel}</span>
+              <span class="hero-name">${escapeHtml(name)}</span>
+            </div>
+            ${turnTag}
+            ${stateTag}
+          </div>
+          <div class="hero-badges-row">
+            <span class="hero-badge shield">Score ${score}</span>
+            <span class="hero-badge">Cards ${cards}</span>
+            <span class="hero-badge">Tricks ${tricks}</span>
+          </div>
+          <div class="hero-trick-dots">${this.renderTrickDots(tricks)}</div>
+        </section>
+      `;
+    });
+
+    this.heroPlates.innerHTML = positions.join("");
+    this.heroPlates.querySelectorAll<HTMLImageElement>(".hero-avatar").forEach((img) => {
+      img.onerror = () => {
+        const fallback = img.dataset.fallback;
+        if (!fallback) return;
+        img.onerror = null;
+        img.src = fallback;
+      };
+    });
+  }
+
+  private renderTrickDots(tricks: number): string {
+    const maxDots = 6;
+    const filled = Math.max(0, Math.min(maxDots, tricks));
+    const dots = Array.from({ length: maxDots }, (_, idx) => {
+      const active = idx < filled ? " filled" : "";
+      return `<span class="hero-trick-dot${active}" aria-hidden="true"></span>`;
+    });
+    return dots.join("");
   }
 
   private updateMobileOpponents(): void {
@@ -815,68 +955,53 @@ export class GameScreen implements Screen {
     });
   }
 
-  private updatePhaseRail(): void {
+  private updatePhaseBanner(currentBid?: string, currentBidder?: number | null): void {
     const game = this.ctx.state.game;
     if (!game) {
-      this.phaseRail.innerHTML = "";
+      this.phaseBannerMain.textContent = "";
+      this.phaseBannerSub.textContent = "";
       return;
     }
 
-    const stage = game.phase === "penetro_choice"
-      ? "auction"
-      : game.phase === "trump_choice"
-        ? "trump"
-        : game.phase === "exchange"
-          ? "exchange"
-          : game.phase === "play" || game.phase === "post_hand" || game.phase === "match_end"
-            ? "play"
-            : "auction";
-
-    const order = ["auction", "trump", "exchange", "play"] as const;
-    const activeIdx = order.indexOf(stage);
-
-    this.phaseRail.innerHTML = order
-      .map((name, idx) => {
-        const active = idx === activeIdx ? " active" : "";
-        const done = idx < activeIdx ? " done" : "";
-        const label = name === "trump" ? "Trump" : name[0].toUpperCase() + name.slice(1);
-        return `<span class="phase-chip${active}${done}">${label}</span>`;
-      })
-      .join("");
-  }
-
-  private updateTrickHistory(): void {
-    const winners = this.recentTrickWinners.slice(-3);
-    if (!winners.length) {
-      this.trickHistory.innerHTML = `<span class="trick-history-empty">No tricks yet</span>`;
-      return;
-    }
-
-    this.trickHistory.innerHTML = winners
-      .map((seat) => `<span class="trick-chip">${this.seatLabelForAnnouncements(seat)}</span>`)
-      .join("");
-  }
-
-  private updateAuctionLead(currentBid?: string, currentBidder?: number | null): void {
-    const game = this.ctx.state.game;
-    if (!game) return;
+    this.phaseBannerMain.textContent = this.phaseLabel(game.phase);
+    this.phaseBanner.classList.toggle("your-turn", this.ctx.state.isMyTurn);
 
     const bid = currentBid ?? game.auction.currentBid;
     const bidder = currentBidder === undefined ? game.auction.currentBidder : currentBidder;
 
-    if (bid === "pass" || bidder === null) {
-      this.auctionBannerLead.textContent = "No leading bid yet";
-    } else {
-      this.auctionBannerLead.textContent =
-        `Leading bid: ${this.bidLabel(bid)} by ${this.seatLabelForAnnouncements(bidder)}`;
+    let sub = "";
+    if (game.phase === "auction") {
+      if (bid === "pass" || bidder === null) {
+        sub = "No leading bid yet";
+      } else {
+        sub = `Leading bid: ${this.bidLabel(bid)} by ${this.seatLabelForAnnouncements(bidder)}`;
+      }
+    } else if (game.phase === "trump_choice") {
+      sub = "Choose trump suit";
+    } else if (game.phase === "exchange") {
+      sub = "Select cards to exchange";
+    } else if (game.phase === "penetro_choice") {
+      sub = "Resting player decides Penetro";
+    } else if (game.phase === "play") {
+      if (game.turn === null) {
+        sub = "Waiting for lead";
+      } else if (game.turn === this.ctx.state.mySeat) {
+        sub = "Your turn to play";
+      } else {
+        sub = `${this.seatLabelForAnnouncements(game.turn)} to play`;
+      }
+    } else if (game.phase === "dealing") {
+      sub = "Dealing cards";
+    } else if (game.phase === "post_hand") {
+      sub = "Hand complete";
+    } else if (game.phase === "match_end") {
+      sub = "Match complete";
     }
-
-    this.syncAuctionBannerVisibility();
+    this.phaseBannerSub.textContent = sub;
   }
 
   private showAuctionAnnouncement(text: string, ttlMs: number): void {
-    this.auctionBannerMain.textContent = text;
-    this.syncAuctionBannerVisibility();
+    this.phaseBannerSub.textContent = text;
 
     if (this.auctionBannerTimer !== null) {
       clearTimeout(this.auctionBannerTimer);
@@ -884,18 +1009,20 @@ export class GameScreen implements Screen {
     }
 
     this.auctionBannerTimer = window.setTimeout(() => {
-      this.auctionBannerMain.textContent = "";
-      this.syncAuctionBannerVisibility();
+      this.updatePhaseBanner();
       this.auctionBannerTimer = null;
     }, ttlMs);
   }
 
-  private syncAuctionBannerVisibility(): void {
-    const phase = this.ctx.state.game?.phase;
-    const hasMain = Boolean(this.auctionBannerMain.textContent?.trim());
-    const visible = phase === "auction" || hasMain;
-    this.auctionBannerLead.style.display = visible ? "block" : "none";
-    this.auctionBanner.hidden = !visible;
+  private pushArenaToast(text: string): void {
+    const chip = document.createElement("div");
+    chip.className = "arena-toast-chip";
+    chip.textContent = text;
+    this.arenaToastFeed.appendChild(chip);
+    window.setTimeout(() => {
+      chip.classList.add("exit");
+      window.setTimeout(() => chip.remove(), 260);
+    }, 1400);
   }
 
   private seatLabelForAnnouncements(seat: number): string {
@@ -916,6 +1043,71 @@ export class GameScreen implements Screen {
       bola: "Bola",
     };
     return labels[value] || value;
+  }
+
+  private phaseLabel(phase: string): string {
+    const labels: Record<string, string> = {
+      dealing: "Dealing",
+      auction: "Auction",
+      penetro_choice: "Penetro Choice",
+      trump_choice: "Choose Trump",
+      exchange: "Exchange",
+      play: "Play Trick",
+      post_hand: "Hand Complete",
+      match_end: "Match End",
+    };
+    return labels[phase] || phase;
+  }
+
+  private capSuit(suit: string): string {
+    return suit.charAt(0).toUpperCase() + suit.slice(1);
+  }
+
+  private suitIcon(suit: string): string {
+    const icons: Record<string, string> = {
+      oros: "♦",
+      copas: "♥",
+      espadas: "♠",
+      bastos: "♣",
+    };
+    return icons[suit] || "";
+  }
+
+  private capLabel(pos: "left" | "across" | "right" | "self"): string {
+    const map: Record<typeof pos, string> = {
+      self: "You",
+      left: "Left",
+      across: "Across",
+      right: "Right",
+    };
+    return map[pos];
+  }
+
+  private applyTrickOverlayFromEvent(payload: Record<string, unknown>): void {
+    const cards = Array.isArray(payload.cards) ? (payload.cards as Card[]).map((c) => ({ ...c })) : [];
+    const playOrder = Array.isArray(payload.playOrder) ? (payload.playOrder as SeatIndex[]).slice() : [];
+    const winner = Number(payload.winner) as SeatIndex;
+    if (!cards.length) return;
+
+    this.trickDisplayOverlay = { cards, playOrder, winner };
+    this.renderer.setResolvedTrickOverlay({
+      cards,
+      playOrder,
+      winner,
+      expiresAt: Date.now() + 900,
+    });
+    this.renderDomCardLayers();
+
+    if (this.trickOverlayTimer !== null) {
+      clearTimeout(this.trickOverlayTimer);
+      this.trickOverlayTimer = null;
+    }
+    this.trickOverlayTimer = window.setTimeout(() => {
+      this.trickDisplayOverlay = null;
+      this.renderer.setResolvedTrickOverlay(null);
+      this.renderDomCardLayers();
+      this.trickOverlayTimer = null;
+    }, 900);
   }
 
   private handleResize = (): void => {
@@ -952,5 +1144,8 @@ export class GameScreen implements Screen {
     this.updateHeader();
     this.updateMobileSummary();
     this.updateMobileOpponents();
+    this.renderHeroPlates();
+    this.updatePhaseBanner();
+    this.renderDomCardLayers();
   };
 }

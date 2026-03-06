@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluateHand, decideBid, decideTrump, decidePlay, botAct, BotContext } from "../src/bot";
+import { evaluateHand, decideBid, decideTrump, decidePlay, decideExchange, botAct, BotContext } from "../src/bot";
 import { Card, Suit, SeatIndex, Bid } from "../../shared/types";
 
 function card(s: Suit, r: number): Card {
@@ -242,5 +242,34 @@ describe("decidePlay", () => {
     });
     const id = decidePlay(ctx);
     expect(id).toBe("e1");
+  });
+});
+
+describe("decideExchange", () => {
+  it("defender exchange is not capped at five when talon allows", () => {
+    const weakHand = [
+      card("copas", 2),
+      card("copas", 3),
+      card("copas", 4),
+      card("bastos", 2),
+      card("bastos", 3),
+      card("bastos", 4),
+      card("espadas", 2),
+      card("espadas", 3),
+      card("espadas", 4),
+    ];
+    const ctx = makeCtx({
+      phase: "exchange",
+      seat: 1 as SeatIndex,
+      ombre: 0 as SeatIndex,
+      contract: "entrada",
+      trump: "oros",
+      hand: weakHand,
+      originalHand: weakHand,
+      talonLength: 8,
+    });
+    const ids = decideExchange(ctx);
+    expect(ids.length).toBeGreaterThan(5);
+    expect(ids.length).toBeLessThanOrEqual(8);
   });
 });

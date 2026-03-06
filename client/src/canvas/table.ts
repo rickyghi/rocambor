@@ -176,12 +176,12 @@ export function drawTableBackground(
   // Center-table watermark logo (subtle, unobtrusive).
   ctx.save();
   if (watermarkReady && watermarkImage) {
-    const targetW = width > 760 ? Math.min(640, width * 0.58) : Math.min(420, width * 0.72);
+    const targetW = width > 760 ? Math.min(512, width * 0.464) : Math.min(336, width * 0.576);
     const ratio = watermarkImage.width > 0 ? watermarkImage.height / watermarkImage.width : 0.3;
     const targetH = targetW * ratio;
     const x = width / 2 - targetW / 2;
     const y = height / 2 - targetH / 2 - 14;
-    ctx.globalAlpha = 0.6;
+    ctx.globalAlpha = 0.08;
     ctx.drawImage(watermarkImage, x, y, targetW, targetH);
   } else {
     ctx.globalAlpha = 0.06;

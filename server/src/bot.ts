@@ -248,7 +248,7 @@ export function decideExchange(ctx: BotContext): string[] {
       : isOros
         ? 6
         : 8
-    : 5;
+    : Math.min(ctx.hand.length, ctx.talonLength);
 
   if (max === 0 || ctx.talonLength === 0 || ctx.hand.length === 0) return [];
 
@@ -264,7 +264,10 @@ export function decideExchange(ctx: BotContext): string[] {
     else if (trumpPoints < 28) desired = Math.min(max, 4);
     else desired = Math.min(max, 2);
   } else {
-    desired = trumpPoints < 16 ? Math.min(max, 4) : Math.min(max, 2);
+    if (trumpPoints < 12) desired = max;
+    else if (trumpPoints < 16) desired = Math.min(max, 6);
+    else if (trumpPoints < 20) desired = Math.min(max, 4);
+    else desired = Math.min(max, 2);
   }
 
   desired = Math.min(desired, ctx.talonLength);

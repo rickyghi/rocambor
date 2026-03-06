@@ -87,7 +87,7 @@ export class ClientState {
     if (contract === "bola") return 0;
     if (contract === "contrabola") return isOmbre ? 1 : 0;
     if (isOmbre) return isSolo ? 0 : isOros ? 6 : 8;
-    return Math.min(5, g.exchange.talonSize);
+    return Math.min(this.hand.length, g.exchange.talonSize);
   }
 
   clearSelection(): void {

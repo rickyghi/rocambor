@@ -1,7 +1,7 @@
 import type { ClientState } from "../state";
 import type { SettingsManager } from "../ui/settings";
 import type { ProfileManager } from "../lib/profile";
-import type { Card } from "../protocol";
+import type { Card, SeatIndex } from "../protocol";
 import {
   computeLayout,
   cardSpread,
@@ -18,6 +18,13 @@ import { AVATAR_READY_EVENT } from "./avatar-cache";
 
 const FONT_SANS = '"Inter", system-ui, sans-serif';
 
+interface ResolvedTrickOverlay {
+  cards: Card[];
+  playOrder: SeatIndex[];
+  winner: SeatIndex | null;
+  expiresAt: number;
+}
+
 export class GameRenderer {
   private animationId: number | null = null;
   private dirty = true;
@@ -28,6 +35,8 @@ export class GameRenderer {
   private dpr = 1;
   private drawHandOnCanvas = true;
   private drawTableCardsOnCanvas = true;
+  private domPlatesEnabled = false;
+  private resolvedTrickOverlay: ResolvedTrickOverlay | null = null;
   private viewportMode: ViewportMode = "desktop";
   private avatarReadyHandler = () => {
     this.requestRender();
@@ -109,6 +118,17 @@ export class GameRenderer {
     this.requestRender();
   }
 
+  setDomPlatesEnabled(enabled: boolean): void {
+    if (this.domPlatesEnabled === enabled) return;
+    this.domPlatesEnabled = enabled;
+    this.requestRender();
+  }
+
+  setResolvedTrickOverlay(overlay: ResolvedTrickOverlay | null): void {
+    this.resolvedTrickOverlay = overlay;
+    this.requestRender();
+  }
+
   private preloadCurrentSkin(): void {
     const skinId = this.settings.get("cardSkin");
     if (skinId === this.currentSkin) return;
@@ -166,8 +186,12 @@ export class GameRenderer {
       colorblind,
       cardSkin,
       this.profile.get(),
-      this.viewportMode === "mobile-portrait"
+      this.viewportMode === "mobile-portrait" || this.domPlatesEnabled
     );
+
+    if (this.resolvedTrickOverlay && Date.now() > this.resolvedTrickOverlay.expiresAt) {
+      this.resolvedTrickOverlay = null;
+    }
 
     // 3. Table cards (center)
     if (this.drawTableCardsOnCanvas) {
@@ -182,28 +206,31 @@ export class GameRenderer {
     // 5. Animations overlay
     this.animations.draw(this.ctx);
 
-    // 6. HUD (desktop only to avoid duplicated text in portrait mobile layout)
-    if (this.viewportMode === "desktop") {
-      this.drawHUD();
-    }
+    // 6. HUD moved to DOM layer (TopStatusBar + PhaseBanner) for better readability.
   }
 
   private drawTableCards(colorblind: boolean, cardSkin: CardSkin): void {
     const game = this.state.game;
-    if (!game || !game.table.length) return;
+    if (!game) return;
 
-    const cx = this.layout.tableCX;
-    const cy = this.layout.tableCY;
-    const cards = game.table;
+    const liveCards = game.table;
+    const liveOrder = game.playOrder || [];
+    const cards = liveCards.length ? liveCards : this.resolvedTrickOverlay?.cards || [];
+    const playOrder = liveCards.length ? liveOrder : this.resolvedTrickOverlay?.playOrder || [];
+    const winner = liveCards.length ? null : this.resolvedTrickOverlay?.winner || null;
+    if (!cards.length) return;
 
     for (let i = 0; i < cards.length; i++) {
-      const ang = ((i - 1) * Math.PI) / 3;
-      const x = cx + Math.cos(ang) * 80;
-      const y = cy + Math.sin(ang) * 50;
+      const seat = playOrder[i];
+      const rel = seat === undefined ? null : this.state.relativePosition(seat);
+      const slot = this.trickSlot(rel, i);
+      if (winner !== null && seat === winner) {
+        this.drawWinnerHalo(slot.x, slot.y);
+      }
       drawCard(
         this.ctx,
-        x,
-        y,
+        slot.x,
+        slot.y,
         this.layout.cardW,
         this.layout.cardH,
         cards[i],
@@ -211,6 +238,56 @@ export class GameRenderer {
         { skin: cardSkin }
       );
     }
+  }
+
+  private trickSlot(
+    rel: "self" | "left" | "across" | "right" | null,
+    index: number
+  ): { x: number; y: number } {
+    const cx = this.layout.tableCX;
+    const cy = this.layout.tableCY;
+    const mobile = this.viewportMode === "mobile-portrait";
+    const offsets = mobile
+      ? {
+          left: { x: -78, y: 8 },
+          across: { x: 0, y: -66 },
+          right: { x: 78, y: 8 },
+          self: { x: 0, y: 80 },
+        }
+      : {
+          left: { x: -98, y: 8 },
+          across: { x: 0, y: -82 },
+          right: { x: 98, y: 8 },
+          self: { x: 0, y: 98 },
+        };
+
+    if (rel) {
+      const o = offsets[rel];
+      return { x: cx + o.x, y: cy + o.y };
+    }
+
+    // Fallback when play order is not available.
+    const fallback: Array<"left" | "across" | "right" | "self"> = [
+      "left",
+      "across",
+      "right",
+      "self",
+    ];
+    const o = offsets[fallback[index % fallback.length]];
+    return { x: cx + o.x, y: cy + o.y };
+  }
+
+  private drawWinnerHalo(x: number, y: number): void {
+    const w = this.layout.cardW + 10;
+    const h = this.layout.cardH + 10;
+    this.ctx.save();
+    this.ctx.strokeStyle = "rgba(200,166,81,0.88)";
+    this.ctx.lineWidth = 3;
+    this.ctx.shadowColor = "rgba(200,166,81,0.42)";
+    this.ctx.shadowBlur = 16;
+    this.roundRect(x - w / 2, y - h / 2, w, h, 9);
+    this.ctx.stroke();
+    this.ctx.restore();
   }
 
   private drawHand(colorblind: boolean, cardSkin: CardSkin): void {

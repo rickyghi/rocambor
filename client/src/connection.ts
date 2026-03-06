@@ -8,8 +8,10 @@ export class ConnectionManager {
   private clientId: string | null;
   private playerId: string | null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
+  private reconnectBaseDelay = 1000;
+  private reconnectMaxDelay = 15000;
+  private reconnectTimer: number | null = null;
+  private manualDisconnect = false;
   private heartbeatTimer: number | null = null;
   private listeners = new Map<string, Set<MessageHandler>>();
   private globalListeners = new Set<MessageHandler>();
@@ -30,6 +32,11 @@ export class ConnectionManager {
     ) {
       return;
     }
+    this.manualDisconnect = false;
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
 
     const baseUrl = this.getWebSocketUrl();
     const params = new URLSearchParams();
@@ -49,7 +56,10 @@ export class ConnectionManager {
       this._connected = true;
       this._latencyMs = null;
       this.reconnectAttempts = 0;
-      this.reconnectDelay = 1000;
+      if (this.reconnectTimer !== null) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
       this.startHeartbeat();
       this.sendPing();
       this.emit("_connected", {} as any);
@@ -59,12 +69,9 @@ export class ConnectionManager {
       this._connected = false;
       this._latencyMs = null;
       this.stopHeartbeat();
+      this.ws = null;
 
-      if (
-        event.code === 1006 ||
-        event.code === 1011 ||
-        event.code === 1001
-      ) {
+      if (!this.manualDisconnect) {
         this.scheduleReconnect();
       }
       this.emit("_disconnected", {} as any);
@@ -87,6 +94,11 @@ export class ConnectionManager {
   }
 
   disconnect(): void {
+    this.manualDisconnect = true;
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.stopHeartbeat();
     if (this.ws) {
       this.ws.close(1000, "User disconnect");
@@ -195,17 +207,24 @@ export class ConnectionManager {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("[connection] Max reconnect attempts reached");
+    if (this.manualDisconnect) {
       return;
     }
+    if (this.reconnectTimer !== null) return;
     this.reconnectAttempts++;
-    const delay =
-      this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    console.log(
-      `[connection] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
+    const expDelay = Math.min(
+      this.reconnectMaxDelay,
+      this.reconnectBaseDelay * Math.pow(2, this.reconnectAttempts - 1)
     );
-    setTimeout(() => this.connect(), delay);
+    const jitter = Math.floor(Math.random() * Math.min(800, expDelay * 0.25));
+    const delay = Math.round(expDelay + jitter);
+    console.log(
+      `[connection] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`
+    );
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, delay);
   }
 
   private startHeartbeat(): void {

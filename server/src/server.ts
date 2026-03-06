@@ -20,6 +20,7 @@ let lobby: Lobby;
 
 // Track which room each connection belongs to
 const connToRoom = new WeakMap<WebSocket, { conn: Conn; roomId: string }>();
+const preRoomHandlers = new WeakMap<WebSocket, (raw: Buffer | string) => void>();
 
 // ---- HTTP Server ----
 const httpServer = http.createServer((req, res) => {
@@ -260,15 +261,20 @@ function attachPreRoomMessageHandler(
           const result = lobby.joinQueue(id, playerId, ws, msg.mode);
           if (result.status === "matched") {
             const room = result.room;
-            const conn = room.conns.find((c) => c.id === id);
-            if (conn) {
-              ws.removeListener("message", onMessage);
-              connToRoom.set(ws, { conn, roomId: room.id });
-              setupWsHandlers(ws, conn, room.id);
-              wsSend(ws, {
+            for (const participant of result.participants) {
+              const preHandler = preRoomHandlers.get(participant.ws);
+              if (preHandler) {
+                participant.ws.removeListener("message", preHandler);
+                preRoomHandlers.delete(participant.ws);
+              }
+              const conn = room.conns.find((c) => c.id === participant.clientId);
+              if (!conn) continue;
+              connToRoom.set(participant.ws, { conn, roomId: room.id });
+              setupWsHandlers(participant.ws, conn, room.id);
+              wsSend(participant.ws, {
                 type: "ROOM_JOINED",
                 roomId: room.id,
-                code: result.code,
+                code: room.code,
                 seat: conn.seat,
               });
             }
@@ -295,6 +301,7 @@ function attachPreRoomMessageHandler(
           conn.seat = room.allSeats()[0];
 
           ws.removeListener("message", onMessage);
+          preRoomHandlers.delete(ws);
           connToRoom.set(ws, { conn, roomId });
           setupWsHandlers(ws, conn, roomId);
 
@@ -343,6 +350,7 @@ function attachPreRoomMessageHandler(
           }
 
           ws.removeListener("message", onMessage);
+          preRoomHandlers.delete(ws);
           connToRoom.set(ws, { conn, roomId: room.id });
           setupWsHandlers(ws, conn, room.id);
 
@@ -368,6 +376,7 @@ function attachPreRoomMessageHandler(
           }
           const conn = room.addSpectator(ws);
           ws.removeListener("message", onMessage);
+          preRoomHandlers.delete(ws);
           connToRoom.set(ws, { conn, roomId: room.id });
           setupWsHandlers(ws, conn, room.id);
           return;
@@ -401,6 +410,7 @@ function attachPreRoomMessageHandler(
     }
   };
 
+  preRoomHandlers.set(ws, onMessage);
   ws.on("message", onMessage);
   return onMessage;
 }

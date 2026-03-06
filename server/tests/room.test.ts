@@ -119,6 +119,28 @@ describe("Room - auction", () => {
     expect(room.state.auction.currentBid).toBe("volteo");
   });
 
+  it("emits AUCTION_ACTION events for bids and passes", () => {
+    const observer = room.conns.find((c) => !!(c.ws as any)?._sent)!;
+    const firstSeat = room.state.turn!;
+
+    room.applyBid(firstSeat, "entrada");
+    const firstMsgs = (observer.ws as any)._sent.map((s: string) => JSON.parse(s));
+    expect(
+      firstMsgs.some(
+        (m: any) => m.type === "EVENT" && m.name === "AUCTION_ACTION" && m.payload?.value === "entrada"
+      )
+    ).toBe(true);
+
+    const secondSeat = room.state.turn!;
+    room.applyBid(secondSeat, "pass");
+    const secondMsgs = (observer.ws as any)._sent.map((s: string) => JSON.parse(s));
+    expect(
+      secondMsgs.some(
+        (m: any) => m.type === "EVENT" && m.name === "AUCTION_ACTION" && m.payload?.value === "pass"
+      )
+    ).toBe(true);
+  });
+
   it("rejects restricted opening bids (oros / solo_oros)", () => {
     const turn = room.state.turn!;
     const seatConn = room.conns.find((c) => c.seat === turn)!;
@@ -456,6 +478,32 @@ describe("Room - exchange", () => {
   it("exchange with 0 cards (pass) is valid", () => {
     room.finishExchange(0, []);
     expect(room.state.exchange.completed).toContain(0);
+  });
+
+  it("non-ombre can exchange up to talon availability (not capped at 5)", () => {
+    room.finishExchange(0 as SeatIndex, []);
+
+    room.talon = [
+      { s: "copas", r: 1, id: "c1" },
+      { s: "copas", r: 2, id: "c2" },
+      { s: "copas", r: 3, id: "c3" },
+      { s: "copas", r: 4, id: "c4" },
+      { s: "copas", r: 5, id: "c5x" },
+      { s: "copas", r: 6, id: "c6x" },
+      { s: "copas", r: 7, id: "c7x" },
+    ] as any;
+    room.state.exchange.talonSize = room.talon.length;
+    room.state.turn = 1 as SeatIndex;
+    room.state.exchange.current = 1 as SeatIndex;
+    room.state.exchange.completed = [0 as SeatIndex];
+
+    const discardIds = room.hands[1].slice(0, 7).map((c) => c.id);
+    const handBefore = room.hands[1].length;
+    room.finishExchange(1 as SeatIndex, discardIds);
+
+    expect(room.state.exchange.completed).toContain(1);
+    expect(room.hands[1].length).toBe(handBefore);
+    expect(room.state.exchange.talonSize).toBe(0);
   });
 
   it("solo contract: ombre does not exchange", () => {

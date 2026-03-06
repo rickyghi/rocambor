@@ -703,6 +703,13 @@ export class Room {
       a.currentBidder = seat;
     }
 
+    this.event("AUCTION_ACTION", {
+      seat,
+      value,
+      currentBid: a.currentBid,
+      currentBidder: a.currentBidder,
+    });
+
     const idx = a.order.indexOf(seat);
     const next = a.order[(idx + 1) % a.order.length];
     const alive = a.order.filter((s) => !a.passed.includes(s));
@@ -915,14 +922,16 @@ export class Room {
     const isContrabola = this.state.contract === "contrabola";
     const isOros =
       this.state.contract === "oros" || this.state.contract === "solo_oros";
-    let max = isOmbre ? (isSolo ? 0 : isOros ? 6 : 8) : 5;
+    const hand = this.hands[seat];
+    let max = isOmbre
+      ? (isSolo ? 0 : isOros ? 6 : 8)
+      : Math.min(hand.length, this.talon.length);
 
     if (isBola) max = 0;
     if (isContrabola) {
       max = isOmbre ? 1 : 0;
     }
 
-    const hand = this.hands[seat];
     const ids = new Set(discardIds);
     const toDiscard: Card[] = [];
 
@@ -1122,7 +1131,11 @@ export class Room {
       this.state.tricks[winner]++;
       this.trickWinners.push(winner);
 
-      this.event("TRICK_TAKEN", { winner, cards: this.table });
+      this.event("TRICK_TAKEN", {
+        winner,
+        cards: this.table,
+        playOrder: this.playOrder.slice(),
+      });
 
       this.table = [];
       this.playOrder = [];

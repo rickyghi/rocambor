@@ -4,13 +4,15 @@ import { Lobby } from "../src/lobby";
 import { RoomRouter } from "../src/room-router";
 
 function makeFakeWs(): WebSocket {
+  const sent: string[] = [];
   return {
     readyState: WebSocket.OPEN,
-    send: () => {},
+    send: (data: string) => sent.push(data),
     close: () => {},
     addEventListener: () => {},
     removeEventListener: () => {},
     ping: () => {},
+    _sent: sent,
   } as any;
 }
 
@@ -45,6 +47,11 @@ describe("Lobby", () => {
         fakeRoom.conns.push(conn);
         return conn;
       },
+      handle: (conn: any, msg: any) => {
+        if (msg?.type === "TAKE_SEAT") {
+          conn.seat = msg.seat;
+        }
+      },
       startGame: () => {},
     };
     const router = {
@@ -74,5 +81,28 @@ describe("Lobby", () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0].rules).toEqual({ espadaObligatoria: true });
+  });
+
+  it("quick play seats and notifies every matched player", () => {
+    const router = new RoomRouter();
+    const lobby = new Lobby(null, router);
+    const ws1 = makeFakeWs() as any;
+    const ws2 = makeFakeWs() as any;
+    const ws3 = makeFakeWs() as any;
+
+    lobby.joinQueue("c1", "00000000-0000-4000-8000-000000000001", ws1, "tresillo");
+    lobby.joinQueue("c2", "00000000-0000-4000-8000-000000000002", ws2, "tresillo");
+    const match = lobby.joinQueue("c3", "00000000-0000-4000-8000-000000000003", ws3, "tresillo");
+
+    expect(match.status).toBe("matched");
+    if (match.status !== "matched") return;
+    expect(match.participants).toHaveLength(3);
+
+    for (const ws of [ws1, ws2, ws3]) {
+      const msgs = ws._sent.map((raw: string) => JSON.parse(raw));
+      expect(msgs.some((m: any) => m.type === "ROOM_JOINED" && m.seat !== null)).toBe(true);
+    }
+
+    router.destroy();
   });
 });

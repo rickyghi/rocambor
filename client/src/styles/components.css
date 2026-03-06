@@ -280,6 +280,23 @@ button.ghost:hover:not(:disabled),
   border-radius: 10px;
   border: 1px solid rgba(13, 13, 13, 0.12);
   background: #1f3a32;
+  padding: 10px;
+}
+
+.settings-skin-preview-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.settings-skin-preview-face,
+.settings-skin-preview-back {
+  width: 66px;
+  height: 94px;
+  border-radius: 8px;
+  border: 2px solid;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.22);
 }
 
 .settings-skin-meta {
@@ -594,6 +611,7 @@ textarea {
 
 .hand-card-wrap.legal {
   box-shadow: 0 0 0 1px rgba(200, 166, 81, 0.28);
+  animation: legal-pulse 1.2s ease-in-out infinite;
 }
 
 .hand-card-wrap.illegal {
@@ -682,6 +700,15 @@ textarea {
   50% { transform: translateX(3px); }
   75% { transform: translateX(-2px); }
   100% { transform: translateX(0); }
+}
+
+@keyframes legal-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(200, 166, 81, 0.28);
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgba(200, 166, 81, 0.42), 0 0 14px rgba(200, 166, 81, 0.2);
+  }
 }
 
 @media (max-width: 900px) {

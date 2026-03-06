@@ -199,8 +199,8 @@ export class HomeScreen implements Screen {
       <div class="modal-form-group">
         <label for="create-mode">Mode</label>
         <select id="create-mode">
-          <option value="tresillo">Tresillo (3 players)</option>
-          <option value="quadrille" selected>Quadrille (4 players)</option>
+          <option value="tresillo" ${this.selectedMode === "tresillo" ? "selected" : ""}>Tresillo (3 players)</option>
+          <option value="quadrille" ${this.selectedMode === "quadrille" ? "selected" : ""}>Quadrille (4 players)</option>
         </select>
       </div>
       <div class="modal-form-group">
