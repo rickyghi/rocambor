@@ -6,6 +6,8 @@ import type { SeatIndex } from "../protocol";
 import { escapeHtml } from "../utils/escape";
 import { buildBotAvatarUrl, buildDiceBearUrl, fallbackAvatarAt } from "../lib/avatars";
 
+const OPEN_SEAT_AVATAR = "/assets/rocambor/open-seat-avatar.svg";
+
 export class LobbyScreen implements Screen {
   private ctx!: AppContext;
   private container!: HTMLElement;
@@ -56,9 +58,11 @@ export class LobbyScreen implements Screen {
 
       let badge = "OPEN";
       let statusClass = "open";
-      let avatar = fallbackAvatarAt(i);
+      let avatar = OPEN_SEAT_AVATAR;
+      let openAvatarClass = " open-seat-avatar";
 
       if (player) {
+        openAvatarClass = "";
         if (isMine) {
           badge = "YOU";
           statusClass = "you";
@@ -85,7 +89,7 @@ export class LobbyScreen implements Screen {
       seats.push(`
         <article class="lobby-seat ${statusClass}">
           <div class="lobby-seat-badge">${badge}</div>
-          <img class="lobby-seat-avatar" src="${avatar}" data-fallback="${fallbackAvatarAt(i)}" alt="${safeName}" />
+          <img class="lobby-seat-avatar${openAvatarClass}" src="${avatar}" data-fallback="${fallbackAvatarAt(i)}" alt="${safeName}" />
           <div class="lobby-seat-name">${player ? safeName : "Open Seat"}</div>
           ${statusClass === "open" && mySeat === null ? `<button class="btn-secondary take-seat-btn" data-seat="${i}" type="button">Sit Here</button>` : ""}
         </article>

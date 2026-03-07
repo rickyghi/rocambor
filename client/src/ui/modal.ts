@@ -2,6 +2,7 @@ export interface ModalOptions {
   title: string;
   content: HTMLElement | string;
   size?: "sm" | "md" | "lg";
+  modalClassName?: string;
   scroll?: boolean;
   dismissible?: boolean;
   closeAriaLabel?: string;
@@ -22,7 +23,7 @@ export function showModal(options: ModalOptions): () => void {
   let closed = false;
 
   const modal = document.createElement("div");
-  modal.className = `modal modal-${options.size || "md"}${options.scroll ? " modal-scroll" : ""}`;
+  modal.className = `modal modal-${options.size || "md"}${options.scroll ? " modal-scroll" : ""}${options.modalClassName ? ` ${options.modalClassName}` : ""}`;
   modal.setAttribute("role", "dialog");
   modal.setAttribute("aria-modal", "true");
   modal.tabIndex = -1;

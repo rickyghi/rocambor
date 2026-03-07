@@ -111,6 +111,11 @@
   border: 1px solid rgba(13, 13, 13, 0.12);
 }
 
+.lobby-seat-avatar.open-seat-avatar {
+  border-color: rgba(13, 13, 13, 0.18);
+  background: #f2ede2;
+}
+
 .lobby-seat-name {
   text-align: center;
   font-weight: 600;

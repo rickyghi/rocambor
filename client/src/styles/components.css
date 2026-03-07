@@ -432,6 +432,17 @@ textarea {
   gap: 12px;
 }
 
+.modal.profile-modal-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.modal.profile-modal-dialog .profile-modal {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
 .profile-preview {
   display: flex;
   align-items: center;
@@ -712,6 +723,26 @@ textarea {
 }
 
 @media (max-width: 900px) {
+  .modal.profile-modal-dialog {
+    width: min(94vw, 520px);
+    max-height: calc(100vh - 20px);
+    padding: 14px;
+  }
+
+  .modal.profile-modal-dialog .actions {
+    position: sticky;
+    bottom: 0;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(13, 13, 13, 0.08);
+    background: var(--ivory);
+    z-index: 3;
+  }
+
+  .modal.profile-modal-dialog .actions button {
+    min-height: 44px;
+  }
+
   .profile-avatar-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

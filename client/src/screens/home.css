@@ -97,6 +97,13 @@
   width: 100%;
 }
 
+.home-connection-hint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink60);
+}
+
 .queue-block {
   width: min(420px, 100%);
   padding: 14px;

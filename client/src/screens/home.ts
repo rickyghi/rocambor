@@ -114,6 +114,7 @@ export class HomeScreen implements Screen {
   private renderActionStack(): void {
     const mount = this.container.querySelector("#home-actions");
     if (!mount) return;
+    const connected = this.ctx.connection.connected;
 
     if (this.inQueue) {
       mount.innerHTML = `
@@ -128,6 +129,18 @@ export class HomeScreen implements Screen {
         this.inQueue = false;
         this.renderActionStack();
       });
+      return;
+    }
+
+    if (!connected) {
+      mount.innerHTML = `
+        <div class="home-cta-stack">
+          <button class="btn-primary home-create-btn" type="button" disabled>CREATE ROOM</button>
+          <button class="btn-secondary home-join-btn" type="button" disabled>JOIN BY CODE</button>
+          <button class="btn-gold-plaque home-quick-btn" type="button" disabled>QUICK PLAY</button>
+          <p class="home-connection-hint">Connect to the server to start a match.</p>
+        </div>
+      `;
       return;
     }
 
@@ -303,5 +316,6 @@ export class HomeScreen implements Screen {
 
     text.textContent = connected ? "Connected" : "Disconnected";
     dot.style.background = connected ? "var(--success)" : "var(--crimson)";
+    this.renderActionStack();
   }
 }

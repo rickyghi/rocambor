@@ -34,8 +34,10 @@ export class GameScreen implements Screen {
 
   private headerMain!: HTMLElement;
   private headerSub!: HTMLElement;
-  private headerTarget!: HTMLElement;
-  private headerTrump!: HTMLElement;
+  private hudTurn!: HTMLElement;
+  private hudTrump!: HTMLElement;
+  private hudOmbre!: HTMLElement;
+  private hudTarget!: HTMLElement;
   private headerPing!: HTMLElement;
   private headerAvatar!: HTMLImageElement;
   private headerName!: HTMLElement;
@@ -63,6 +65,8 @@ export class GameScreen implements Screen {
   private headerTicker: number | null = null;
   private auctionBannerTimer: number | null = null;
   private lastInvalidToastTs = 0;
+  private lastLiveTableIds: string[] = [];
+  private trickFeedPrimed = false;
   private trickDisplayOverlay: {
     cards: Card[];
     playOrder: SeatIndex[];
@@ -134,8 +138,10 @@ export class GameScreen implements Screen {
 
     this.headerMain = container.querySelector("#game-header-main") as HTMLElement;
     this.headerSub = container.querySelector("#game-header-sub") as HTMLElement;
-    this.headerTarget = container.querySelector("#game-target-shield") as HTMLElement;
-    this.headerTrump = container.querySelector("#game-trump-medallion") as HTMLElement;
+    this.hudTurn = container.querySelector("#game-state-turn") as HTMLElement;
+    this.hudTrump = container.querySelector("#game-state-trump") as HTMLElement;
+    this.hudOmbre = container.querySelector("#game-state-ombre") as HTMLElement;
+    this.hudTarget = container.querySelector("#game-state-target") as HTMLElement;
     this.headerPing = container.querySelector("#game-header-ping") as HTMLElement;
     this.headerAvatar = container.querySelector(".game-profile-avatar") as HTMLImageElement;
     this.headerName = container.querySelector(".game-profile-name") as HTMLElement;
@@ -253,6 +259,7 @@ export class GameScreen implements Screen {
       this.ctx.state.subscribe(() => {
         this.renderer.requestRender();
         this.handlePhaseTransitions();
+        this.trackTrickFeedFromState();
         this.updateHeader();
         this.updateMobileSummary();
         this.updateMobileOpponents();
@@ -667,11 +674,13 @@ export class GameScreen implements Screen {
         const winner = payload.winner as number;
         const rel = this.ctx.state.relativePosition(winner as any);
         const label = rel === "self" ? "You" : this.ctx.state.game?.players[winner]?.handle || rel;
-        this.pushArenaToast(`${label} won the trick`);
+        const reason = this.trickWinReason(payload);
+        this.pushArenaToast(`${label} wins trick${reason ? ` (${reason})` : ""}`, 1900);
         this.applyTrickOverlayFromEvent(payload);
         this.renderHeroPlates();
         const anchors = this.renderer.getAnimationAnchors();
         this.renderer.addAnimation(new TrickWinAnimation(anchors.trickCenter.x, anchors.trickCenter.y, 600));
+        this.lastLiveTableIds = [];
         break;
       }
 
@@ -708,6 +717,13 @@ export class GameScreen implements Screen {
       case "CARD_PLAYED": {
         this.ctx.sounds.cardPlay();
         const seat = payload.seat as number | undefined;
+        const card = payload.card as Card | undefined;
+        if (seat !== undefined && card) {
+          this.pushArenaToast(
+            `${this.seatLabelForAnnouncements(seat)} played ${this.cardLabel(card)}`,
+            1300
+          );
+        }
         if (seat !== undefined) {
           const relPos = this.ctx.state.relativePosition(seat as any);
           const anchors = this.renderer.getAnimationAnchors();
@@ -724,6 +740,21 @@ export class GameScreen implements Screen {
               250
             )
           );
+        }
+        break;
+      }
+
+      case "HAND_RESULT": {
+        const points = Number(payload.points || 0);
+        const award = Array.isArray(payload.award) ? (payload.award as number[]) : [];
+        const mySeat = this.ctx.state.mySeat;
+        if (mySeat !== null && award.includes(mySeat) && points > 0) {
+          this.pushArenaToast(`Round result: +${points} point${points === 1 ? "" : "s"}`, 2200);
+        } else if (award.length && points > 0) {
+          const names = award.map((seat) => this.seatLabelForAnnouncements(seat)).join(", ");
+          this.pushArenaToast(`Round result: ${names} +${points}`, 2200);
+        } else {
+          this.pushArenaToast("Round complete", 1700);
         }
         break;
       }
@@ -769,30 +800,79 @@ export class GameScreen implements Screen {
     }
   }
 
+  private trackTrickFeedFromState(): void {
+    const game = this.ctx.state.game;
+    if (!game || game.phase !== "play") {
+      this.lastLiveTableIds = [];
+      this.trickFeedPrimed = false;
+      return;
+    }
+
+    const cards = game.table || [];
+    const playOrder = game.playOrder || [];
+    if (!cards.length) {
+      this.lastLiveTableIds = [];
+      this.trickFeedPrimed = true;
+      return;
+    }
+
+    if (!this.trickFeedPrimed) {
+      this.lastLiveTableIds = cards.map((card) => card.id);
+      this.trickFeedPrimed = true;
+      return;
+    }
+
+    const prev = this.lastLiveTableIds;
+    const prefixStable =
+      prev.length <= cards.length &&
+      prev.every((id, idx) => cards[idx] && cards[idx].id === id);
+
+    if (prefixStable && cards.length > prev.length) {
+      for (let i = prev.length; i < cards.length; i++) {
+        const seat = playOrder[i];
+        const card = cards[i];
+        if (seat === undefined || !card) continue;
+        this.pushArenaToast(
+          `${this.seatLabelForAnnouncements(seat)} played ${this.cardLabel(card)}`,
+          1300
+        );
+      }
+    }
+
+    this.lastLiveTableIds = cards.map((card) => card.id);
+  }
+
   private updateHeader(): void {
     const game = this.ctx.state.game;
     const profile = this.ctx.profile.get();
     if (game) {
       const phase = this.phaseLabel(game.phase);
       this.headerMain.textContent = `Round ${game.handNo} · ${phase} · Target ${game.gameTarget}`;
-      const turnName =
-        game.turn === null ? "Waiting" : this.seatLabelForAnnouncements(game.turn);
+      const turnName = this.turnActorLabelForHud(game.turn);
       const seconds =
         typeof game.turnDeadline === "number"
           ? Math.max(0, Math.ceil((game.turnDeadline - Date.now()) / 1000))
           : null;
-      this.headerSub.textContent = seconds !== null ? `${turnName} · ${seconds}s` : turnName;
-      this.headerSub.classList.toggle("urgent", seconds !== null && seconds <= 5);
-      this.headerTarget.textContent = `🎯 ${game.gameTarget}`;
-      this.headerTrump.textContent = game.trump
-        ? `Trump ${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`
-        : "Trump --";
+      const prompt = this.phaseGuidance(game.phase, game.turn);
+      this.headerSub.textContent =
+        seconds !== null && game.turn !== null ? `${prompt} · ${seconds}s` : prompt;
+      this.headerSub.classList.toggle("urgent", seconds !== null && seconds <= 5 && this.ctx.state.isMyTurn);
+
+      this.hudTurn.textContent = `TURN: ${turnName}`;
+      this.hudTrump.textContent = game.trump
+        ? `TRUMP: ${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`
+        : "TRUMP: Undeclared";
+      this.hudOmbre.textContent =
+        game.ombre === null ? "OMBRE: --" : `OMBRE: ${this.seatLabelForAnnouncements(game.ombre)}`;
+      this.hudTarget.textContent = `TARGET: ${game.gameTarget}`;
     } else {
       this.headerMain.textContent = "Waiting for game state";
       this.headerSub.textContent = "";
       this.headerSub.classList.remove("urgent");
-      this.headerTarget.textContent = "🎯 --";
-      this.headerTrump.textContent = "Trump --";
+      this.hudTurn.textContent = "TURN: --";
+      this.hudTrump.textContent = "TRUMP: --";
+      this.hudOmbre.textContent = "OMBRE: --";
+      this.hudTarget.textContent = "TARGET: --";
     }
 
     const latency = this.ctx.connection.latencyMs;
@@ -822,21 +902,13 @@ export class GameScreen implements Screen {
     }
 
     const chips: string[] = [`<span class="mobile-summary-chip">🧾 Round ${game.handNo}</span>`];
-    if (game.contract) {
-      chips.push(`<span class="mobile-summary-chip">🛡️ ${escapeHtml(this.bidLabel(game.contract))}</span>`);
-    }
-    if (game.trump) {
-      chips.push(`<span class="mobile-summary-chip">${escapeHtml(`${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`)}</span>`);
-    }
     chips.push(`<span class="mobile-summary-chip">🎯 ${game.gameTarget}</span>`);
-
     if (game.turn !== null) {
-      const actor = this.seatLabelForAnnouncements(game.turn);
       const secs = typeof game.turnDeadline === "number"
         ? ` · ${Math.max(0, Math.ceil((game.turnDeadline - Date.now()) / 1000))}s`
         : "";
       const mine = game.turn === this.ctx.state.mySeat ? " mine" : "";
-      chips.push(`<span class="mobile-summary-chip turn${mine}">${escapeHtml(`⏳ ${actor}${secs}`)}</span>`);
+      chips.push(`<span class="mobile-summary-chip turn${mine}">${escapeHtml(`⏳ ${this.turnActorLabelForHud(game.turn)}${secs}`)}</span>`);
     }
 
     this.mobileSummary.innerHTML = chips.join("");
@@ -961,7 +1033,6 @@ export class GameScreen implements Screen {
         if (seat === null) return "";
         const player = game.players[seat];
         const name = player?.handle || `Seat ${seat}`;
-        const score = game.scores[seat] || 0;
         const tricks = game.tricks[seat] || 0;
         const active = game.turn === seat ? " active-turn" : "";
         const disconnected = player && !player.connected ? " disconnected" : "";
@@ -974,7 +1045,7 @@ export class GameScreen implements Screen {
             )
           : buildDiceBearUrl(name || `seat-${seat}`, "identicon");
         const fallback = fallbackAvatarAt(seat);
-        const aria = `${label} seat ${name}, score ${score}, tricks ${tricks}`;
+        const aria = `${label} seat ${name}, tricks ${tricks}`;
 
         return `
           <div class="mobile-opponent${active}${disconnected}" role="listitem" aria-label="${escapeHtml(aria)}">
@@ -985,7 +1056,6 @@ export class GameScreen implements Screen {
             </div>
             ${isOmbre ? `<span class="mobile-opponent-ombre">👑 OMBRE</span>` : ""}
             <div class="mobile-opponent-stats">
-              <span>🏆 ${score}</span>
               <span>🎯 ${tricks}</span>
             </div>
           </div>
@@ -1022,23 +1092,32 @@ export class GameScreen implements Screen {
     let sub = "";
     if (game.phase === "auction") {
       if (bid === "pass" || bidder === null) {
-        sub = "No leading bid yet";
+        sub = game.turn === this.ctx.state.mySeat ? "Your turn: choose a bid" : "No leading bid yet";
       } else {
-        sub = `Leading bid: ${this.bidLabel(bid)} by ${this.seatLabelForAnnouncements(bidder)}`;
+        const leader = `Leading bid: ${this.bidLabel(bid)} by ${this.seatLabelForAnnouncements(bidder)}`;
+        sub = game.turn === this.ctx.state.mySeat ? `Your turn: choose a bid · ${leader}` : leader;
       }
     } else if (game.phase === "trump_choice") {
-      sub = "Choose trump suit";
+      sub = game.turn === this.ctx.state.mySeat
+        ? "Your turn: choose trump"
+        : game.turn !== null
+          ? `Waiting for ${this.seatLabelForAnnouncements(game.turn)} to choose trump`
+          : "Waiting for trump selection";
     } else if (game.phase === "exchange") {
-      sub = "Select cards to exchange";
+      sub = this.ctx.state.canExchangeNow
+        ? "Select cards to exchange"
+        : game.exchange.current !== null
+          ? `Waiting for ${this.seatLabelForAnnouncements(game.exchange.current)} to exchange`
+          : "Preparing exchange";
     } else if (game.phase === "penetro_choice") {
       sub = "Resting player decides Penetro";
     } else if (game.phase === "play") {
       if (game.turn === null) {
         sub = "Waiting for lead";
       } else if (game.turn === this.ctx.state.mySeat) {
-        sub = "Your turn to play";
+        sub = "Your turn: play a legal card";
       } else {
-        sub = `${this.seatLabelForAnnouncements(game.turn)} to play`;
+        sub = `Waiting for ${this.seatLabelForAnnouncements(game.turn)} to play`;
       }
     } else if (game.phase === "dealing") {
       sub = "Dealing cards";
@@ -1064,8 +1143,8 @@ export class GameScreen implements Screen {
     }, ttlMs);
   }
 
-  private pushArenaToast(text: string): void {
-    while (this.arenaToastFeed.childElementCount >= 3) {
+  private pushArenaToast(text: string, ttlMs = 1400): void {
+    while (this.arenaToastFeed.childElementCount >= 2) {
       this.arenaToastFeed.firstElementChild?.remove();
     }
     const chip = document.createElement("div");
@@ -1075,13 +1154,83 @@ export class GameScreen implements Screen {
     window.setTimeout(() => {
       chip.classList.add("exit");
       window.setTimeout(() => chip.remove(), 260);
-    }, 1400);
+    }, ttlMs);
   }
 
   private seatLabelForAnnouncements(seat: number): string {
     if (this.ctx.state.mySeat === seat) return "You";
     const handle = this.ctx.state.game?.players[seat]?.handle;
     return handle || `Seat ${seat}`;
+  }
+
+  private turnActorLabelForHud(turnSeat: number | null): string {
+    if (turnSeat === null) return "Waiting";
+    return this.seatLabelForAnnouncements(turnSeat);
+  }
+
+  private phaseGuidance(phase: string, turnSeat: number | null): string {
+    const actor = turnSeat === null ? "table" : this.seatLabelForAnnouncements(turnSeat);
+    if (phase === "auction") {
+      return turnSeat === this.ctx.state.mySeat
+        ? "Your turn: choose a bid"
+        : `Waiting for ${actor} to bid`;
+    }
+    if (phase === "trump_choice") {
+      return turnSeat === this.ctx.state.mySeat
+        ? "Your turn: choose trump"
+        : `Waiting for ${actor} to choose trump`;
+    }
+    if (phase === "exchange") {
+      if (this.ctx.state.canExchangeNow) return "Your turn: select cards to exchange";
+      const current = this.ctx.state.game?.exchange.current;
+      return current !== null && current !== undefined
+        ? `Waiting for ${this.seatLabelForAnnouncements(current)} to exchange`
+        : "Preparing exchange";
+    }
+    if (phase === "play") {
+      return turnSeat === this.ctx.state.mySeat
+        ? "Your turn: play a legal card"
+        : `Waiting for ${actor} to play`;
+    }
+    if (phase === "dealing") return "Dealing cards";
+    if (phase === "penetro_choice") return "Resting player decides penetro";
+    if (phase === "post_hand") return "Hand complete";
+    if (phase === "match_end") return "Match complete";
+    return "Waiting for next action";
+  }
+
+  private cardLabel(card: Card): string {
+    const rankNames: Record<number, string> = {
+      1: "As",
+      10: "Sota",
+      11: "Caballo",
+      12: "Rey",
+    };
+    const rank = rankNames[card.r] || String(card.r);
+    return `${rank} de ${this.capSuit(card.s)}`;
+  }
+
+  private trickWinReason(payload: Record<string, unknown>): string {
+    const cards = Array.isArray(payload.cards) ? (payload.cards as Card[]) : [];
+    const playOrder = Array.isArray(payload.playOrder) ? (payload.playOrder as number[]) : [];
+    const winner = Number(payload.winner);
+    const winIdx = playOrder.indexOf(winner);
+    if (winIdx < 0 || !cards[winIdx] || !cards[0]) return "";
+
+    const lead = cards[0];
+    const winning = cards[winIdx];
+    const trump = this.ctx.state.game?.trump;
+
+    if (trump && winning.s === trump && lead.s !== trump) {
+      return "trump advantage";
+    }
+    if (winning.s === lead.s) {
+      return `highest ${this.capSuit(lead.s)}`;
+    }
+    if (trump && winning.s === trump) {
+      return "trump advantage";
+    }
+    return "highest card";
   }
 
   private trickActorLabel(seat: number | undefined): string {

@@ -152,6 +152,7 @@ export function openProfileModal(profile: ProfileManager, options: ProfileModalO
     title: options.title || "Profile",
     content,
     size: "md",
+    modalClassName: "profile-modal-dialog",
     dismissible: !options.force,
     scroll: true,
     actions: [

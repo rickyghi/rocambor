@@ -8,6 +8,9 @@ export class GameControls {
   private conn: ConnectionManager;
   private state: ClientState;
   private unsubscribe: (() => void) | null = null;
+  private actionLocked = false;
+  private unlockTimer: number | null = null;
+  private lastSeq = -1;
 
   constructor(
     container: HTMLElement,
@@ -24,8 +27,14 @@ export class GameControls {
   private render(): void {
     const game = this.state.game;
     if (!game) {
+      this.setActionLock(false);
       this.container.innerHTML = "";
       return;
+    }
+
+    if (game.seq !== this.lastSeq) {
+      this.lastSeq = game.seq;
+      this.setActionLock(false);
     }
 
     const myTurn = this.state.isMyTurn;
@@ -69,6 +78,12 @@ export class GameControls {
       shell.hidden = !actionable;
     }
     this.attachHandlers();
+
+    if (this.actionLocked) {
+      this.container.querySelectorAll<HTMLButtonElement>("button").forEach((btn) => {
+        btn.disabled = true;
+      });
+    }
   }
 
   private renderAuction(): string {
@@ -113,9 +128,9 @@ export class GameControls {
 
     return `
       <div class="control-group">
-        <span class="control-label">🛡️ Choose Your Bid</span>
+        <span class="control-label">🛡️ Your turn: choose a bid</span>
         ${currentBid !== "pass" ? `<span class="controls-hint">Leading bid: ${this.bidLabel(currentBid)}</span>` : ""}
-        <div class="control-row compact">
+        <div class="control-row compact control-row-bids">
           ${btns}
           ${showContrabola ? `<button class="bid-btn contrabola-btn" data-bid="contrabola"><span>Contrabola</span><small>Last all-pass special</small></button>` : ""}
           <button class="bid-btn pass-btn" data-bid="pass">Pass</button>
@@ -157,8 +172,8 @@ export class GameControls {
 
     return `
       <div class="control-group">
-        <span class="control-label">⚔️ Choose Trump</span>
-        <div class="control-row compact">
+        <span class="control-label">⚔️ Your turn: choose trump</span>
+        <div class="control-row compact control-row-trumps">
           ${btns}
         </div>
       </div>
@@ -174,15 +189,16 @@ export class GameControls {
 
     return `
       <div class="control-group">
-        <span class="control-label">🃏 Select Cards To Exchange</span>
+        <span class="control-label">🃏 Select cards to exchange</span>
         ${requireExactOne ? `<span class="controls-hint">Select exactly 1 card</span>` : `<span class="controls-hint">Choose up to ${maxExchange} cards</span>`}
         <div class="control-row compact">
           <span class="exchange-count">${selected} / ${maxExchange}</span>
           <button class="exchange-btn primary" data-action="confirm" ${canConfirm ? "" : "disabled"}>
-            ${requireExactOne ? "Exchange 1 card" : `Exchange ${selected} card${selected !== 1 ? "s" : ""}`}
+            Exchange Selected
           </button>
           ${min > 0 ? "" : `<button class="exchange-btn secondary" data-action="skip">Keep All</button>`}
         </div>
+        ${!canConfirm ? `<span class="controls-hint">Select ${requireExactOne ? "exactly 1 card" : `1-${maxExchange} cards`}</span>` : ""}
       </div>
     `;
   }
@@ -242,22 +258,27 @@ export class GameControls {
     // Bid buttons
     this.container.querySelectorAll<HTMLButtonElement>(".bid-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (this.actionLocked) return;
         const bid = btn.dataset.bid as Bid;
         this.conn.send({ type: "BID", value: bid });
+        this.setActionLock(true);
       });
     });
 
     // Trump buttons
     this.container.querySelectorAll<HTMLButtonElement>(".trump-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (this.actionLocked) return;
         const suit = btn.dataset.suit as Suit;
         this.conn.send({ type: "CHOOSE_TRUMP", suit });
+        this.setActionLock(true);
       });
     });
 
     // Exchange buttons
     this.container.querySelectorAll<HTMLButtonElement>(".exchange-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (this.actionLocked) return;
         const { min, max } = this.exchangeLimits();
 
         if (btn.dataset.action === "confirm") {
@@ -266,36 +287,60 @@ export class GameControls {
           if (ids.length > max) ids = ids.slice(0, max);
           this.conn.send({ type: "EXCHANGE", discardIds: ids });
           this.state.clearSelection();
+          this.setActionLock(true);
         } else {
           if (min > 0) return;
           this.conn.send({ type: "EXCHANGE", discardIds: [] });
           this.state.clearSelection();
+          this.setActionLock(true);
         }
       });
     });
 
     this.container.querySelectorAll<HTMLButtonElement>(".penetro-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (this.actionLocked) return;
         this.conn.send({
           type: "PENETRO_DECISION",
           accept: btn.dataset.accept === "true",
         });
+        this.setActionLock(true);
       });
     });
 
     // Rematch button
     this.container.querySelector<HTMLButtonElement>(".rematch-btn")?.addEventListener("click", () => {
+      if (this.actionLocked) return;
       this.conn.send({ type: "REMATCH" });
+      this.setActionLock(true);
     });
 
     // Start button
     this.container.querySelector<HTMLButtonElement>(".start-btn")?.addEventListener("click", () => {
+      if (this.actionLocked) return;
       this.conn.send({ type: "START_GAME" });
+      this.setActionLock(true);
     });
 
     this.container.querySelector<HTMLButtonElement>('[data-action="close-hand"]')?.addEventListener("click", () => {
+      if (this.actionLocked) return;
       this.conn.send({ type: "CLOSE_HAND" });
+      this.setActionLock(true);
     });
+  }
+
+  private setActionLock(value: boolean): void {
+    this.actionLocked = value;
+    if (this.unlockTimer !== null) {
+      clearTimeout(this.unlockTimer);
+      this.unlockTimer = null;
+    }
+    if (value) {
+      this.unlockTimer = window.setTimeout(() => {
+        this.actionLocked = false;
+        this.render();
+      }, 1800);
+    }
   }
 
   private seatLabel(seat: number | null): string {
@@ -325,6 +370,10 @@ export class GameControls {
 
   destroy(): void {
     this.unsubscribe?.();
+    if (this.unlockTimer !== null) {
+      clearTimeout(this.unlockTimer);
+      this.unlockTimer = null;
+    }
     this.container.innerHTML = "";
   }
 }
