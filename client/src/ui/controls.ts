@@ -184,8 +184,11 @@ export class GameControls {
     const selected = this.state.selectedCards.size;
     const { min, max } = this.exchangeLimits();
     const maxExchange = Math.min(max, this.state.hand.length);
-    const canConfirm = selected >= min && selected <= maxExchange;
     const requireExactOne = min === 1 && maxExchange === 1;
+    const canConfirm = requireExactOne
+      ? selected === 1
+      : selected > 0 && selected <= maxExchange;
+    const needsSelectionHint = selected === 0 || (selected > maxExchange || selected < min);
 
     return `
       <div class="control-group">
@@ -198,7 +201,7 @@ export class GameControls {
           </button>
           ${min > 0 ? "" : `<button class="exchange-btn secondary" data-action="skip">Keep All</button>`}
         </div>
-        ${!canConfirm ? `<span class="controls-hint">Select ${requireExactOne ? "exactly 1 card" : `1-${maxExchange} cards`}</span>` : ""}
+        ${needsSelectionHint ? `<span class="controls-hint">Select ${requireExactOne ? "exactly 1 card" : `1-${maxExchange} cards`}</span>` : ""}
       </div>
     `;
   }

@@ -7,12 +7,6 @@ export function renderGameHeaderMarkup(): string {
       <div class="game-header-center">
         <div class="game-header-main" id="game-header-main"></div>
         <div class="game-header-sub" id="game-header-sub"></div>
-        <div class="game-state-hud" id="game-state-hud" aria-live="polite">
-          <span class="game-state-chip turn" id="game-state-turn">TURN: --</span>
-          <span class="game-state-chip trump" id="game-state-trump">TRUMP: --</span>
-          <span class="game-state-chip ombre" id="game-state-ombre">OMBRE: --</span>
-          <span class="game-state-chip target" id="game-state-target">TARGET: --</span>
-        </div>
       </div>
       <div class="game-header-right">
         <span class="game-ping-chip" id="game-header-ping">Ping --</span>
@@ -22,6 +16,14 @@ export function renderGameHeaderMarkup(): string {
           <img class="game-profile-avatar" alt="" />
           <span class="game-profile-name"></span>
         </button>
+      </div>
+      <div class="game-header-hud-row">
+        <div class="game-state-hud" id="game-state-hud" aria-live="polite">
+          <span class="game-state-chip turn" id="game-state-turn">TURN: --</span>
+          <span class="game-state-chip trump" id="game-state-trump">TRUMP: --</span>
+          <span class="game-state-chip ombre" id="game-state-ombre">OMBRE: --</span>
+          <span class="game-state-chip target" id="game-state-target">TARGET: --</span>
+        </div>
       </div>
     </header>
   `;

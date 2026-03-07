@@ -344,18 +344,56 @@ export class GameRenderer {
       const isSelected = this.state.selectedCards.has(hand[i].id);
       const isHovered = i === this.hoveredCardIndex;
       const yOffset = isSelected ? -12 : isHovered ? -6 : 0;
+      const cardY = this.layout.handY + yOffset;
 
       // Dim illegal cards during play phase
       const isIllegal = isPlay && legalIds && !legalIds.includes(hand[i].id);
+      const isLegal = isPlay && !isIllegal;
       if (isIllegal) {
         this.ctx.save();
         this.ctx.globalAlpha = 0.4;
       }
 
+      // Legal cards get a soft pulse ring in play phase.
+      if (isLegal) {
+        const pulse = 0.35 + 0.25 * Math.sin(performance.now() / 420 + i * 0.35);
+        this.ctx.save();
+        this.ctx.strokeStyle = `rgba(200,166,81,${pulse.toFixed(3)})`;
+        this.ctx.lineWidth = 2;
+        this.ctx.shadowColor = "rgba(200,166,81,0.22)";
+        this.ctx.shadowBlur = 12;
+        this.roundRect(
+          x - this.layout.cardW / 2 - 2,
+          cardY - this.layout.cardH / 2 - 2,
+          this.layout.cardW + 4,
+          this.layout.cardH + 4,
+          8
+        );
+        this.ctx.stroke();
+        this.ctx.restore();
+      }
+
+      if (isSelected) {
+        this.ctx.save();
+        this.ctx.strokeStyle = "rgba(200,166,81,0.92)";
+        this.ctx.lineWidth = 3;
+        this.ctx.shadowColor = "rgba(200,166,81,0.34)";
+        this.ctx.shadowBlur = 16;
+        this.roundRect(
+          x - this.layout.cardW / 2 - 3,
+          cardY - this.layout.cardH / 2 - 3,
+          this.layout.cardW + 6,
+          this.layout.cardH + 6,
+          9
+        );
+        this.ctx.stroke();
+        this.ctx.restore();
+      }
+
       // Hover scale effect
       if (isHovered && (isExchange || (isPlay && !isIllegal))) {
         this.ctx.save();
-        this.ctx.translate(x, this.layout.handY + yOffset);
+        this.ctx.translate(x, cardY);
         this.ctx.scale(1.03, 1.03);
         drawCard(
           this.ctx,
@@ -376,7 +414,7 @@ export class GameRenderer {
         drawCard(
           this.ctx,
           x,
-          this.layout.handY + yOffset,
+          cardY,
           this.layout.cardW,
           this.layout.cardH,
           hand[i],
