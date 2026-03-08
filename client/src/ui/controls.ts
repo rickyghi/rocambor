@@ -11,6 +11,7 @@ export class GameControls {
   private actionLocked = false;
   private unlockTimer: number | null = null;
   private lastSeq = -1;
+  private soloSuitPickerOpen = false;
 
   constructor(
     container: HTMLElement,
@@ -40,6 +41,10 @@ export class GameControls {
     const myTurn = this.state.isMyTurn;
     const canExchange = this.state.canExchangeNow;
     const phase = game.phase;
+
+    if (phase !== "auction" || !myTurn) {
+      this.soloSuitPickerOpen = false;
+    }
 
     let html = "";
     let actionable = false;
@@ -111,13 +116,26 @@ export class GameControls {
             : b.value === "volteo"
               ? "Trump from talon"
               : b.value === "solo"
-                ? "No exchange for ombre"
+                ? "Choose trump suit now"
                 : b.value === "oros"
                   ? "Entrada with Oros trump"
                   : "Solo with Oros trump";
-        return `<button class="bid-btn" data-bid="${b.value}"><span>${b.label}</span><small>${helper}</small></button>`;
+        const activeClass = b.value === "solo" && this.soloSuitPickerOpen ? " solo-active" : "";
+        return `<button class="bid-btn${activeClass}" data-bid="${b.value}"><span>${b.label}</span><small>${helper}</small></button>`;
       })
       .join("");
+
+    const showSoloPicker =
+      this.soloSuitPickerOpen && legal.some((b) => b.value === "solo");
+    const soloPicker = showSoloPicker
+      ? `
+        <div class="control-row compact control-row-trumps">
+          <button class="trump-btn solo-suit-btn" data-solo-suit="espadas" style="--suit-color: #0D0D0D"><span>♠ Solo Espadas</span></button>
+          <button class="trump-btn solo-suit-btn" data-solo-suit="copas" style="--suit-color: #B02E2E"><span>♥ Solo Copas</span></button>
+          <button class="trump-btn solo-suit-btn" data-solo-suit="bastos" style="--suit-color: #2A4D41"><span>♣ Solo Bastos</span></button>
+        </div>
+      `
+      : "";
 
     // Contrabola: only when all others passed and you're last in order
     const a = this.state.game!.auction;
@@ -135,6 +153,7 @@ export class GameControls {
           ${showContrabola ? `<button class="bid-btn contrabola-btn" data-bid="contrabola"><span>Contrabola</span><small>Last all-pass special</small></button>` : ""}
           <button class="bid-btn pass-btn" data-bid="pass">Pass</button>
         </div>
+        ${soloPicker}
       </div>
     `;
   }
@@ -189,6 +208,7 @@ export class GameControls {
       ? selected === 1
       : selected > 0 && selected <= maxExchange;
     const needsSelectionHint = selected === 0 || (selected > maxExchange || selected < min);
+    const canDefer = this.state.canDeferExchangeOrder;
 
     return `
       <div class="control-group">
@@ -200,6 +220,7 @@ export class GameControls {
             Exchange Selected
           </button>
           ${min > 0 ? "" : `<button class="exchange-btn secondary" data-action="skip">Keep All</button>`}
+          ${canDefer ? `<button class="exchange-btn secondary" data-action="defer">Exchange Second</button>` : ""}
         </div>
         ${needsSelectionHint ? `<span class="controls-hint">Select ${requireExactOne ? "exactly 1 card" : `1-${maxExchange} cards`}</span>` : ""}
       </div>
@@ -263,7 +284,24 @@ export class GameControls {
       btn.addEventListener("click", () => {
         if (this.actionLocked) return;
         const bid = btn.dataset.bid as Bid;
+        if (bid === "solo") {
+          this.soloSuitPickerOpen = !this.soloSuitPickerOpen;
+          this.render();
+          return;
+        }
+        this.soloSuitPickerOpen = false;
         this.conn.send({ type: "BID", value: bid });
+        this.setActionLock(true);
+      });
+    });
+
+    this.container.querySelectorAll<HTMLButtonElement>(".solo-suit-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (this.actionLocked) return;
+        const suit = btn.dataset.soloSuit as Suit | undefined;
+        if (!suit) return;
+        this.soloSuitPickerOpen = false;
+        this.conn.send({ type: "BID", value: "solo", suit });
         this.setActionLock(true);
       });
     });
@@ -291,10 +329,13 @@ export class GameControls {
           this.conn.send({ type: "EXCHANGE", discardIds: ids });
           this.state.clearSelection();
           this.setActionLock(true);
-        } else {
+        } else if (btn.dataset.action === "skip") {
           if (min > 0) return;
           this.conn.send({ type: "EXCHANGE", discardIds: [] });
           this.state.clearSelection();
+          this.setActionLock(true);
+        } else if (btn.dataset.action === "defer") {
+          this.conn.send({ type: "EXCHANGE_DEFER" });
           this.setActionLock(true);
         }
       });

@@ -220,6 +220,31 @@ describe("Room - auction", () => {
     expect(room.state.phase).toBe("trump_choice");
   });
 
+  it("quadrille auction starts with seat after resting player", () => {
+    const qRoom = makeRoom("quadrille");
+    addHuman(qRoom, 0);
+    qRoom.startGame();
+    qRoom.conns.forEach((c) => (c.isBot = false));
+
+    const resting = qRoom.state.resting!;
+    const expectedFirst = (((resting + 1) % 4) as SeatIndex);
+    expect(qRoom.state.auction.order[0]).toBe(expectedFirst);
+    expect(qRoom.state.turn).toBe(expectedFirst);
+  });
+
+  it("solo bid with suit locks trump and skips trump_choice when solo wins", () => {
+    const [s0, s1, s2] = room.state.auction.order;
+
+    room.applyBid(s0, "solo", "copas");
+    room.applyBid(s1, "pass");
+    room.applyBid(s2, "pass");
+
+    expect(room.state.ombre).toBe(s0);
+    expect(room.state.contract).toBe("solo");
+    expect(room.state.trump).toBe("copas");
+    expect(room.state.phase).toBe("exchange");
+  });
+
   it("quadrille all-pass with active spadille holder does not start penetro", () => {
     const qRoom = makeRoom("quadrille");
     addHuman(qRoom, 0);
@@ -247,7 +272,12 @@ describe("Room - trump choice", () => {
     room = makeRoom();
     addHuman(room, 0);
     room.startGame();
-    room.conns.forEach((c) => (c.isBot = false));
+    room.conns.forEach((c) => {
+      c.isBot = false;
+      if (!(c.ws as any)?._sent) {
+        c.ws = makeFakeWs();
+      }
+    });
     // Force auction to conclude with seat 0 as ombre
     room.state.ombre = 0;
     room.state.contract = "entrada";
@@ -444,7 +474,12 @@ describe("Room - exchange", () => {
     room = makeRoom();
     addHuman(room, 0);
     room.startGame();
-    room.conns.forEach((c) => (c.isBot = false));
+    room.conns.forEach((c) => {
+      c.isBot = false;
+      if (!(c.ws as any)?._sent) {
+        c.ws = makeFakeWs();
+      }
+    });
     // Set up for exchange
     room.state.ombre = 0;
     room.state.contract = "entrada";
@@ -504,6 +539,27 @@ describe("Room - exchange", () => {
     expect(room.state.exchange.completed).toContain(1);
     expect(room.hands[1].length).toBe(handBefore);
     expect(room.state.exchange.talonSize).toBe(0);
+  });
+
+  it("rejects exchange selections above seat max instead of truncating", () => {
+    room.finishExchange(0 as SeatIndex, []);
+    room.talon = [
+      { s: "copas", r: 1, id: "c1" },
+      { s: "copas", r: 2, id: "c2" },
+      { s: "copas", r: 3, id: "c3" },
+    ] as any;
+    room.state.exchange.talonSize = room.talon.length;
+    room.state.turn = 1 as SeatIndex;
+    room.state.exchange.current = 1 as SeatIndex;
+    room.state.exchange.completed = [0 as SeatIndex];
+
+    const discardIds = room.hands[1].slice(0, 4).map((c) => c.id);
+    const ws = room.conns.find((c) => c.seat === 1)?.ws as any;
+    room.finishExchange(1 as SeatIndex, discardIds);
+
+    expect(room.state.exchange.completed).not.toContain(1 as SeatIndex);
+    const msgs = (ws?._sent || []).map((s: string) => JSON.parse(s));
+    expect(msgs.some((m: any) => m.type === "ERROR" && m.code === "BAD_EXCHANGE")).toBe(true);
   });
 
   it("solo contract: ombre does not exchange", () => {
@@ -600,116 +656,66 @@ describe("Room - exchange", () => {
     expect(tRoom.state.turn).toBe(tRoom.nextActive(2 as SeatIndex));
   });
 
-  it("after declarer exchanges, either defender may exchange first", () => {
+  it("after declarer exchanges, defenders exchange in order by default", () => {
     // Declarer (seat 0) exchanges first.
     room.finishExchange(0 as SeatIndex, []);
     expect(room.state.exchange.completed).toEqual([0]);
     expect(room.state.turn).toBe(1);
 
-    // Defender seat 2 chooses to exchange before seat 1.
+    // Defender seat 2 cannot jump ahead without defer.
     room.finishExchange(2 as SeatIndex, []);
-    expect(room.state.exchange.completed).toContain(2);
+    expect(room.state.exchange.completed).not.toContain(2);
     expect(room.state.turn).toBe(1);
   });
 
-  it("in mixed human+bot defenders, human can still exchange during open-choice window", () => {
-    const tRoom = makeRoom("tresillo");
-    const h0 = addHuman(tRoom);
-    const b1 = addHuman(tRoom);
-    const h2 = addHuman(tRoom);
+  it("quadrille defenders follow clockwise order after ombre exchange", () => {
+    const qRoom = makeRoom("quadrille");
+    addHuman(qRoom, 0);
+    qRoom.startGame();
+    qRoom.conns.forEach((c) => {
+      c.isBot = false;
+      if (!(c.ws as any)?._sent) c.ws = makeFakeWs();
+    });
 
-    h0.conn.seat = 0 as SeatIndex;
-    b1.conn.seat = 1 as SeatIndex;
-    h2.conn.seat = 2 as SeatIndex;
-    b1.conn.isBot = true;
-    (tRoom as any).botMaybeAct = () => {};
-
-    tRoom.state.ombre = 0;
-    tRoom.state.contract = "entrada";
-    tRoom.state.trump = "oros";
-    tRoom.state.phase = "exchange";
-    tRoom.state.exchange = {
-      current: 0 as SeatIndex,
-      order: [0, 1, 2] as SeatIndex[],
-      talonSize: 3,
-      completed: [],
-    };
-    tRoom.state.turn = 0 as SeatIndex;
-    tRoom.talon = [
-      { s: "copas", r: 5, id: "c5" },
-      { s: "copas", r: 6, id: "c6" },
-      { s: "copas", r: 7, id: "c7" },
+    qRoom.state.ombre = 2 as SeatIndex;
+    qRoom.state.contract = "entrada";
+    qRoom.state.phase = "trump_choice";
+    qRoom.state.turn = 2 as SeatIndex;
+    qRoom.talon = [
+      { s: "copas", r: 5, id: "qc5" },
+      { s: "copas", r: 6, id: "qc6" },
+      { s: "copas", r: 7, id: "qc7" },
+      { s: "copas", r: 4, id: "qc4" },
     ] as any;
 
-    tRoom.finishExchange(0 as SeatIndex, []);
-    expect(tRoom.state.turn).toBe(1);
+    qRoom.chooseTrump(2 as SeatIndex, "copas");
+    expect(qRoom.state.exchange.order.slice(0, 3)).toEqual([2, 3, 0]);
 
-    // Human seat 2 exchanges first even though turn points at bot seat 1.
-    tRoom.finishExchange(2 as SeatIndex, []);
-    expect(tRoom.state.exchange.completed).toEqual([0, 2]);
-    expect(tRoom.state.turn).toBe(1);
+    qRoom.finishExchange(2 as SeatIndex, []);
+    expect(qRoom.state.turn).toBe(3);
   });
 
-  it("when both pending defenders are bots, higher exchange-need bot goes first", () => {
-    const tRoom = makeRoom("tresillo");
-    const h0 = addHuman(tRoom);
-    const b1 = addHuman(tRoom);
-    const b2 = addHuman(tRoom);
+  it("first defender can defer and let second defender exchange first", () => {
+    room.finishExchange(0 as SeatIndex, []);
+    expect(room.state.turn).toBe(1);
 
-    h0.conn.seat = 0 as SeatIndex;
-    b1.conn.seat = 1 as SeatIndex;
-    b2.conn.seat = 2 as SeatIndex;
-    b1.conn.isBot = true;
-    b2.conn.isBot = true;
-    (tRoom as any).botMaybeAct = () => {};
+    room.deferDefenderExchange(1 as SeatIndex);
+    expect(room.state.turn).toBe(2);
+    expect(room.state.exchange.current).toBe(2);
 
-    tRoom.state.ombre = 0;
-    tRoom.state.contract = "entrada";
-    tRoom.state.trump = "oros";
-    tRoom.state.phase = "exchange";
-    tRoom.state.exchange = {
-      current: 0 as SeatIndex,
-      order: [0, 1, 2] as SeatIndex[],
-      talonSize: 13,
-      completed: [],
-    };
-    tRoom.state.turn = 0 as SeatIndex;
-    tRoom.talon = [
-      { s: "copas", r: 5, id: "c5" },
-      { s: "copas", r: 6, id: "c6" },
-      { s: "copas", r: 7, id: "c7" },
-      { s: "espadas", r: 6, id: "e6" },
-      { s: "espadas", r: 7, id: "e7" },
-    ] as any;
+    room.finishExchange(2 as SeatIndex, []);
+    expect(room.state.turn).toBe(1);
+  });
 
-    // Seat 1 has stronger trump points => lower exchange need.
-    tRoom.hands[1] = [
-      { s: "oros", r: 1, id: "o1" },
-      { s: "oros", r: 12, id: "o12" },
-      { s: "oros", r: 11, id: "o11" },
-      { s: "oros", r: 10, id: "o10" },
-      { s: "oros", r: 7, id: "o7" },
-      { s: "oros", r: 5, id: "o5" },
-      { s: "copas", r: 12, id: "c12" },
-      { s: "espadas", r: 12, id: "e12" },
-      { s: "bastos", r: 12, id: "b12" },
-    ] as any;
-    // Seat 2 has weak trump points => higher exchange need.
-    tRoom.hands[2] = [
-      { s: "copas", r: 6, id: "c6a" },
-      { s: "espadas", r: 4, id: "e4" },
-      { s: "bastos", r: 5, id: "b5" },
-      { s: "copas", r: 4, id: "c4" },
-      { s: "espadas", r: 5, id: "e5" },
-      { s: "bastos", r: 6, id: "b6" },
-      { s: "copas", r: 5, id: "c5a" },
-      { s: "espadas", r: 6, id: "e6a" },
-      { s: "bastos", r: 4, id: "b4" },
-    ] as any;
+  it("auto-skips no-op exchange seats", () => {
+    room.state.contract = "solo";
+    room.state.ombre = 0;
+    room.state.phase = "trump_choice";
+    room.state.turn = 0;
+    room.talon = [];
 
-    tRoom.finishExchange(0 as SeatIndex, []);
-    expect(tRoom.state.turn).toBe(2);
-    expect(tRoom.state.exchange.current).toBe(2);
+    room.chooseTrump(0, "copas");
+    expect(room.state.phase).toBe("play");
   });
 });
 

@@ -863,7 +863,7 @@ export class GameScreen implements Screen {
         ? `TRUMP: ${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`
         : "TRUMP: Undeclared";
       this.hudOmbre.textContent =
-        game.ombre === null ? "OMBRE: --" : `OMBRE: ${this.seatLabelForAnnouncements(game.ombre)}`;
+        game.ombre === null ? "JUGADOR: --" : `JUGADOR: ${this.seatLabelForAnnouncements(game.ombre)}`;
       this.hudTarget.textContent = `TARGET: ${game.gameTarget}`;
     } else {
       this.headerMain.textContent = "Waiting for game state";
@@ -871,7 +871,7 @@ export class GameScreen implements Screen {
       this.headerSub.classList.remove("urgent");
       this.hudTurn.textContent = "TURN: --";
       this.hudTrump.textContent = "TRUMP: --";
-      this.hudOmbre.textContent = "OMBRE: --";
+      this.hudOmbre.textContent = "JUGADOR: --";
       this.hudTarget.textContent = "TARGET: --";
     }
 
@@ -966,12 +966,15 @@ export class GameScreen implements Screen {
     const score = game.scores[seat] || 0;
     const cards = game.handsCount[seat] || 0;
     const tricks = game.tricks[seat] || 0;
-    const roleLabel = this.capLabel(position).toUpperCase();
-    const ombreTag = game.ombre === seat ? `<span class="hero-ombre-tag">👑 OMBRE</span>` : "";
+    const roleLabel = this.roleLabelForSeat(seat);
+    const ombreTag = game.ombre === seat ? `<span class="hero-ombre-tag">👑 JUGADOR</span>` : "";
     const turnTag = game.turn === seat ? `<span class="hero-turn-tag">TURN</span>` : "";
-    const stateTag = game.resting === seat ? `<span class="hero-state-tag">Resting</span>` : "";
+    const stateTag =
+      game.resting === seat && roleLabel !== "RESTING"
+        ? `<span class="hero-state-tag">Resting</span>`
+        : "";
     const sideClass = isSelf ? "" : " hero-side";
-    const roleText = game.ombre === seat ? `${roleLabel.toLowerCase()}, ombre` : roleLabel.toLowerCase();
+    const roleText = roleLabel.toLowerCase();
 
     return `
       <section class="hero-plate hero-${position}${sideClass}${active}${resting}${disconnected}" aria-label="${escapeHtml(
@@ -1024,11 +1027,11 @@ export class GameScreen implements Screen {
     }
 
     const seats = ([
-      { pos: "left", label: "Left" },
-      { pos: "across", label: "Across" },
-      { pos: "right", label: "Right" },
+      { pos: "left" },
+      { pos: "across" },
+      { pos: "right" },
     ] as const)
-      .map(({ pos, label }) => {
+      .map(({ pos }) => {
         const seat = this.ctx.state.seatAtPosition(pos);
         if (seat === null) return "";
         const player = game.players[seat];
@@ -1037,6 +1040,7 @@ export class GameScreen implements Screen {
         const active = game.turn === seat ? " active-turn" : "";
         const disconnected = player && !player.connected ? " disconnected" : "";
         const isOmbre = game.ombre === seat;
+        const role = this.roleLabelForSeat(seat);
         const avatarUrl = player?.isBot
           ? buildBotAvatarUrl(
               player.handle || `bot-${seat}`,
@@ -1045,16 +1049,16 @@ export class GameScreen implements Screen {
             )
           : buildDiceBearUrl(name || `seat-${seat}`, "identicon");
         const fallback = fallbackAvatarAt(seat);
-        const aria = `${label} seat ${name}, tricks ${tricks}`;
+        const aria = `${role.toLowerCase()} ${name}, tricks ${tricks}`;
 
         return `
           <div class="mobile-opponent${active}${disconnected}" role="listitem" aria-label="${escapeHtml(aria)}">
             <img class="mobile-opponent-avatar" src="${avatarUrl}" data-fallback="${fallback}" alt="" />
             <div class="mobile-opponent-meta">
-              <span class="mobile-opponent-seat">${label}</span>
+              <span class="mobile-opponent-seat">${escapeHtml(role)}</span>
               <span class="mobile-opponent-name">${escapeHtml(name)}</span>
             </div>
-            ${isOmbre ? `<span class="mobile-opponent-ombre">👑 OMBRE</span>` : ""}
+            ${isOmbre ? `<span class="mobile-opponent-ombre">👑 JUGADOR</span>` : ""}
             <div class="mobile-opponent-stats">
               <span>🎯 ${tricks}</span>
             </div>
@@ -1159,8 +1163,18 @@ export class GameScreen implements Screen {
 
   private seatLabelForAnnouncements(seat: number): string {
     if (this.ctx.state.mySeat === seat) return "You";
+    const role = this.roleLabelForSeat(seat as SeatIndex);
     const handle = this.ctx.state.game?.players[seat]?.handle;
-    return handle || `Seat ${seat}`;
+    if (handle) {
+      if (role.startsWith("PRIMER")) return `Primer Contrincante (${handle})`;
+      if (role.startsWith("SEGUNDO")) return `Segundo Contrincante (${handle})`;
+      if (role === "JUGADOR") return `Jugador (${handle})`;
+      return handle;
+    }
+    if (role === "JUGADOR") return "Jugador";
+    if (role.startsWith("PRIMER")) return "Primer Contrincante";
+    if (role.startsWith("SEGUNDO")) return "Segundo Contrincante";
+    return `Seat ${seat}`;
   }
 
   private turnActorLabelForHud(turnSeat: number | null): string {
@@ -1237,7 +1251,14 @@ export class GameScreen implements Screen {
     if (seat === undefined) return "";
     const rel = this.ctx.state.relativePosition(seat as SeatIndex);
     if (rel === "self") return "YOU";
-    const relLabel = rel.toUpperCase();
+    const role = this.roleLabelForSeat(seat as SeatIndex);
+    const relLabel = role === "JUGADOR"
+      ? "JUGADOR"
+      : role.startsWith("PRIMER")
+        ? "PRIMER"
+        : role.startsWith("SEGUNDO")
+          ? "SEGUNDO"
+          : rel.toUpperCase();
     const handle = this.ctx.state.game?.players[seat]?.handle;
     return handle ? `${relLabel} · ${handle}` : relLabel;
   }
@@ -1292,6 +1313,35 @@ export class GameScreen implements Screen {
       right: "Right",
     };
     return map[pos];
+  }
+
+  private activeSeatsForRole(): SeatIndex[] {
+    const game = this.ctx.state.game;
+    if (!game) return [0, 1, 2];
+    if (game.contract === "penetro") return [0, 1, 2, 3];
+    return ([0, 1, 2, 3] as SeatIndex[]).filter((s) => s !== game.resting).slice(0, 3);
+  }
+
+  private nextActiveSeat(seat: SeatIndex): SeatIndex {
+    const active = this.activeSeatsForRole();
+    const idx = active.indexOf(seat);
+    if (idx < 0) return active[0];
+    return active[(idx + 1) % active.length];
+  }
+
+  private roleLabelForSeat(seat: SeatIndex): string {
+    const game = this.ctx.state.game;
+    if (!game) return `Seat ${seat}`;
+    if (game.resting === seat) return "RESTING";
+    if (game.ombre === null) {
+      return this.capLabel(this.ctx.state.relativePosition(seat)).toUpperCase();
+    }
+    if (seat === game.ombre) return "JUGADOR";
+    const primer = this.nextActiveSeat(game.ombre);
+    const segundo = this.nextActiveSeat(primer);
+    if (seat === primer) return "PRIMER CONTR.";
+    if (seat === segundo) return "SEGUNDO CONTR.";
+    return this.capLabel(this.ctx.state.relativePosition(seat)).toUpperCase();
   }
 
   private applyTrickOverlayFromEvent(payload: Record<string, unknown>): void {

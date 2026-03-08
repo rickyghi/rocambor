@@ -21,7 +21,7 @@ export function renderGameHeaderMarkup(): string {
         <div class="game-state-hud" id="game-state-hud" aria-live="polite">
           <span class="game-state-chip turn" id="game-state-turn">TURN: --</span>
           <span class="game-state-chip trump" id="game-state-trump">TRUMP: --</span>
-          <span class="game-state-chip ombre" id="game-state-ombre">OMBRE: --</span>
+          <span class="game-state-chip ombre" id="game-state-ombre">JUGADOR: --</span>
           <span class="game-state-chip target" id="game-state-target">TARGET: --</span>
         </div>
       </div>

@@ -107,29 +107,33 @@ export class ClientState {
     if (!this.game || this.mySeat === null) return false;
     if (this.game.phase !== "exchange") return false;
     if (this.game.exchange.completed.includes(this.mySeat)) return false;
-    if (
-      this.game.turn === this.mySeat ||
-      this.game.exchange.current === this.mySeat
-    ) {
-      return this.game.exchange.order.includes(this.mySeat);
-    }
+    return (
+      this.game.turn === this.mySeat &&
+      this.game.exchange.order.includes(this.mySeat)
+    );
+  }
 
+  get canDeferExchangeOrder(): boolean {
+    if (!this.game || this.mySeat === null) return false;
+    if (this.game.phase !== "exchange" || this.game.turn !== this.mySeat) return false;
     const contract = this.game.contract;
-    if (contract === "solo" || contract === "solo_oros" || contract === "contrabola") {
+    if (
+      !contract ||
+      contract === "solo" ||
+      contract === "solo_oros" ||
+      contract === "contrabola" ||
+      contract === "bola"
+    ) {
       return false;
     }
-
     const ombre = this.game.ombre;
     if (ombre === null) return false;
-
     const completed = this.game.exchange.completed;
     if (completed.length !== 1 || !completed.includes(ombre)) return false;
-
-    return (
-      this.game.exchange.order.includes(this.mySeat) &&
-      !completed.includes(this.mySeat) &&
-      this.mySeat !== ombre
+    const pendingDefenders = this.game.exchange.order.filter(
+      (s) => s !== ombre && !completed.includes(s)
     );
+    return pendingDefenders.length === 2 && pendingDefenders[0] === this.mySeat;
   }
 
   get canCloseHandNow(): boolean {

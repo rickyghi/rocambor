@@ -19,9 +19,10 @@ export type Bid =
   | "pass" | "entrada" | "oros" | "volteo"
   | "solo" | "solo_oros" | "bola" | "contrabola";
 
-export const BID_ORDER: Bid[] = ["pass", "entrada", "oros", "volteo", "solo", "solo_oros", "bola"];
+export const BID_ORDER: Bid[] = ["pass", "entrada", "oros", "volteo", "solo", "solo_oros", "contrabola"];
+export const AUCTION_RANKED_BIDS: Bid[] = ["entrada", "oros", "volteo", "solo", "solo_oros"];
 export const BID_VAL: Record<Bid, number> = {
-  pass: 0, entrada: 1, oros: 2, volteo: 3, solo: 4, solo_oros: 5, bola: 6, contrabola: 99
+  pass: 0, entrada: 1, oros: 2, volteo: 3, solo: 4, solo_oros: 5, bola: -1, contrabola: 99
 };
 
 // ---- Game phases ----
@@ -94,9 +95,10 @@ export type C2SMessage =
   | { type: "TAKE_SEAT"; seat: SeatIndex }
   | { type: "LEAVE_ROOM" }
   | { type: "START_GAME" }
-  | { type: "BID"; value: Bid }
+  | { type: "BID"; value: Bid; suit?: Suit }
   | { type: "CHOOSE_TRUMP"; suit: Suit }
   | { type: "EXCHANGE"; discardIds: string[] }
+  | { type: "EXCHANGE_DEFER" }
   | { type: "PENETRO_DECISION"; accept: boolean }
   | { type: "CLOSE_HAND" }
   | { type: "PLAY"; cardId: string }

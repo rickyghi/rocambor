@@ -92,7 +92,7 @@ export class PostHandScreen implements Screen {
                 <span class="detail-value">${trumpSymbols[trump || ""] || "-"}</span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Ombre</span>
+                <span class="detail-label">Jugador</span>
                 <span class="detail-value">${this.seatLabel(ombre)}</span>
               </div>
             </div>
@@ -133,7 +133,7 @@ export class PostHandScreen implements Screen {
         const label = this.seatLabel(s as SeatIndex);
         return `
           <div class="trick-row ${isOmbre ? "ombre" : ""}">
-            <span class="trick-name">${label}${isOmbre ? " (Ombre)" : ""}</span>
+            <span class="trick-name">${label}${isOmbre ? " (Jugador)" : ""}</span>
             <span class="trick-count">${tricks}</span>
           </div>
         `;

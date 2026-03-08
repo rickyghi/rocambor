@@ -24,12 +24,17 @@ export const C2SMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("TAKE_SEAT"), seat: SeatSchema }),
   z.object({ type: z.literal("LEAVE_ROOM") }),
   z.object({ type: z.literal("START_GAME") }),
-  z.object({ type: z.literal("BID"), value: BidSchema }),
+  z.object({
+    type: z.literal("BID"),
+    value: BidSchema,
+    suit: SuitSchema.optional(),
+  }),
   z.object({ type: z.literal("CHOOSE_TRUMP"), suit: SuitSchema }),
   z.object({
     type: z.literal("EXCHANGE"),
     discardIds: z.array(z.string()).max(9),
   }),
+  z.object({ type: z.literal("EXCHANGE_DEFER") }),
   z.object({ type: z.literal("PENETRO_DECISION"), accept: z.boolean() }),
   z.object({ type: z.literal("CLOSE_HAND") }),
   z.object({ type: z.literal("PLAY"), cardId: z.string().min(1) }),

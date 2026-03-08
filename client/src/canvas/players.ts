@@ -10,6 +10,34 @@ type Position = "self" | "left" | "across" | "right";
 
 const FONT_SANS = '"Inter", system-ui, sans-serif';
 
+function activeSeats(state: ClientState): SeatIndex[] {
+  if (!state.game) return [0, 1, 2];
+  if (state.game.contract === "penetro") return [0, 1, 2, 3];
+  return ([0, 1, 2, 3] as SeatIndex[]).filter((s) => s !== state.game!.resting).slice(0, 3);
+}
+
+function nextActiveSeat(active: SeatIndex[], seat: SeatIndex): SeatIndex {
+  const idx = active.indexOf(seat);
+  if (idx < 0) return active[0];
+  return active[(idx + 1) % active.length];
+}
+
+function roleBadgeForSeat(state: ClientState, seat: SeatIndex, pos: Position): string {
+  const game = state.game;
+  if (!game) return pos.toUpperCase();
+  if (game.resting === seat) return "RESTING";
+  if (game.ombre === null) {
+    return pos === "self" ? "YOU" : pos.toUpperCase();
+  }
+  if (seat === game.ombre) return "JUGADOR";
+  const active = activeSeats(state);
+  const primer = nextActiveSeat(active, game.ombre);
+  const segundo = nextActiveSeat(active, primer);
+  if (seat === primer) return "PRIMER CONTR.";
+  if (seat === segundo) return "SEGUNDO CONTR.";
+  return pos === "self" ? "YOU" : pos.toUpperCase();
+}
+
 export function drawPlayers(
   ctx: CanvasRenderingContext2D,
   state: ClientState,
@@ -34,6 +62,7 @@ export function drawPlayers(
     const isResting = state.game.resting === seat;
     const isMyTurn = state.game.turn === seat;
     const isSelf = pos === "self";
+    const roleBadge = roleBadgeForSeat(state, seat, pos);
 
     const displayName = isSelf
       ? profile.name
@@ -62,7 +91,8 @@ export function drawPlayers(
         player ? player.connected : true,
         displayName,
         avatarUrl,
-        avatarFallback
+        avatarFallback,
+        roleBadge
       );
 
       // Draw score
@@ -117,7 +147,8 @@ function drawNameBadge(
   isConnected: boolean,
   displayName: string,
   avatarUrl: string,
-  avatarFallback: string
+  avatarFallback: string,
+  roleBadge: string
 ): void {
   const name = displayName || player?.handle || (isSelf ? "You" : `Seat ${seat}`);
   const label = isResting ? `${name} (resting)` : name;
@@ -188,19 +219,18 @@ function drawNameBadge(
   ctx.fill();
 
   if (!isSelf) {
-    const direction = pos === "left" ? "LEFT" : pos === "across" ? "ACROSS" : "RIGHT";
     ctx.fillStyle = "rgba(248,246,240,0.95)";
-    roundRect(ctx, x - 36, y - 30, 72, 14, 7);
+    roundRect(ctx, x - 44, y - 30, 88, 14, 7);
     ctx.fill();
     ctx.strokeStyle = "rgba(13,13,13,0.12)";
     ctx.lineWidth = 1;
-    roundRect(ctx, x - 36, y - 30, 72, 14, 7);
+    roundRect(ctx, x - 44, y - 30, 88, 14, 7);
     ctx.stroke();
 
     ctx.fillStyle = "#6d5a2f";
     ctx.font = `700 9px ${FONT_SANS}`;
     ctx.textAlign = "center";
-    ctx.fillText(direction, x, y - 23);
+    ctx.fillText(roleBadge, x, y - 23);
   }
 
   ctx.restore();

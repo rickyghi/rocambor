@@ -12,7 +12,7 @@ import {
   S2CMessage,
 } from "../../shared/types";
 import { makeDeck, legalPlays, trickWinner, generateSeed } from "./engine";
-import { botAct, BotContext, decideExchange } from "./bot";
+import { botAct, BotContext } from "./bot";
 import {
   saveHandResult,
   saveMatchResult,
@@ -71,6 +71,7 @@ export class Room {
   private seed: string = "";
   private hostSeat: SeatIndex | null = null;
   private rematchVotes = new Set<SeatIndex>();
+  private soloTrumpBySeat: Partial<Record<SeatIndex, Suit>> = {};
 
   constructor(id: string, config: RoomConfig) {
     this.id = id;
@@ -219,9 +220,12 @@ export class Room {
   }
 
   nextActive(seat: SeatIndex): SeatIndex {
-    const a = this.seatsActive();
-    const i = a.indexOf(seat);
-    return a[(i + 1) % a.length];
+    const active = this.seatsActive();
+    for (let step = 1; step <= 4; step++) {
+      const candidate = ((seat + step) % 4) as SeatIndex;
+      if (active.includes(candidate)) return candidate;
+    }
+    return active[0];
   }
 
   // ---- Connection management ----
@@ -463,6 +467,7 @@ export class Room {
     this.state.ombre = null;
     this.state.trump = null;
     this.state.contract = null;
+    this.soloTrumpBySeat = {};
     this.state.tricks = { 0: 0, 1: 0, 2: 0, 3: 0 };
     this.state.table = [];
     this.state.playOrder = [];
@@ -496,9 +501,8 @@ export class Room {
       3: this.hands[3].length,
     };
 
-    // Start auction - order is left of seat 0, then next, then seat 0
-    // In the active seats, the first bidder is the one after the "dealer" (resting seat or index rotation)
-    const firstBidder = active[0];
+    // Start auction with the first active seat after the resting/dealer seat.
+    const firstBidder = this.nextActive(this.restSeat());
     const order: SeatIndex[] = [];
     let cur = firstBidder;
     for (let i = 0; i < active.length; i++) {
@@ -647,8 +651,12 @@ export class Room {
   }
 
   // ---- Auction ----
-  applyBid(seat: SeatIndex, value: Bid): void {
+  applyBid(seat: SeatIndex, value: Bid, suit?: Suit): void {
     if (this.state.phase !== "auction" || this.state.turn !== seat) return;
+    if (value === "solo" && suit === "oros") {
+      value = "solo_oros";
+      suit = undefined;
+    }
     if (value === "bola") {
       return this.errorSeat(
         seat,
@@ -701,6 +709,11 @@ export class Room {
     } else {
       a.currentBid = value;
       a.currentBidder = seat;
+      if (value === "solo" && suit && suit !== "oros") {
+        this.soloTrumpBySeat[seat] = suit;
+      } else if (value !== "solo") {
+        delete this.soloTrumpBySeat[seat];
+      }
     }
 
     this.event("AUCTION_ACTION", {
@@ -732,6 +745,19 @@ export class Room {
         this.startExchange();
       } else if (a.currentBid === "contrabola") {
         this.startExchange();
+      } else if (a.currentBid === "solo") {
+        const declared = this.soloTrumpBySeat[a.currentBidder];
+        if (declared) {
+          this.state.trump = declared;
+          this.event("TRUMP_SET", { method: "solo_bid", suit: declared });
+          this.startExchange();
+        } else {
+          this.state.phase = "trump_choice";
+          this.state.turn = this.state.ombre;
+          this.patch(this.state);
+          this.armTimer();
+          this.botMaybeAct();
+        }
       } else {
         this.state.phase = "trump_choice";
         this.state.turn = this.state.ombre;
@@ -852,11 +878,13 @@ export class Room {
       this.state.contract === "solo" || this.state.contract === "solo_oros";
     const isBola = this.state.contract === "bola";
     const isContrabola = this.state.contract === "contrabola";
+    const ombre = this.state.ombre;
+    if (ombre === null) return;
 
     // Bola: no exchange by any player.
     if (isBola) {
       this.state.phase = "play";
-      this.state.turn = this.nextActive(this.state.ombre!);
+      this.state.turn = this.nextActive(ombre);
       this.patch(this.state);
       this.armTimer();
       this.botMaybeAct();
@@ -864,21 +892,23 @@ export class Room {
     }
 
     this.state.phase = "exchange";
-    const order = this.seatsActive().slice();
+    const activeOrderFromOmbre: SeatIndex[] = [];
+    let cursor = ombre;
+    for (let i = 0; i < this.seatsActive().length; i++) {
+      activeOrderFromOmbre.push(cursor);
+      cursor = this.nextActive(cursor);
+    }
     let ex: SeatIndex[];
 
     if (isContrabola) {
       // Contrabola: ombre must exchange exactly one card; nobody else exchanges.
-      ex = [this.state.ombre!];
+      ex = [ombre];
     } else if (isSolo) {
-      // Solo: ombre doesn't exchange
-      ex = order.filter((s) => s !== this.state.ombre);
+      // Solo: ombre doesn't exchange.
+      ex = activeOrderFromOmbre.filter((s) => s !== ombre);
     } else {
-      // Normal: ombre first, then others
-      ex = [
-        this.state.ombre!,
-        ...order.filter((s) => s !== this.state.ombre),
-      ];
+      // Normal: ombre first, defenders follow in clockwise/dealing order.
+      ex = activeOrderFromOmbre;
     }
 
     this.state.exchange = {
@@ -888,10 +918,7 @@ export class Room {
       completed: [],
     };
 
-    this.state.turn = this.state.exchange.current;
-    this.patch(this.state);
-    this.armTimer();
-    this.botMaybeAct();
+    this.autoAdvanceExchangeTurn(this.state.exchange.current);
   }
 
   finishExchange(seat: SeatIndex, discardIds: string[]): void {
@@ -899,38 +926,10 @@ export class Room {
 
     const ex = this.state.exchange;
     if (!ex.order.includes(seat) || ex.completed.includes(seat)) return;
+    if (this.state.turn !== seat) return;
 
-    const ombre = this.state.ombre;
-    const contract = this.state.contract;
-    const isSoloContract = contract === "solo" || contract === "solo_oros";
-    const isContrabolaContract = contract === "contrabola";
-    const openDefenderChoice =
-      !isSoloContract &&
-      !isContrabolaContract &&
-      ombre !== null &&
-      ex.completed.length === 1 &&
-      ex.completed.includes(ombre) &&
-      seat !== ombre;
-
-    if (this.state.turn !== seat && !openDefenderChoice) return;
-
-    const isOmbre = seat === this.state.ombre;
-    const isSolo =
-      this.state.contract === "solo" ||
-      this.state.contract === "solo_oros";
-    const isBola = this.state.contract === "bola";
-    const isContrabola = this.state.contract === "contrabola";
-    const isOros =
-      this.state.contract === "oros" || this.state.contract === "solo_oros";
+    const { min, max } = this.exchangeLimitsForSeat(seat);
     const hand = this.hands[seat];
-    let max = isOmbre
-      ? (isSolo ? 0 : isOros ? 6 : 8)
-      : Math.min(hand.length, this.talon.length);
-
-    if (isBola) max = 0;
-    if (isContrabola) {
-      max = isOmbre ? 1 : 0;
-    }
 
     const ids = new Set(discardIds);
     const toDiscard: Card[] = [];
@@ -941,17 +940,21 @@ export class Room {
       }
     }
 
-    if (isContrabola && isOmbre) {
-      if (toDiscard.length !== 1 || this.talon.length < 1) {
+    if (toDiscard.length < min || toDiscard.length > max) {
+      if (min === 1 && max === 1) {
         return this.errorSeat(
           seat,
           "BAD_EXCHANGE",
           "Contrabola requires exchanging exactly one card"
         );
       }
+      return this.errorSeat(
+        seat,
+        "BAD_EXCHANGE",
+        `Exchange must be between ${min} and ${max} cards`
+      );
     }
-
-    const count = Math.min(toDiscard.length, this.talon.length, max);
+    const count = toDiscard.length;
 
     for (let i = 0; i < count; i++) {
       const k = hand.findIndex((c) => c.id === toDiscard[i].id);
@@ -966,83 +969,120 @@ export class Room {
     this.state.exchange.completed.push(seat);
     this.state.exchange.talonSize = this.talon.length;
 
-    let next: SeatIndex | undefined;
+    const next = ex.order.find((s) => !ex.completed.includes(s)) ?? null;
+    this.autoAdvanceExchangeTurn(next);
+  }
 
-    // After ombre exchanges, both defenders can choose who goes first.
-    // If both pending defenders are bots, prefer the one with higher exchange demand.
-    const pendingDefenders = this.pendingOpenChoiceDefenders();
-    if (pendingDefenders.length > 1) {
-      next = this.preferredBotDefenderForExchange(pendingDefenders) ?? undefined;
+  deferDefenderExchange(seat: SeatIndex): void {
+    if (this.state.phase !== "exchange") {
+      return this.errorSeat(seat, "WRONG_PHASE");
+    }
+    if (this.state.turn !== seat) {
+      return this.errorSeat(seat, "NOT_YOUR_TURN");
     }
 
-    if (next === undefined) {
-      const curIdx = ex.order.indexOf(seat);
-      for (let k = 1; k < ex.order.length; k++) {
-        const cand = ex.order[(curIdx + k) % ex.order.length];
-        if (!ex.completed.includes(cand)) {
-          next = cand;
-          break;
-        }
+    const contract = this.state.contract;
+    if (!contract) return this.errorSeat(seat, "BAD_EXCHANGE_ORDER");
+    if (
+      contract === "solo" ||
+      contract === "solo_oros" ||
+      contract === "contrabola" ||
+      contract === "bola"
+    ) {
+      return this.errorSeat(seat, "BAD_EXCHANGE_ORDER");
+    }
+
+    const ombre = this.state.ombre;
+    if (ombre === null) return this.errorSeat(seat, "BAD_EXCHANGE_ORDER");
+    const completed = this.state.exchange.completed;
+    if (completed.length !== 1 || !completed.includes(ombre)) {
+      return this.errorSeat(seat, "BAD_EXCHANGE_ORDER");
+    }
+
+    const pendingDefenders = this.state.exchange.order.filter(
+      (s) => s !== ombre && !completed.includes(s)
+    );
+    if (pendingDefenders.length !== 2 || pendingDefenders[0] !== seat) {
+      return this.errorSeat(
+        seat,
+        "BAD_EXCHANGE_ORDER",
+        "Only the first defender can choose to exchange second."
+      );
+    }
+
+    const secondDefender = pendingDefenders[1];
+    this.state.exchange.current = secondDefender;
+    this.state.turn = secondDefender;
+    this.event("EXCHANGE_ORDER_DEFER", {
+      from: seat,
+      to: secondDefender,
+    });
+    this.patch(this.state);
+    this.armTimer();
+    this.botMaybeAct();
+  }
+
+  private exchangeLimitsForSeat(seat: SeatIndex): { min: number; max: number } {
+    const contract = this.state.contract;
+    const ombre = this.state.ombre;
+    if (!contract || ombre === null) return { min: 0, max: 0 };
+
+    const isOmbre = seat === ombre;
+    const isSolo = contract === "solo" || contract === "solo_oros";
+    const isOros = contract === "oros" || contract === "solo_oros";
+
+    if (contract === "bola") return { min: 0, max: 0 };
+    if (contract === "contrabola") {
+      return isOmbre ? { min: 1, max: 1 } : { min: 0, max: 0 };
+    }
+
+    if (isOmbre) {
+      if (isSolo) return { min: 0, max: 0 };
+      return { min: 0, max: Math.min(isOros ? 6 : 8, this.talon.length) };
+    }
+
+    return {
+      min: 0,
+      max: Math.min(this.hands[seat].length, this.talon.length),
+    };
+  }
+
+  private autoAdvanceExchangeTurn(startSeat: SeatIndex | null): void {
+    if (this.state.phase !== "exchange") return;
+
+    const ex = this.state.exchange;
+    let next = startSeat;
+
+    while (next !== null && ex.order.includes(next)) {
+      if (ex.completed.includes(next)) {
+        next = ex.order.find((s) => !ex.completed.includes(s)) ?? null;
+        continue;
       }
+      const { min, max } = this.exchangeLimitsForSeat(next);
+      if (max > 0 || min > 0) break;
+
+      ex.completed.push(next);
+      this.state.handsCount[next] = this.hands[next].length;
+      this.event("EXCHANGE_AUTO_SKIP", { seat: next });
+      next = ex.order.find((s) => !ex.completed.includes(s)) ?? null;
     }
 
-    if (next !== undefined) {
-      ex.current = next;
-      this.state.turn = next;
-      this.patch(this.state);
-      this.armTimer();
-      this.botMaybeAct();
-    } else {
+    ex.current = next;
+    this.state.exchange.talonSize = this.talon.length;
+
+    if (next === null) {
       this.state.phase = "play";
       this.state.turn = this.nextActive(this.state.ombre!);
       this.patch(this.state);
       this.armTimer();
       this.botMaybeAct();
-    }
-  }
-
-  private isOpenDefenderChoiceWindow(): boolean {
-    if (this.state.phase !== "exchange") return false;
-    const contract = this.state.contract;
-    if (!contract) return false;
-    if (contract === "solo" || contract === "solo_oros" || contract === "contrabola") {
-      return false;
-    }
-    const ombre = this.state.ombre;
-    if (ombre === null) return false;
-    const completed = this.state.exchange.completed;
-    return completed.length === 1 && completed.includes(ombre);
-  }
-
-  private pendingOpenChoiceDefenders(): SeatIndex[] {
-    if (!this.isOpenDefenderChoiceWindow()) return [];
-    const ombre = this.state.ombre!;
-    return this.state.exchange.order.filter(
-      (s) => s !== ombre && !this.state.exchange.completed.includes(s)
-    );
-  }
-
-  private preferredBotDefenderForExchange(
-    pendingDefenders: SeatIndex[]
-  ): SeatIndex | null {
-    const botPending = pendingDefenders.filter((seat) => {
-      const conn = this.conns.find((c) => c.seat === seat);
-      return !!conn?.isBot;
-    });
-    if (!botPending.length || botPending.length !== pendingDefenders.length) {
-      return null;
+      return;
     }
 
-    let bestSeat = botPending[0];
-    let bestNeed = -1;
-    for (const botSeat of botPending) {
-      const need = decideExchange(this.buildBotContext(botSeat)).length;
-      if (need > bestNeed) {
-        bestNeed = need;
-        bestSeat = botSeat;
-      }
-    }
-    return bestSeat;
+    this.state.turn = next;
+    this.patch(this.state);
+    this.armTimer();
+    this.botMaybeAct();
   }
 
   private canCloseHandNow(seat: SeatIndex): boolean {
@@ -1460,11 +1500,13 @@ export class Room {
 
       switch (msg.type) {
         case "BID":
-          return this.applyBid(conn.seat, msg.value as Bid);
+          return this.applyBid(conn.seat, msg.value as Bid, msg.suit as Suit | undefined);
         case "CHOOSE_TRUMP":
           return this.chooseTrump(conn.seat, msg.suit as Suit);
         case "EXCHANGE":
           return this.finishExchange(conn.seat, (msg.discardIds as string[]) || []);
+        case "EXCHANGE_DEFER":
+          return this.deferDefenderExchange(conn.seat);
         case "PENETRO_DECISION":
           return this.handlePenetroDecision(conn.seat, Boolean(msg.accept));
         case "CLOSE_HAND":
