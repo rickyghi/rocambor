@@ -68,8 +68,9 @@ export class LobbyScreen implements Screen {
       if (game?.players[i]) filledSeats++;
     }
 
-    // Can the game start?
-    const canStart = isHost && filledSeats >= totalSeats;
+    // Can the game start? Server requires only 1 human — it fills empty seats with bots
+    const canStart = isHost && filledSeats >= 1;
+    const hasOpenSeats = filledSeats > 0 && filledSeats < totalSeats;
 
     // Build seat cards
     const seats: string[] = [];
@@ -145,17 +146,22 @@ export class LobbyScreen implements Screen {
     }
 
     // Start button area HTML
+    const emptyCount = totalSeats - filledSeats;
+    const botHintHtml = hasOpenSeats
+      ? `<span class="lobby-bot-hint">${ICON_BOT} ${emptyCount} empty seat${emptyCount !== 1 ? "s" : ""} will be filled with bots</span>`
+      : "";
     const startAreaHtml = isHost
       ? `
         <div class="lobby-start-area" id="lobby-start-area">
+          ${botHintHtml}
           <button class="lobby-start-btn" data-action="start" type="button" ${canStart ? "" : "disabled"}>
             Start Game
           </button>
-          ${!canStart ? `<span class="lobby-start-hint lobby-waiting-pulse">Awaiting ${totalSeats - filledSeats} more player${totalSeats - filledSeats !== 1 ? "s" : ""}...</span>` : ""}
+          ${!canStart ? `<span class="lobby-start-hint lobby-waiting-pulse">Awaiting players<span class="lobby-waiting-dots"></span></span>` : ""}
         </div>
       `
       : mySeat !== null
-        ? `<div class="lobby-start-area"><span class="lobby-start-hint lobby-waiting-pulse">Waiting for host to start...</span></div>`
+        ? `<div class="lobby-start-area"><span class="lobby-start-hint lobby-waiting-pulse">Waiting for host to start<span class="lobby-waiting-dots"></span></span></div>`
         : "";
 
     // Connection status
@@ -186,6 +192,11 @@ export class LobbyScreen implements Screen {
         <!-- Body -->
         <div class="lobby-body">
           <div class="lobby-panel">
+            <!-- Decorative watermark logo -->
+            <div class="lobby-watermark" aria-hidden="true">
+              <img class="lobby-watermark-img" src="/assets/rocambor/logo-light.png" alt="" />
+            </div>
+
             <!-- Mobile header (visible only on small screens via CSS) -->
             <div class="lobby-mobile-header" aria-hidden="true">
               <div class="lobby-mobile-title">Royal Salon</div>
@@ -244,6 +255,9 @@ export class LobbyScreen implements Screen {
                 <span>Invite Friends</span>
               </button>
             </div>
+
+            <!-- Ornamental divider -->
+            <div class="lobby-ornament-divider" aria-hidden="true"></div>
 
             <!-- Start game (desktop) -->
             <div class="lobby-desktop-start">
