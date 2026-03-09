@@ -101,6 +101,15 @@
   --felt-tile-size: auto;
   --noise-env-size: 420px 420px;
   --noise-panel-size: 360px 360px;
+
+  /* Game panel surfaces (dark felt-themed) */
+  --panel-dark: rgba(34, 53, 49, 0.95);
+  --panel-dark-alt: rgba(30, 33, 40, 0.9);
+  --panel-dark-border: rgba(200, 166, 81, 0.22);
+  --panel-dark-border-subtle: rgba(255, 255, 255, 0.08);
+  --text-on-panel: var(--ivory);
+  --text-on-panel-muted: rgba(248, 246, 240, 0.65);
+  --text-on-panel-dim: rgba(248, 246, 240, 0.45);
 }
 
 html,

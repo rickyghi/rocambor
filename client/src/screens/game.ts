@@ -967,7 +967,7 @@ export class GameScreen implements Screen {
     const cards = game.handsCount[seat] || 0;
     const tricks = game.tricks[seat] || 0;
     const roleLabel = this.roleLabelForSeat(seat);
-    const ombreTag = game.ombre === seat ? `<span class="hero-ombre-tag">👑 JUGADOR</span>` : "";
+    const ombreTag = game.ombre === seat ? `<span class="hero-ombre-tag">OMBRE</span>` : "";
     const turnTag = game.turn === seat ? `<span class="hero-turn-tag">TURN</span>` : "";
     const stateTag =
       game.resting === seat && roleLabel !== "RESTING"
@@ -1009,7 +1009,7 @@ export class GameScreen implements Screen {
     const filled = Math.max(0, Math.min(maxDots, tricks));
     const dots = Array.from({ length: maxDots }, (_, idx) => {
       const active = idx < filled ? " filled" : "";
-      return `<span class="hero-trick-dot${active}" aria-hidden="true">${idx < filled ? "◆" : "◌"}</span>`;
+      return `<span class="hero-trick-dot${active}" aria-hidden="true"></span>`;
     });
     return dots.join("");
   }

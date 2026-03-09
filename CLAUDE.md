@@ -11,6 +11,12 @@ brew install node
 
 # Install dependencies (from project root)
 npm install
+
+# Run client dev server (port 3000, proxies /ws to localhost:8080)
+cd client && npm run dev
+
+# Run game server (port 8080)
+cd server && npm start
 ```
 
 ## Running Tests
@@ -78,7 +84,7 @@ The simulation tests (`simulation.test.ts`) use Vitest fake timers to run full b
 - **NoeDisplay Bold** — Display/logo text (local @font-face)
 
 ### Design Token System
-CSS variables in `global.css` `:root` — semantic surfaces, motion timing, focus rings, shadows.
+CSS variables in `theme.css` `:root` — semantic surfaces, motion timing, focus rings, shadows.
 TypeScript constants in `design-tokens.ts` — `COLORS`, `FONT`, `SPACING`, `RADIUS`, `MOTION`, `SURFACES` for canvas rendering.
 
 ### Branded Component Classes
@@ -117,8 +123,15 @@ TypeScript constants in `design-tokens.ts` — `COLORS`, `FONT`, `SPACING`, `RAD
 - Each screen injects `<style>` via `addStyles()` with ID-gated dedup
 - Home: single Play CTA + mode toggle, ornament dividers, skin gallery in settings
 - Lobby: seat plaques with text badges, compact room header
-- Game: canvas + parchment controls bar
+- Game: canvas + dark felt-themed DOM controls (`.game-screen` scoped overrides in `game.css`)
 - Leaderboard: skeleton loading, gradient rank badges, self-row highlight, empty state
+
+### Game Screen Dark Theme
+- Game screen uses dark semi-transparent panels instead of ivory (scoped via `.game-screen .rc-panel` etc.)
+- Dark panel CSS vars in `theme.css`: `--panel-dark`, `--panel-dark-alt`, `--panel-dark-border`, `--text-on-panel`, `--text-on-panel-muted`
+- Panels use `backdrop-filter: blur(16px)` for glass effect on felt background
+- Text uses ivory (`var(--text-on-panel)`) instead of dark ink on game screen surfaces
+- Trick dots are CSS-only rotated diamonds (not text characters)
 
 ## Deployment
 
@@ -200,7 +213,9 @@ client/src/
   ui/           — Controls, settings, modals, toasts
   audio/        — Sound effects
   styles/
-    global.css      — CSS variables, branded components, keyframes, responsive
+    theme.css       — CSS custom properties (:root), body/html base styles
+    global.css      — Utility resets, keyframe animations, responsive helpers
+    components.css  — Shared component classes (.rc-panel, .btn-*, .ornament-divider)
     design-tokens.ts — TypeScript constants for canvas (COLORS, FONT, SPACING, RADIUS, MOTION, SURFACES)
 
 shared/
