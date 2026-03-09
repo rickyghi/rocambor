@@ -194,6 +194,8 @@ async function startServer(): Promise<void> {
                   reservation.playerId || playerId
                 );
                 if (conn) {
+                  // Consume the reservation only after a successful reconnect
+                  reconnectMgr.clearReservation(resumeId).catch(() => {});
                   connToRoom.set(ws, { conn, roomId: reservation.roomId });
                   setupWsHandlers(ws, conn, room.id);
                   console.log(
@@ -420,7 +422,7 @@ function handleNewConnection(
   clientId?: string,
   playerId?: string
 ): void {
-  const id = clientId || Math.random().toString(36).slice(2);
+  const id = clientId || randomUUID();
   const resolvedPlayerId =
     playerId && isUuid(playerId) ? playerId : randomUUID();
 
@@ -429,20 +431,34 @@ function handleNewConnection(
 
   attachPreRoomMessageHandler(ws, id, resolvedPlayerId);
 
-  // Keep-alive ping
+  // Keep-alive ping with pong timeout to detect TCP half-open connections
+  let pongTimeout: NodeJS.Timeout | null = null;
   const pingInterval = setInterval(() => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.ping();
-    } else {
+    if (ws.readyState !== WebSocket.OPEN) {
       clearInterval(pingInterval);
+      return;
     }
+    ws.ping();
+    pongTimeout = setTimeout(() => {
+      ws.terminate();
+    }, 10_000);
   }, 30_000);
+  ws.on("pong", () => {
+    if (pongTimeout) {
+      clearTimeout(pongTimeout);
+      pongTimeout = null;
+    }
+  });
 
   ws.on("close", () => {
     clearInterval(pingInterval);
+    if (pongTimeout) clearTimeout(pongTimeout);
     lobby.leaveQueue(id);
   });
-  ws.on("error", () => clearInterval(pingInterval));
+  ws.on("error", () => {
+    clearInterval(pingInterval);
+    if (pongTimeout) clearTimeout(pongTimeout);
+  });
 }
 
 function setupWsHandlers(

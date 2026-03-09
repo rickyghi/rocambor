@@ -58,7 +58,6 @@ export class ReconnectManager {
         const key = `reconnect:${clientId}`;
         const raw = await this.redis.get(key);
         if (!raw) return null;
-        await this.redis.del(key);
         const reservation = JSON.parse(raw) as SeatReservation;
         if (reservation.expiresAt < Date.now()) return null;
         return reservation;

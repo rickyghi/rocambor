@@ -66,6 +66,7 @@ export class Room {
   trickWinners: SeatIndex[] = [];
   timer: NodeJS.Timeout | null = null;
   private timerEpoch = 0;
+  private postHandTimer: NodeJS.Timeout | null = null;
   restIndex = 0;
   lastActivity: number = Date.now();
   private seed: string = "";
@@ -537,6 +538,10 @@ export class Room {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
+    }
+    if (this.postHandTimer) {
+      clearTimeout(this.postHandTimer);
+      this.postHandTimer = null;
     }
     delete this.state.turnDeadline;
   }
@@ -1372,7 +1377,8 @@ export class Room {
       this.state.phase = "post_hand";
       this.patch(this.state);
 
-      setTimeout(() => {
+      this.postHandTimer = setTimeout(() => {
+        this.postHandTimer = null;
         this.state.handNo += 1;
         this.newHand();
       }, POST_HAND_DELAY);
@@ -1382,6 +1388,8 @@ export class Room {
   // ---- Penetro ----
   private startPenetro(): void {
     const rest = this.restSeat();
+    // Capture first-dealt seat before setting contract="penetro" (which changes seatsActive())
+    const firstTurn = this.seatsActive()[0];
     const can = Math.min(9, this.talon.length);
 
     for (let i = 0; i < can; i++) {
@@ -1392,7 +1400,7 @@ export class Room {
     this.state.contract = "penetro";
     this.state.ombre = rest; // Set ombre to resting player for scoring reference
     this.state.phase = "play";
-    this.state.turn = (ALL_SEATS[0]) as SeatIndex;
+    this.state.turn = firstTurn;
 
     this.event("PENETRO_START", { restingPlayer: rest });
     this.patch(this.state);
@@ -1409,7 +1417,7 @@ export class Room {
     const humanSeats = this.conns
       .filter((c) => !c.isBot && !c.isSpectator && c.seat !== null && c.connected)
       .map((c) => c.seat!);
-    const required = Math.max(1, Math.ceil(humanSeats.length / 2 + 0.01));
+    const required = Math.max(1, Math.floor(humanSeats.length / 2) + 1);
 
     this.event("REMATCH_VOTE", {
       voter: seat,
