@@ -42,38 +42,38 @@ export type ViewportMode = "desktop" | "mobile-portrait";
 
 function desktopLayout(): Layout {
   const logicalW = 1320;
-  const logicalH = 700;
+  const logicalH = 760;
 
   return {
     mode: "desktop",
     width: logicalW,
     height: logicalH,
     scale: 1,
-    cardW: 96,
-    cardH: 138,
-    handY: 570,
+    cardW: 128,
+    cardH: 192,
+    handY: 560,
     handCenterX: logicalW / 2,
     tableCX: logicalW / 2,
-    tableCY: 332,
+    tableCY: 310,
     positions: {
-      self: { x: logicalW / 2, y: 652 },
-      left: { x: 166, y: 332 },
+      self: { x: logicalW / 2, y: 700 },
+      left: { x: 166, y: 310 },
       across: { x: logicalW / 2, y: 66 },
-      right: { x: logicalW - 166, y: 332 },
+      right: { x: logicalW - 166, y: 310 },
     },
     opponentCards: {
-      left: { x: 210, y: 278, vertical: true },
+      left: { x: 210, y: 256, vertical: true },
       across: { x: logicalW / 2, y: 130, vertical: false },
-      right: { x: logicalW - 210, y: 278, vertical: true },
+      right: { x: logicalW - 210, y: 256, vertical: true },
     },
     anchors: {
-      trickCenter: { x: logicalW / 2, y: 332 },
-      dealSource: { x: logicalW / 2, y: 332 },
+      trickCenter: { x: logicalW / 2, y: 310 },
+      dealSource: { x: logicalW / 2, y: 310 },
       playFrom: {
-        self: { x: logicalW / 2, y: 570 },
-        left: { x: 210, y: 278 },
+        self: { x: logicalW / 2, y: 560 },
+        left: { x: 210, y: 256 },
         across: { x: logicalW / 2, y: 130 },
-        right: { x: logicalW - 210, y: 278 },
+        right: { x: logicalW - 210, y: 256 },
       },
     },
   };
@@ -88,31 +88,31 @@ function mobilePortraitLayout(): Layout {
     width: logicalW,
     height: logicalH,
     scale: 1,
-    cardW: 82,
-    cardH: 118,
-    handY: 870,
+    cardW: 96,
+    cardH: 144,
+    handY: 860,
     handCenterX: logicalW / 2,
     tableCX: logicalW / 2,
-    tableCY: 430,
+    tableCY: 420,
     positions: {
       self: { x: logicalW / 2, y: 938 },
-      left: { x: 118, y: 446 },
+      left: { x: 118, y: 440 },
       across: { x: logicalW / 2, y: 86 },
-      right: { x: logicalW - 118, y: 446 },
+      right: { x: logicalW - 118, y: 440 },
     },
     opponentCards: {
-      left: { x: 156, y: 328, vertical: true },
+      left: { x: 156, y: 320, vertical: true },
       across: { x: logicalW / 2, y: 162, vertical: false },
-      right: { x: logicalW - 156, y: 328, vertical: true },
+      right: { x: logicalW - 156, y: 320, vertical: true },
     },
     anchors: {
-      trickCenter: { x: logicalW / 2, y: 430 },
-      dealSource: { x: logicalW / 2, y: 430 },
+      trickCenter: { x: logicalW / 2, y: 420 },
+      dealSource: { x: logicalW / 2, y: 420 },
       playFrom: {
-        self: { x: logicalW / 2, y: 854 },
-        left: { x: 156, y: 328 },
+        self: { x: logicalW / 2, y: 844 },
+        left: { x: 156, y: 320 },
         across: { x: logicalW / 2, y: 162 },
-        right: { x: logicalW - 156, y: 328 },
+        right: { x: logicalW - 156, y: 320 },
       },
     },
   };
@@ -125,8 +125,8 @@ export function computeLayout(mode: ViewportMode = "desktop"): Layout {
 export function cardSpread(
   count: number,
   centerX: number,
-  maxSpread = 86,
-  maxWidth = 600
+  maxSpread = 100,
+  maxWidth = 720
 ): { startX: number; spread: number } {
   const spread = Math.min(maxSpread, maxWidth / Math.max(1, count - 1));
   const startX = centerX - ((count - 1) * spread) / 2;

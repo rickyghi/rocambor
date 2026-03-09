@@ -300,7 +300,7 @@ function attachPreRoomMessageHandler(
           const conn = room.attach(ws, id, playerId);
 
           // Auto-seat creator at seat 0
-          conn.seat = room.allSeats()[0];
+          room.assignSeat(conn, room.allSeats()[0]);
 
           ws.removeListener("message", onMessage);
           preRoomHandlers.delete(ws);
@@ -343,11 +343,11 @@ function attachPreRoomMessageHandler(
           if (botSeat) {
             const seat = botSeat.seat!;
             room.conns = room.conns.filter((c) => c !== botSeat);
-            conn.seat = seat;
+            room.assignSeat(conn, seat);
           } else {
             const free = seats.find((s) => !occupied.has(s));
             if (free !== undefined) {
-              conn.seat = free;
+              room.assignSeat(conn, free);
             }
           }
 

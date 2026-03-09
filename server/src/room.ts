@@ -18,19 +18,14 @@ import {
   saveMatchResult,
   createRoomRecord,
 } from "./persistence";
+import { bidRank, isRankedBid, mapBidToContract } from "./auction-utils";
+import { calculateHandScore, scorePenetro } from "./scoring";
+import { exchangeLimitsForSeat, computeExchangeOrder } from "./exchange-utils";
 
 const TURN_MS = 25_000;
 const BOT_DELAY_MIN = 600;
 const BOT_DELAY_MAX = 1200;
 const POST_HAND_DELAY = 3000;
-const RANKED_BID_ORDER: readonly Bid[] = [
-  "entrada",
-  "oros",
-  "volteo",
-  "solo",
-  "solo_oros",
-] as const;
-
 export interface Conn {
   id: string;
   ws: WebSocket;
@@ -66,8 +61,9 @@ export class Room {
   trickWinners: SeatIndex[] = [];
   timer: NodeJS.Timeout | null = null;
   private timerEpoch = 0;
+  private botEpoch = 0;
   private postHandTimer: NodeJS.Timeout | null = null;
-  restIndex = 0;
+  restIndex = -1;
   lastActivity: number = Date.now();
   private seed: string = "";
   private hostSeat: SeatIndex | null = null;
@@ -202,7 +198,7 @@ export class Room {
   // ---- Seat management ----
   restSeat(): SeatIndex {
     if (this.state.mode === "quadrille") {
-      return (this.restIndex % 4) as SeatIndex;
+      return (((this.restIndex % 4) + 4) % 4) as SeatIndex;
     }
     return 3 as SeatIndex; // In tresillo, seat 3 always rests
   }
@@ -369,7 +365,8 @@ export class Room {
     return conn;
   }
 
-  private seatPlayer(conn: Conn, seat: SeatIndex): void {
+  /** Assign a seat with bookkeeping (host tracking, event). Does NOT send ROOM_JOINED. */
+  assignSeat(conn: Conn, seat: SeatIndex): void {
     conn.seat = seat;
     conn.isSpectator = false;
     // Track host: first seated human becomes host
@@ -377,13 +374,17 @@ export class Room {
       this.hostSeat = seat;
     }
     this.event("SEATED", { seat, id: conn.id, handle: conn.handle, bot: conn.isBot });
+    console.log(`[room] ${conn.handle} seated at ${seat} in room ${this.id}`);
+  }
+
+  private seatPlayer(conn: Conn, seat: SeatIndex): void {
+    this.assignSeat(conn, seat);
     this.send(conn, {
       type: "ROOM_JOINED",
       roomId: this.id,
       code: this.code,
       seat,
     });
-    console.log(`[room] ${conn.handle} seated at ${seat} in room ${this.id}`);
   }
 
   // ---- Bot management ----
@@ -450,6 +451,9 @@ export class Room {
       this.restIndex = (this.restIndex + 1) % 4;
     }
 
+    // Clear contract before cleanBots so seatsActive() doesn't see stale "penetro"
+    this.state.contract = null;
+
     // Remove bots from non-active seats, ensure active seats filled
     this.cleanBots();
     this.fillWithBots();
@@ -467,7 +471,6 @@ export class Room {
     // Reset state
     this.state.ombre = null;
     this.state.trump = null;
-    this.state.contract = null;
     this.soloTrumpBySeat = {};
     this.state.tricks = { 0: 0, 1: 0, 2: 0, 3: 0 };
     this.state.table = [];
@@ -570,7 +573,11 @@ export class Room {
     const conn = this.conns.find((c) => c.seat === seat);
     if (conn?.isBot) {
       const delay = this.botDelayMs(seat);
-      setTimeout(() => this.doBotAction(seat), delay);
+      const epoch = ++this.botEpoch;
+      setTimeout(() => {
+        if (this.botEpoch !== epoch) return; // phase/turn changed, skip stale action
+        this.doBotAction(seat);
+      }, delay);
     }
   }
 
@@ -647,13 +654,7 @@ export class Room {
     };
   }
 
-  private bidRank(value: Bid): number {
-    return RANKED_BID_ORDER.indexOf(value);
-  }
-
-  private isRankedBid(value: Bid): boolean {
-    return this.bidRank(value) >= 0;
-  }
+  // bidRank, isRankedBid → imported from auction-utils.ts
 
   // ---- Auction ----
   applyBid(seat: SeatIndex, value: Bid, suit?: Suit): void {
@@ -699,11 +700,11 @@ export class Room {
         }
       }
     } else if (value !== "pass") {
-      if (!this.isRankedBid(value)) {
+      if (!isRankedBid(value)) {
         return this.errorSeat(seat, "BAD_BID", "Must beat previous bid");
       }
-      const currentRank = this.bidRank(a.currentBid);
-      const nextRank = this.bidRank(value);
+      const currentRank = bidRank(a.currentBid);
+      const nextRank = bidRank(value);
       if (currentRank < 0 || nextRank <= currentRank) {
         return this.errorSeat(seat, "BAD_BID", "Must beat previous bid");
       }
@@ -736,7 +737,7 @@ export class Room {
 
     if (alive.length === 1 && a.currentBidder !== null && alive[0] === a.currentBidder) {
       this.state.ombre = a.currentBidder;
-      this.state.contract = this.mapBidToContract(a.currentBid);
+      this.state.contract = mapBidToContract(a.currentBid);
       this.event("AUCTION_WIN", {
         ombre: a.currentBidder,
         bid: a.currentBid,
@@ -779,18 +780,7 @@ export class Room {
     this.botMaybeAct();
   }
 
-  private mapBidToContract(b: Bid): Contract {
-    switch (b) {
-      case "entrada": return "entrada";
-      case "oros": return "oros";
-      case "volteo": return "volteo";
-      case "solo": return "solo";
-      case "solo_oros": return "solo_oros";
-      case "bola": return "bola";
-      case "contrabola": return "contrabola";
-      default: return "entrada";
-    }
-  }
+  // mapBidToContract → imported from auction-utils.ts
 
   private onPassOut(): void {
     const spadilleHolder = this.findSpadilleHolder();
@@ -903,18 +893,8 @@ export class Room {
       activeOrderFromOmbre.push(cursor);
       cursor = this.nextActive(cursor);
     }
-    let ex: SeatIndex[];
 
-    if (isContrabola) {
-      // Contrabola: ombre must exchange exactly one card; nobody else exchanges.
-      ex = [ombre];
-    } else if (isSolo) {
-      // Solo: ombre doesn't exchange.
-      ex = activeOrderFromOmbre.filter((s) => s !== ombre);
-    } else {
-      // Normal: ombre first, defenders follow in clockwise/dealing order.
-      ex = activeOrderFromOmbre;
-    }
+    const ex = computeExchangeOrder(this.state.contract!, ombre, activeOrderFromOmbre);
 
     this.state.exchange = {
       current: ex[0] ?? null,
@@ -933,7 +913,7 @@ export class Room {
     if (!ex.order.includes(seat) || ex.completed.includes(seat)) return;
     if (this.state.turn !== seat) return;
 
-    const { min, max } = this.exchangeLimitsForSeat(seat);
+    const { min, max } = this.getExchangeLimits(seat);
     const hand = this.hands[seat];
 
     const ids = new Set(discardIds);
@@ -1027,29 +1007,12 @@ export class Room {
     this.botMaybeAct();
   }
 
-  private exchangeLimitsForSeat(seat: SeatIndex): { min: number; max: number } {
+  // exchangeLimitsForSeat → imported from exchange-utils.ts
+  private getExchangeLimits(seat: SeatIndex): { min: number; max: number } {
     const contract = this.state.contract;
     const ombre = this.state.ombre;
     if (!contract || ombre === null) return { min: 0, max: 0 };
-
-    const isOmbre = seat === ombre;
-    const isSolo = contract === "solo" || contract === "solo_oros";
-    const isOros = contract === "oros" || contract === "solo_oros";
-
-    if (contract === "bola") return { min: 0, max: 0 };
-    if (contract === "contrabola") {
-      return isOmbre ? { min: 1, max: 1 } : { min: 0, max: 0 };
-    }
-
-    if (isOmbre) {
-      if (isSolo) return { min: 0, max: 0 };
-      return { min: 0, max: Math.min(isOros ? 6 : 8, this.talon.length) };
-    }
-
-    return {
-      min: 0,
-      max: Math.min(this.hands[seat].length, this.talon.length),
-    };
+    return exchangeLimitsForSeat(contract, seat, ombre, this.hands[seat].length, this.talon.length);
   }
 
   private autoAdvanceExchangeTurn(startSeat: SeatIndex | null): void {
@@ -1063,7 +1026,7 @@ export class Room {
         next = ex.order.find((s) => !ex.completed.includes(s)) ?? null;
         continue;
       }
-      const { min, max } = this.exchangeLimitsForSeat(next);
+      const { min, max } = this.getExchangeLimits(next);
       if (max > 0 || min > 0) break;
 
       ex.completed.push(next);
@@ -1209,7 +1172,7 @@ export class Room {
     }
   }
 
-  // ---- Scoring ----
+  // ---- Scoring (logic in scoring.ts) ----
   private finishHand(): void {
     this.clearTurnTimer();
 
@@ -1218,104 +1181,33 @@ export class Room {
       this.state.contract === "penetro"
         ? (ALL_SEATS.slice() as SeatIndex[])
         : this.seatsActive();
-    const t = this.state.tricks;
 
+    // Delegate score calculation to pure functions
+    let scoreResult;
     if (this.state.contract === "penetro") {
-      let maxTricks = -1;
-      let winner: SeatIndex = 0;
-      for (const s of ALL_SEATS) {
-        if (t[s] > maxTricks) {
-          maxTricks = t[s];
-          winner = s as SeatIndex;
-        }
-      }
-      this.state.scores[winner] += 2;
-      this.event("PENETRO_RESULT", { winner, tricks: this.state.tricks });
-
-      saveHandResult({
-        roomId: this.id,
-        handNo: this.state.handNo,
-        trump: this.state.trump,
+      scoreResult = scorePenetro(this.state.tricks, ALL_SEATS as SeatIndex[], this.trickWinners);
+      this.event("PENETRO_RESULT", { winner: scoreResult.award[0], tricks: this.state.tricks });
+    } else {
+      scoreResult = calculateHandScore({
+        contract: this.state.contract!,
         ombre: om,
-        resting: this.state.resting,
-        result: "penetro",
-        points: 2,
-        award: [winner],
+        activeSeats: active,
         tricks: this.state.tricks,
-        scores: this.state.scores,
-      }).catch(() => {});
-
-      return this.nextHand();
+        trickWinners: this.trickWinners,
+      });
+      this.event("HAND_RESULT", {
+        result: scoreResult.result,
+        points: scoreResult.points,
+        award: scoreResult.award,
+        tricks: this.state.tricks,
+      });
     }
 
-    const omTricks = t[om];
-    let result = "";
-    let points = 0;
-    let award: SeatIndex[] = [];
-
-    switch (this.state.contract) {
-      case "bola": {
-        const ok = omTricks === 9;
-        result = ok ? "bola_made" : "bola_failed";
-        if (ok) {
-          points = 6;
-          this.state.scores[om] += points;
-          award = [om];
-        } else {
-          for (const d of active.filter((s) => s !== om)) {
-            this.state.scores[d] += 2;
-          }
-          award = active.filter((s) => s !== om);
-        }
-        break;
-      }
-
-      case "contrabola": {
-        const ok = omTricks === 0;
-        result = ok ? "contrabola_made" : "contrabola_failed";
-        if (ok) {
-          points = 4;
-          this.state.scores[om] += points;
-          award = [om];
-        } else {
-          for (const d of active.filter((s) => s !== om)) {
-            this.state.scores[d] += 1;
-          }
-          award = active.filter((s) => s !== om);
-        }
-        break;
-      }
-
-      default: {
-        if (omTricks >= 5) {
-          result = "sacada";
-          points = omTricks === 9 ? 4 : omTricks >= 7 ? 2 : 1;
-          if (this.state.contract === "oros") points += 1;
-          if (this.state.contract === "solo_oros") points += 1;
-          this.state.scores[om] += points;
-          award = [om];
-        } else {
-          const defenders = active.filter((s) => s !== om);
-          const maxDef = Math.max(...defenders.map((s) => t[s]));
-          if (maxDef >= 5) {
-            result = "codille";
-            points = 2;
-            const w = defenders.find((s) => t[s] === maxDef)!;
-            this.state.scores[w] += points;
-            award = [w];
-          } else {
-            result = "puesta";
-            points = 1;
-            for (const d of defenders) {
-              this.state.scores[d] += 1;
-            }
-            award = defenders;
-          }
-        }
-      }
+    // Apply score deltas
+    for (const [seatStr, delta] of Object.entries(scoreResult.deltas)) {
+      const seat = Number(seatStr) as SeatIndex;
+      this.state.scores[seat] += delta!;
     }
-
-    this.event("HAND_RESULT", { result, points, award, tricks: this.state.tricks });
 
     saveHandResult({
       roomId: this.id,
@@ -1323,9 +1215,9 @@ export class Room {
       trump: this.state.trump,
       ombre: om,
       resting: this.state.resting,
-      result,
-      points,
-      award,
+      result: scoreResult.result,
+      points: scoreResult.points,
+      award: scoreResult.award,
       tricks: this.state.tricks,
       scores: this.state.scores,
     }).catch(() => {});
@@ -1429,7 +1321,6 @@ export class Room {
       this.rematchVotes.clear();
       this.state.scores = { 0: 0, 1: 0, 2: 0, 3: 0 };
       this.state.handNo = 1;
-      this.state.phase = "lobby";
       this.newHand();
     }
   }
@@ -1441,6 +1332,13 @@ export class Room {
 
       switch (msg.type) {
         case "TAKE_SEAT": {
+          if (this.state.phase !== "lobby") {
+            return this.send(conn, {
+              type: "ERROR",
+              code: "GAME_IN_PROGRESS",
+              message: "Cannot change seats during a game",
+            });
+          }
           const seat = msg.seat as SeatIndex;
           const validSeats = this.allSeats();
           if (!validSeats.includes(seat)) {

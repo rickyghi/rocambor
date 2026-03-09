@@ -96,12 +96,12 @@ export class GameControls {
     const bidRank = (bid: Bid): number =>
       ({ entrada: 0, oros: 1, volteo: 2, solo: 3, solo_oros: 4 } as Partial<Record<Bid, number>>)[bid] ?? -1;
     const opening = currentBid === "pass";
-    const rankedBids: Array<{ value: Bid; label: string }> = [
-      { value: "entrada", label: "Entrada" },
-      { value: "oros", label: "Entrada Oros" },
-      { value: "volteo", label: "Volteo" },
-      { value: "solo", label: "Solo" },
-      { value: "solo_oros", label: "Solo Oros" },
+    const rankedBids: Array<{ value: Bid; label: string; icon: string; desc: string }> = [
+      { value: "entrada", label: "Entrada", icon: "\u2660", desc: "Standard opening" },
+      { value: "oros", label: "Entrada Oros", icon: "\u2600\uFE0F", desc: "Entrada with Oros" },
+      { value: "volteo", label: "Volteo", icon: "\u26A1", desc: "Trump from talon" },
+      { value: "solo", label: "Solo", icon: "\uD83D\uDC51", desc: "Choose trump now" },
+      { value: "solo_oros", label: "Solo Oros", icon: "\uD83D\uDC51", desc: "Solo with Oros" },
     ];
 
     const legal = opening
@@ -110,18 +110,12 @@ export class GameControls {
 
     const btns = legal
       .map((b) => {
-        const helper =
-          b.value === "entrada"
-            ? "Open standard game"
-            : b.value === "volteo"
-              ? "Trump from talon"
-              : b.value === "solo"
-                ? "Choose trump suit now"
-                : b.value === "oros"
-                  ? "Entrada with Oros trump"
-                  : "Solo with Oros trump";
         const activeClass = b.value === "solo" && this.soloSuitPickerOpen ? " solo-active" : "";
-        return `<button class="bid-btn${activeClass}" data-bid="${b.value}"><span>${b.label}</span><small>${helper}</small></button>`;
+        return `<button class="auction-bid bid-btn${activeClass}" data-bid="${b.value}">
+          <span class="auction-bid-icon">${b.icon}</span>
+          <span class="auction-bid-name">${b.label}</span>
+          <span class="auction-bid-desc">${b.desc}</span>
+        </button>`;
       })
       .join("");
 
@@ -129,10 +123,10 @@ export class GameControls {
       this.soloSuitPickerOpen && legal.some((b) => b.value === "solo");
     const soloPicker = showSoloPicker
       ? `
-        <div class="control-row compact control-row-trumps">
-          <button class="trump-btn solo-suit-btn" data-solo-suit="espadas" style="--suit-color: #0D0D0D"><span>♠ Solo Espadas</span></button>
-          <button class="trump-btn solo-suit-btn" data-solo-suit="copas" style="--suit-color: #B02E2E"><span>♥ Solo Copas</span></button>
-          <button class="trump-btn solo-suit-btn" data-solo-suit="bastos" style="--suit-color: #2A4D41"><span>♣ Solo Bastos</span></button>
+        <div class="auction-suit-picker">
+          <button class="auction-suit-btn solo-suit-btn" data-solo-suit="espadas" style="--suit-color: #0D0D0D">\u2660 Espadas</button>
+          <button class="auction-suit-btn solo-suit-btn" data-solo-suit="copas" style="--suit-color: #B02E2E">\u2665 Copas</button>
+          <button class="auction-suit-btn solo-suit-btn" data-solo-suit="bastos" style="--suit-color: #2A4D41">\u2663 Bastos</button>
         </div>
       `
       : "";
@@ -144,29 +138,59 @@ export class GameControls {
     const allOthersPassed = a.currentBid === "pass" && a.passed.length === a.order.length - 1;
     const showContrabola = isLast && allOthersPassed;
 
+    const statusText = currentBid !== "pass"
+      ? `Leading bid: ${this.bidLabel(currentBid)}`
+      : "No leading bid";
+
     return `
-      <div class="control-group">
-        <span class="control-label">🛡️ Your turn: choose a bid</span>
-        ${currentBid !== "pass" ? `<span class="controls-hint">Leading bid: ${this.bidLabel(currentBid)}</span>` : ""}
-        <div class="control-row compact control-row-bids">
+      <div class="auction-panel">
+        <div class="auction-panel-header">
+          <span class="auction-header-icon">\u2696\uFE0F</span>
+          <span class="auction-header-title">The Auction</span>
+        </div>
+        <div class="auction-panel-status">${statusText}</div>
+        <div class="auction-bid-grid">
           ${btns}
-          ${showContrabola ? `<button class="bid-btn contrabola-btn" data-bid="contrabola"><span>Contrabola</span><small>Last all-pass special</small></button>` : ""}
-          <button class="bid-btn pass-btn" data-bid="pass">Pass</button>
+          ${showContrabola ? `<button class="auction-bid bid-btn contrabola-btn" data-bid="contrabola">
+            <span class="auction-bid-icon">\uD83C\uDFB2</span>
+            <span class="auction-bid-name">Contrabola</span>
+            <span class="auction-bid-desc">Last all-pass special</span>
+          </button>` : ""}
+          <button class="auction-bid bid-btn pass-btn" data-bid="pass">
+            <span class="auction-bid-icon">\u2717</span>
+            <span class="auction-bid-name">Pass</span>
+            <span class="auction-bid-desc">Skip this round</span>
+          </button>
         </div>
         ${soloPicker}
+        <div class="auction-panel-divider"></div>
+        <div class="auction-panel-quote">\u201CFortune favors the bold\u201D</div>
       </div>
     `;
   }
 
   private renderPenetroChoice(): string {
     return `
-      <div class="control-group">
-        <span class="control-label">🛡️ Penetro</span>
-        <span class="controls-hint">No active bidder. As resting player, choose whether to play Penetro.</span>
-        <div class="control-row">
-          <button class="bid-btn penetro-btn" data-accept="false"><span>Decline</span><small>Redeal hand</small></button>
-          <button class="bid-btn penetro-btn" data-accept="true"><span>Play Penetro</span><small>Resting player enters</small></button>
+      <div class="auction-panel">
+        <div class="auction-panel-header">
+          <span class="auction-header-icon">\u2696\uFE0F</span>
+          <span class="auction-header-title">Penetro Decision</span>
         </div>
+        <div class="auction-panel-status">No active bidder. As resting player, choose whether to play Penetro.</div>
+        <div class="auction-bid-grid">
+          <button class="auction-bid bid-btn penetro-btn" data-accept="false">
+            <span class="auction-bid-icon">\u2717</span>
+            <span class="auction-bid-name">Decline</span>
+            <span class="auction-bid-desc">Redeal hand</span>
+          </button>
+          <button class="auction-bid bid-btn penetro-btn" data-accept="true">
+            <span class="auction-bid-icon">\u2694\uFE0F</span>
+            <span class="auction-bid-name">Play Penetro</span>
+            <span class="auction-bid-desc">Resting player enters</span>
+          </button>
+        </div>
+        <div class="auction-panel-divider"></div>
+        <div class="auction-panel-quote">\u201CFortune favors the bold\u201D</div>
       </div>
     `;
   }
@@ -185,16 +209,21 @@ export class GameControls {
     const btns = suits
       .map(
         (s) =>
-          `<button class="trump-btn" data-suit="${s.value}" style="--suit-color: ${s.color}" ${orosOnly && s.value !== "oros" ? "disabled" : ""}><span>${s.symbol} ${s.label}</span></button>`
+          `<button class="auction-trump-btn trump-btn" data-suit="${s.value}" style="--suit-color: ${s.color}" ${orosOnly && s.value !== "oros" ? "disabled" : ""}>${s.symbol} ${s.label}</button>`
       )
       .join("");
 
     return `
-      <div class="control-group">
-        <span class="control-label">⚔️ Your turn: choose trump</span>
-        <div class="control-row compact control-row-trumps">
+      <div class="auction-panel">
+        <div class="auction-panel-header">
+          <span class="auction-header-icon">\u2694\uFE0F</span>
+          <span class="auction-header-title">Choose Trump</span>
+        </div>
+        <div class="auction-trump-grid">
           ${btns}
         </div>
+        <div class="auction-panel-divider"></div>
+        <div class="auction-panel-quote">\u201CFortune favors the bold\u201D</div>
       </div>
     `;
   }
@@ -210,19 +239,35 @@ export class GameControls {
     const needsSelectionHint = selected === 0 || (selected > maxExchange || selected < min);
     const canDefer = this.state.canDeferExchangeOrder;
 
+    const hintText = requireExactOne ? "Select exactly 1 card" : `Choose up to ${maxExchange} cards`;
+
     return `
-      <div class="control-group">
-        <span class="control-label">🃏 Select cards to exchange</span>
-        ${requireExactOne ? `<span class="controls-hint">Select exactly 1 card</span>` : `<span class="controls-hint">Choose up to ${maxExchange} cards</span>`}
-        <div class="control-row compact">
-          <span class="exchange-count">${selected} / ${maxExchange}</span>
-          <button class="exchange-btn primary" data-action="confirm" ${canConfirm ? "" : "disabled"}>
-            Exchange Selected
-          </button>
-          ${min > 0 ? "" : `<button class="exchange-btn secondary" data-action="skip">Keep All</button>`}
-          ${canDefer ? `<button class="exchange-btn secondary" data-action="defer">Exchange Second</button>` : ""}
+      <div class="auction-panel">
+        <div class="auction-panel-header">
+          <span class="auction-header-icon">\uD83C\uDCCF</span>
+          <span class="auction-header-title">Exchange Cards</span>
         </div>
-        ${needsSelectionHint ? `<span class="controls-hint">Select ${requireExactOne ? "exactly 1 card" : `1-${maxExchange} cards`}</span>` : ""}
+        <div class="auction-panel-status">${hintText} \u2014 ${selected} / ${maxExchange} selected</div>
+        <div class="auction-bid-grid">
+          <button class="auction-bid exchange-btn" data-action="confirm" ${canConfirm ? "" : "disabled"}>
+            <span class="auction-bid-icon">\u2194\uFE0F</span>
+            <span class="auction-bid-name">Exchange Selected</span>
+            <span class="auction-bid-desc">${selected} card${selected !== 1 ? "s" : ""} chosen</span>
+          </button>
+          ${min > 0 ? "" : `<button class="auction-bid exchange-btn pass-btn" data-action="skip">
+            <span class="auction-bid-icon">\u2717</span>
+            <span class="auction-bid-name">Keep All</span>
+            <span class="auction-bid-desc">No exchange</span>
+          </button>`}
+          ${canDefer ? `<button class="auction-bid exchange-btn" data-action="defer">
+            <span class="auction-bid-icon">\u23F3</span>
+            <span class="auction-bid-name">Exchange Second</span>
+            <span class="auction-bid-desc">Defer your turn</span>
+          </button>` : ""}
+        </div>
+        ${needsSelectionHint ? `<div class="auction-panel-status">${requireExactOne ? "Select exactly 1 card" : `Select 1\u2013${maxExchange} cards`}</div>` : ""}
+        <div class="auction-panel-divider"></div>
+        <div class="auction-panel-quote">\u201CFortune favors the bold\u201D</div>
       </div>
     `;
   }

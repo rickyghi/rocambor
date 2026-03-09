@@ -1,4 +1,4 @@
-import { Card, Suit, Bid, SeatIndex } from "../../shared/types";
+import { Card, Suit, Bid, SeatIndex, AUCTION_RANKED_BIDS } from "../../shared/types";
 import {
   evalTrumpPointsExact,
   legalPlays,
@@ -31,15 +31,7 @@ export interface BotContext {
   talonLength: number;
 }
 
-const RANKED_BID_ORDER: readonly Bid[] = [
-  "entrada",
-  "oros",
-  "volteo",
-  "solo",
-  "solo_oros",
-] as const;
-
-const BID_RANK: Record<string, number> = RANKED_BID_ORDER.reduce(
+const BID_RANK: Record<string, number> = AUCTION_RANKED_BIDS.reduce(
   (acc, bid, idx) => {
     acc[bid] = idx;
     return acc;
@@ -173,7 +165,7 @@ export function decideBid(ctx: BotContext): Bid {
     const currentRank = BID_RANK[a.currentBid];
     const bidRank = BID_RANK[bid];
     if (currentRank === undefined || bidRank === undefined || bidRank <= currentRank) {
-      const candidates = RANKED_BID_ORDER.filter((candidate) => {
+      const candidates = AUCTION_RANKED_BIDS.filter((candidate) => {
         const rank = BID_RANK[candidate];
         return rank > currentRank;
       });
@@ -239,7 +231,7 @@ export function decideExchange(ctx: BotContext): string[] {
 
   if (isContrabola) {
     if (!isOmbre || ctx.talonLength === 0 || ctx.hand.length === 0) return [];
-    return [pickLowest(ctx.hand, null).id];
+    return [pickHighest(ctx.hand, null).id];
   }
 
   const max = isOmbre

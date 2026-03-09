@@ -18,12 +18,7 @@ export function renderGameHeaderMarkup(): string {
         </button>
       </div>
       <div class="game-header-hud-row">
-        <div class="game-state-hud" id="game-state-hud" aria-live="polite">
-          <span class="game-state-chip turn" id="game-state-turn">TURN: --</span>
-          <span class="game-state-chip trump" id="game-state-trump">TRUMP: --</span>
-          <span class="game-state-chip ombre" id="game-state-ombre">JUGADOR: --</span>
-          <span class="game-state-chip target" id="game-state-target">TARGET: --</span>
-        </div>
+        <div class="game-hud-bar" id="game-hud-bar" aria-live="polite"></div>
       </div>
     </header>
   `;

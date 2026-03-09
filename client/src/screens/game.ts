@@ -34,10 +34,7 @@ export class GameScreen implements Screen {
 
   private headerMain!: HTMLElement;
   private headerSub!: HTMLElement;
-  private hudTurn!: HTMLElement;
-  private hudTrump!: HTMLElement;
-  private hudOmbre!: HTMLElement;
-  private hudTarget!: HTMLElement;
+  private hudBar!: HTMLElement;
   private headerPing!: HTMLElement;
   private headerAvatar!: HTMLImageElement;
   private headerName!: HTMLElement;
@@ -55,7 +52,12 @@ export class GameScreen implements Screen {
   private trickLayer!: HTMLElement;
   private handDock!: HTMLElement;
   private handLayer!: HTMLElement;
+  private handScrollDots!: HTMLElement;
+  private handActionBtn!: HTMLButtonElement;
+  private trickResultBanner!: HTMLElement;
+  private turnLeadPrompt!: HTMLElement;
   private spriteMode = false;
+  private handScrollHandler: (() => void) | null = null;
 
   private prevPhase: string | null = null;
   private prevTurn: number | null = null;
@@ -109,11 +111,22 @@ export class GameScreen implements Screen {
                   </div>
                 </div>
               </div>
+              <div class="trick-result-banner" id="trick-result-banner" hidden></div>
+              <div class="turn-lead-prompt" id="turn-lead-prompt" hidden>
+                <span class="turn-lead-main">YOUR TURN TO LEAD</span>
+                <span class="turn-lead-sub">Play any card to start the trick</span>
+              </div>
             </div>
             <div class="game-stage-bottom">
               <div class="hero-self-slot" id="hero-self-slot" aria-hidden="true"></div>
               <div class="game-hand-dock" id="game-hand-dock" aria-label="Your hand area">
+                <div class="hand-section-header">
+                  <span class="hand-label">Your Hand</span>
+                  <span class="hand-hint">SLIDE TO SELECT</span>
+                </div>
                 <div class="hand-row rc-panel rc-panel-noise" id="hand-layer" role="listbox" aria-label="Your hand"></div>
+                <div class="hand-scroll-dots" id="hand-scroll-dots" aria-hidden="true"></div>
+                <button class="hand-action-btn btn-gold-plaque" id="hand-action-btn" type="button" hidden>Select a Card</button>
               </div>
               <div class="game-controls-shell" data-actionable="false">
                 <div class="game-controls-bar rc-panel rc-panel-noise" id="game-controls"></div>
@@ -138,10 +151,7 @@ export class GameScreen implements Screen {
 
     this.headerMain = container.querySelector("#game-header-main") as HTMLElement;
     this.headerSub = container.querySelector("#game-header-sub") as HTMLElement;
-    this.hudTurn = container.querySelector("#game-state-turn") as HTMLElement;
-    this.hudTrump = container.querySelector("#game-state-trump") as HTMLElement;
-    this.hudOmbre = container.querySelector("#game-state-ombre") as HTMLElement;
-    this.hudTarget = container.querySelector("#game-state-target") as HTMLElement;
+    this.hudBar = container.querySelector("#game-hud-bar") as HTMLElement;
     this.headerPing = container.querySelector("#game-header-ping") as HTMLElement;
     this.headerAvatar = container.querySelector(".game-profile-avatar") as HTMLImageElement;
     this.headerName = container.querySelector(".game-profile-name") as HTMLElement;
@@ -159,6 +169,10 @@ export class GameScreen implements Screen {
     this.trickLayer = container.querySelector("#trick-layer") as HTMLElement;
     this.handDock = container.querySelector("#game-hand-dock") as HTMLElement;
     this.handLayer = container.querySelector("#hand-layer") as HTMLElement;
+    this.handScrollDots = container.querySelector("#hand-scroll-dots") as HTMLElement;
+    this.handActionBtn = container.querySelector("#hand-action-btn") as HTMLButtonElement;
+    this.trickResultBanner = container.querySelector("#trick-result-banner") as HTMLElement;
+    this.turnLeadPrompt = container.querySelector("#turn-lead-prompt") as HTMLElement;
 
     this.controls = new GameControls(
       container.querySelector("#game-controls") as HTMLElement,
@@ -177,6 +191,7 @@ export class GameScreen implements Screen {
       this.prevTurn = ctx.state.game.turn;
     }
 
+    this.syncPhaseClass();
     this.updateHeader();
     this.updateMobileSummary();
     this.updateMobileOpponents();
@@ -203,6 +218,11 @@ export class GameScreen implements Screen {
     this.canvas?.removeEventListener("touchend", this.handleTouchEnd);
 
     this.handLayer?.removeEventListener("click", this.handleDomHandClick);
+    this.handActionBtn?.removeEventListener("click", this.handleMobileActionClick);
+    if (this.handScrollHandler) {
+      this.handLayer?.removeEventListener("scroll", this.handScrollHandler);
+      this.handScrollHandler = null;
+    }
 
     window.removeEventListener("resize", this.handleResize);
     if (this.headerTicker !== null) {
@@ -252,12 +272,14 @@ export class GameScreen implements Screen {
     this.canvas.addEventListener("touchend", this.handleTouchEnd);
 
     this.handLayer.addEventListener("click", this.handleDomHandClick);
+    this.handActionBtn.addEventListener("click", this.handleMobileActionClick);
   }
 
   private setupSubscriptions(): void {
     this.unsubscribes.push(
       this.ctx.state.subscribe(() => {
         this.renderer.requestRender();
+        this.syncPhaseClass();
         this.handlePhaseTransitions();
         this.trackTrickFeedFromState();
         this.updateHeader();
@@ -363,10 +385,13 @@ export class GameScreen implements Screen {
         const seat = trickOrder[index];
         const rel = seat === undefined ? null : state.relativePosition(seat);
         const slot = this.trickSlotForPosition(rel ?? "across");
-        const winnerClass = trickWinner !== null && seat === trickWinner ? " winner" : "";
+        const isWinner = trickWinner !== null && seat === trickWinner;
+        const winnerClass = isWinner ? " winner" : "";
+        const winnerBadge = isWinner ? `<div class="trick-winner-badge">WINNER</div>` : "";
         const actorLabel = this.trickActorLabel(seat);
         return `
           <div class="trick-card-wrap${winnerClass}" style="${slot}">
+            ${winnerBadge}
             <div class="${spriteClassForCard(card)}"></div>
             ${actorLabel ? `<div class="trick-card-label">${escapeHtml(actorLabel)}</div>` : ""}
           </div>
@@ -406,6 +431,14 @@ export class GameScreen implements Screen {
       this.syncCardPresentationMode();
       showToast("Using fallback card renderer.", "info", 1200);
     }
+
+    // Show turn-to-lead prompt
+    const showLeadPrompt = game.phase === "play" && state.isMyTurn && game.table.length === 0 && !this.trickDisplayOverlay;
+    this.turnLeadPrompt.hidden = !showLeadPrompt;
+
+    // Update mobile scroll dots and action button
+    this.updateHandScrollDots();
+    this.updateMobileActionButton();
   }
 
   private trickSlotForPosition(
@@ -433,10 +466,10 @@ export class GameScreen implements Screen {
     if (this.isMobilePortrait) return "";
     const mid = (count - 1) / 2;
     const delta = index - mid;
-    const spread = Math.min(22, 120 / Math.max(4, count));
-    const rotate = delta * spread * 0.45;
-    const x = delta * 2.1;
-    const y = Math.abs(delta) * 0.95;
+    const spread = Math.min(18, 100 / Math.max(4, count));
+    const rotate = delta * spread * 0.38;
+    const x = delta * 1.8;
+    const y = Math.abs(delta) * 0.8;
     return `--fan-rot:${rotate.toFixed(2)}deg;--fan-x:${x.toFixed(2)}px;--fan-y:${y.toFixed(2)}px`;
   }
 
@@ -534,6 +567,34 @@ export class GameScreen implements Screen {
     this.handleCardInteraction(cardId, touchConfirm);
   };
 
+  private handleMobileActionClick = (): void => {
+    const state = this.ctx.state;
+    const game = state.game;
+    if (!game) return;
+
+    if (state.phase === "play" && this.pendingPlayCard) {
+      this.ctx.connection.send({ type: "PLAY", cardId: this.pendingPlayCard });
+      this.ctx.sounds.cardPlay();
+      this.pendingPlayCard = null;
+      state.clearSelection();
+      this.renderDomCardLayers();
+      return;
+    }
+
+    if (state.phase === "exchange" && state.canExchangeNow) {
+      const selected = Array.from(state.selectedCards);
+      if (selected.length > 0) {
+        this.ctx.connection.send({ type: "EXCHANGE", discardIds: selected });
+        this.ctx.sounds.cardPlay();
+        state.clearSelection();
+      } else {
+        this.ctx.connection.send({ type: "EXCHANGE", discardIds: [] });
+        this.ctx.sounds.cardPlay();
+      }
+      return;
+    }
+  };
+
   private handleCardInteraction(cardId: string, tapToConfirm: boolean): void {
     const state = this.ctx.state;
     const game = state.game;
@@ -602,6 +663,109 @@ export class GameScreen implements Screen {
     // Force reflow so repeated invalid actions retrigger animation.
     void (row as HTMLElement).offsetWidth;
     row.classList.add("invalid-shake");
+  }
+
+  private updateHandScrollDots(): void {
+    if (!this.isMobilePortrait || !this.spriteMode) {
+      this.handScrollDots.innerHTML = "";
+      return;
+    }
+
+    const cards = this.ctx.state.hand;
+    if (cards.length <= 3) {
+      this.handScrollDots.innerHTML = "";
+      return;
+    }
+
+    // Build dots - one per card
+    const dots = cards
+      .map(
+        (_, i) =>
+          `<span class="hand-dot${i === 0 ? " active" : ""}" data-idx="${i}"></span>`
+      )
+      .join("");
+    this.handScrollDots.innerHTML = dots;
+
+    // Remove previous scroll listener and re-attach
+    if (this.handScrollHandler) {
+      this.handLayer.removeEventListener("scroll", this.handScrollHandler);
+      this.handScrollHandler = null;
+    }
+
+    const cardCount = cards.length;
+    this.handScrollHandler = () => {
+      const scrollLeft = this.handLayer.scrollLeft;
+      const scrollWidth = this.handLayer.scrollWidth - this.handLayer.clientWidth;
+      if (scrollWidth <= 0) return;
+      const progress = scrollLeft / scrollWidth;
+      const activeIdx = Math.round(progress * (cardCount - 1));
+      this.handScrollDots.querySelectorAll(".hand-dot").forEach((dot, i) => {
+        dot.classList.toggle("active", i === activeIdx);
+      });
+    };
+    this.handLayer.addEventListener("scroll", this.handScrollHandler, {
+      passive: true,
+    });
+  }
+
+  private updateMobileActionButton(): void {
+    if (!this.isMobilePortrait) {
+      this.handActionBtn.hidden = true;
+      return;
+    }
+
+    const state = this.ctx.state;
+    const game = state.game;
+    if (!game) {
+      this.handActionBtn.hidden = true;
+      return;
+    }
+
+    if (state.phase === "play" && state.isMyTurn) {
+      this.handActionBtn.hidden = false;
+      if (this.pendingPlayCard) {
+        const card = state.hand.find((c) => c.id === this.pendingPlayCard);
+        const label = card ? this.cardLabel(card) : "Selected Card";
+        this.handActionBtn.textContent = `Play ${label}`;
+        this.handActionBtn.disabled = false;
+        this.handActionBtn.classList.add("ready");
+      } else {
+        this.handActionBtn.textContent = "Tap a Card to Select";
+        this.handActionBtn.disabled = true;
+        this.handActionBtn.classList.remove("ready");
+      }
+      return;
+    }
+
+    if (state.phase === "exchange" && state.canExchangeNow) {
+      this.handActionBtn.hidden = false;
+      const count = state.selectedCards.size;
+      if (count > 0) {
+        this.handActionBtn.textContent = `Exchange ${count} Card${count > 1 ? "s" : ""}`;
+        this.handActionBtn.disabled = false;
+        this.handActionBtn.classList.add("ready");
+      } else {
+        this.handActionBtn.textContent = "Keep All Cards";
+        this.handActionBtn.disabled = false;
+        this.handActionBtn.classList.remove("ready");
+      }
+      return;
+    }
+
+    this.handActionBtn.hidden = true;
+  }
+
+  /** Toggle phase-specific CSS classes on root element for card sizing */
+  private syncPhaseClass(): void {
+    const game = this.ctx.state.game;
+    const phase = game?.phase ?? "";
+    const phaseClasses = ["phase-auction", "phase-play", "phase-exchange", "phase-trump"];
+    phaseClasses.forEach((cls) => this.rootEl.classList.remove(cls));
+
+    if (phase === "auction") this.rootEl.classList.add("phase-auction");
+    else if (phase === "play") this.rootEl.classList.add("phase-play");
+    else if (phase === "exchange") this.rootEl.classList.add("phase-exchange");
+    else if (phase === "trump_choice") this.rootEl.classList.add("phase-trump");
   }
 
   private handlePhaseTransitions(): void {
@@ -676,6 +840,13 @@ export class GameScreen implements Screen {
         const label = rel === "self" ? "You" : this.ctx.state.game?.players[winner]?.handle || rel;
         const reason = this.trickWinReason(payload);
         this.pushArenaToast(`${label} wins trick${reason ? ` (${reason})` : ""}`, 1900);
+        const trickCards = Array.isArray(payload.cards) ? (payload.cards as Card[]) : [];
+        const trickPlayOrder = Array.isArray(payload.playOrder) ? (payload.playOrder as number[]) : [];
+        const winIdx = trickPlayOrder.indexOf(winner);
+        const winnerCard = winIdx >= 0 ? trickCards[winIdx] : null;
+        const winnerLabel = rel === "self" ? "You win" : `${label} wins`;
+        const cardDesc = winnerCard ? ` with ${this.cardLabel(winnerCard)}` : "";
+        this.showTrickResultBanner(`${winnerLabel}${cardDesc}!`);
         this.applyTrickOverlayFromEvent(payload);
         this.renderHeroPlates();
         const anchors = this.renderer.getAnimationAnchors();
@@ -848,7 +1019,6 @@ export class GameScreen implements Screen {
     if (game) {
       const phase = this.phaseLabel(game.phase);
       this.headerMain.textContent = `Round ${game.handNo} · ${phase} · Target ${game.gameTarget}`;
-      const turnName = this.turnActorLabelForHud(game.turn);
       const seconds =
         typeof game.turnDeadline === "number"
           ? Math.max(0, Math.ceil((game.turnDeadline - Date.now()) / 1000))
@@ -858,21 +1028,13 @@ export class GameScreen implements Screen {
         seconds !== null && game.turn !== null ? `${prompt} · ${seconds}s` : prompt;
       this.headerSub.classList.toggle("urgent", seconds !== null && seconds <= 5 && this.ctx.state.isMyTurn);
 
-      this.hudTurn.textContent = `TURN: ${turnName}`;
-      this.hudTrump.textContent = game.trump
-        ? `TRUMP: ${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`
-        : "TRUMP: Undeclared";
-      this.hudOmbre.textContent =
-        game.ombre === null ? "JUGADOR: --" : `JUGADOR: ${this.seatLabelForAnnouncements(game.ombre)}`;
-      this.hudTarget.textContent = `TARGET: ${game.gameTarget}`;
+      // Populate the contextual HUD bar with phase-specific pills
+      this.hudBar.innerHTML = this.renderHudPills(game, false);
     } else {
       this.headerMain.textContent = "Waiting for game state";
       this.headerSub.textContent = "";
       this.headerSub.classList.remove("urgent");
-      this.hudTurn.textContent = "TURN: --";
-      this.hudTrump.textContent = "TRUMP: --";
-      this.hudOmbre.textContent = "JUGADOR: --";
-      this.hudTarget.textContent = "TARGET: --";
+      this.hudBar.innerHTML = `<span class="hud-pill">Waiting...</span>`;
     }
 
     const latency = this.ctx.connection.latencyMs;
@@ -889,6 +1051,191 @@ export class GameScreen implements Screen {
     this.soundToggleBtn.setAttribute("aria-pressed", String(soundOn));
   }
 
+  /** Build contextual HUD pills based on the current game phase. */
+  private renderHudPills(
+    game: NonNullable<typeof this.ctx.state.game>,
+    compact: boolean
+  ): string {
+    const pills: string[] = [];
+    const isMyTurn = game.turn === this.ctx.state.mySeat;
+    const turnName = this.turnActorLabelForHud(game.turn);
+    const secs =
+      typeof game.turnDeadline === "number"
+        ? Math.max(0, Math.ceil((game.turnDeadline - Date.now()) / 1000))
+        : null;
+    const turnSuffix = secs !== null ? ` ${secs}s` : "";
+
+    const pill = (
+      text: string,
+      cls: string = "",
+      icon: string = ""
+    ): string => {
+      const iconHtml = icon
+        ? `<span class="hud-pill-icon">${icon}</span>`
+        : "";
+      return `<span class="hud-pill${cls ? " " + cls : ""}">${iconHtml}${escapeHtml(text)}</span>`;
+    };
+
+    switch (game.phase) {
+      case "auction": {
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`, "", "📋"));
+        pills.push(pill(compact ? "Auction" : "Phase: Auction", "", "🔨"));
+        pills.push(pill(compact ? `Target: ${game.gameTarget}` : `Target: ${game.gameTarget} Pts`, "", "🎯"));
+        pills.push(
+          pill(
+            game.trump
+              ? `${this.suitIcon(game.trump)} ${compact ? this.capSuit(game.trump) : this.capSuit(game.trump)}`
+              : compact
+                ? "Undecided"
+                : "Trump: Undecided",
+            "trump"
+          )
+        );
+        if (game.turn !== null) {
+          pills.push(
+            pill(
+              compact ? `${turnName}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
+              isMyTurn ? "hud-pill-active" : "",
+              "👤"
+            )
+          );
+        }
+        break;
+      }
+
+      case "play": {
+        // Calculate current trick number from total tricks won so far
+        const totalTricksWon = Object.values(game.tricks).reduce(
+          (a, b) => a + b,
+          0
+        );
+        const currentTrick = totalTricksWon + 1;
+        const totalTricks = 9;
+        pills.push(
+          pill(
+            compact
+              ? `Trick ${currentTrick}/${totalTricks}`
+              : `Trick ${currentTrick}/${totalTricks}`,
+            "",
+            "🃏"
+          )
+        );
+
+        if (game.trump) {
+          pills.push(
+            pill(
+              compact
+                ? `${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`
+                : `Trump: ${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`,
+              "trump"
+            )
+          );
+        }
+
+        if (game.contract) {
+          pills.push(
+            pill(
+              compact
+                ? this.bidLabel(game.contract)
+                : `Contract: ${this.bidLabel(game.contract)}`,
+              "",
+              "📜"
+            )
+          );
+        }
+
+        if (game.turn !== null) {
+          pills.push(
+            pill(
+              compact ? `${turnName}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
+              isMyTurn ? "hud-pill-active" : "",
+              "👤"
+            )
+          );
+        }
+        break;
+      }
+
+      case "trump_choice": {
+        pills.push(pill(compact ? "Choose Trump" : "Phase: Choose Trump", "", "🎨"));
+        if (game.turn !== null) {
+          pills.push(
+            pill(
+              compact
+                ? `${turnName} choosing...`
+                : `${turnName} choosing...`,
+              isMyTurn ? "hud-pill-active" : "",
+              "👤"
+            )
+          );
+        }
+        break;
+      }
+
+      case "exchange": {
+        pills.push(pill(compact ? "Exchange" : "Phase: Exchange", "", "🔄"));
+        if (game.exchange.current !== null) {
+          const exchName =
+            game.exchange.current === this.ctx.state.mySeat
+              ? "You"
+              : this.seatLabelForAnnouncements(game.exchange.current);
+          pills.push(pill(compact ? exchName : `Exchanging: ${exchName}`, "", "👤"));
+        }
+        pills.push(
+          pill(
+            compact
+              ? `Talon: ${game.exchange.talonSize}`
+              : `Talon: ${game.exchange.talonSize} remaining`,
+            "",
+            "🂠"
+          )
+        );
+        break;
+      }
+
+      case "penetro_choice": {
+        pills.push(pill(compact ? "Penetro" : "Phase: Penetro Choice", "", "⚖️"));
+        if (game.turn !== null) {
+          pills.push(
+            pill(
+              compact ? `${turnName} deciding...` : `${turnName} deciding...`,
+              isMyTurn ? "hud-pill-active" : "",
+              "👤"
+            )
+          );
+        }
+        break;
+      }
+
+      case "dealing": {
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`, "", "📋"));
+        pills.push(pill("Dealing...", "", "🂠"));
+        break;
+      }
+
+      case "post_hand":
+      case "scoring": {
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`, "", "📋"));
+        pills.push(pill("Hand Complete", "", "✅"));
+        pills.push(pill(`Target: ${game.gameTarget}`, "", "🎯"));
+        break;
+      }
+
+      case "match_end": {
+        pills.push(pill("Match Complete", "", "🏆"));
+        break;
+      }
+
+      default: {
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`, "", "📋"));
+        pills.push(pill(this.phaseLabel(game.phase)));
+        break;
+      }
+    }
+
+    return pills.join("");
+  }
+
   private updateMobileSummary(): void {
     if (!this.isMobilePortrait) {
       this.mobileSummary.innerHTML = "";
@@ -897,21 +1244,11 @@ export class GameScreen implements Screen {
 
     const game = this.ctx.state.game;
     if (!game) {
-      this.mobileSummary.innerHTML = `<span class="mobile-summary-chip">Waiting for game state</span>`;
+      this.mobileSummary.innerHTML = `<span class="hud-pill">Waiting...</span>`;
       return;
     }
 
-    const chips: string[] = [`<span class="mobile-summary-chip">🧾 Round ${game.handNo}</span>`];
-    chips.push(`<span class="mobile-summary-chip">🎯 ${game.gameTarget}</span>`);
-    if (game.turn !== null) {
-      const secs = typeof game.turnDeadline === "number"
-        ? ` · ${Math.max(0, Math.ceil((game.turnDeadline - Date.now()) / 1000))}s`
-        : "";
-      const mine = game.turn === this.ctx.state.mySeat ? " mine" : "";
-      chips.push(`<span class="mobile-summary-chip turn${mine}">${escapeHtml(`⏳ ${this.turnActorLabelForHud(game.turn)}${secs}`)}</span>`);
-    }
-
-    this.mobileSummary.innerHTML = chips.join("");
+    this.mobileSummary.innerHTML = this.renderHudPills(game, true);
   }
 
   private renderHeroPlates(): void {
@@ -966,50 +1303,114 @@ export class GameScreen implements Screen {
     const score = game.scores[seat] || 0;
     const cards = game.handsCount[seat] || 0;
     const tricks = game.tricks[seat] || 0;
-    const roleLabel = this.roleLabelForSeat(seat);
-    const ombreTag = game.ombre === seat ? `<span class="hero-ombre-tag">OMBRE</span>` : "";
-    const turnTag = game.turn === seat ? `<span class="hero-turn-tag">TURN</span>` : "";
-    const stateTag =
-      game.resting === seat && roleLabel !== "RESTING"
-        ? `<span class="hero-state-tag">Resting</span>`
-        : "";
     const sideClass = isSelf ? "" : " hero-side";
-    const roleText = roleLabel.toLowerCase();
+
+    // Position tag: "YOU" for self, "LEFT"/"ACROSS"/"RIGHT" for opponents
+    const positionTag = isSelf ? "YOU" : position.toUpperCase();
+    const youClass = isSelf ? " you-tag" : "";
+
+    // Role tags
+    const ombreTag = game.ombre === seat ? `<span class="hero-badge-ombre">OMBRE</span>` : "";
+    const turnTag = game.turn === seat ? `<span class="hero-badge-turn">TURN</span>` : "";
+    const restingTag = game.resting === seat ? `<span class="hero-badge-resting">RESTING</span>` : "";
+
+    // Bid status (auction phase only)
+    let bidStatusHtml = "";
+    if (game.phase === "auction") {
+      if (game.auction.passed.includes(seat)) {
+        bidStatusHtml = `<span class="hero-bid-status passed">PASSED</span>`;
+      } else if (game.auction.currentBidder === seat && game.auction.currentBid !== "pass") {
+        bidStatusHtml = `<span class="hero-bid-status active">${escapeHtml(this.bidLabel(game.auction.currentBid))}</span>`;
+      } else {
+        bidStatusHtml = `<span class="hero-bid-status waiting">Waiting...</span>`;
+      }
+    }
+
+    // Card dots (diamond indicators for remaining cards)
+    const cardDotsHtml = this.renderCardDots(cards);
+
+    // Stat grid — inline for self plate, stacked for opponents
+    const statsInlineClass = isSelf ? " inline" : "";
+
+    const ariaText = `${name}, ${positionTag.toLowerCase()}, score ${score}, cards ${cards}, tricks ${tricks}`;
+
+    if (isSelf) {
+      return `
+        <section class="hero-plate hero-self${active}${resting}${disconnected}" aria-label="${escapeHtml(ariaText)}">
+          <div class="hero-header">
+            <span class="hero-avatar-wrap">
+              <img class="hero-avatar" src="${avatar}" data-fallback="${fallback}" alt="" />
+            </span>
+            <div class="hero-id">
+              <span class="hero-position-tag${youClass}">${positionTag}</span>
+              <span class="hero-name">${escapeHtml(name)}</span>
+            </div>
+            <div class="hero-role-tags">
+              ${ombreTag}
+              ${turnTag}
+              ${bidStatusHtml}
+            </div>
+            <div class="hero-stats${statsInlineClass}">
+              <div class="hero-stat">
+                <span class="hero-stat-label">SCORE</span>
+                <span class="hero-stat-value">${score}</span>
+              </div>
+              <div class="hero-stat">
+                <span class="hero-stat-label">CARDS</span>
+                <span class="hero-stat-value">${cards}</span>
+              </div>
+              <div class="hero-stat">
+                <span class="hero-stat-label">TRICKS</span>
+                <span class="hero-stat-value">${tricks}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
 
     return `
-      <section class="hero-plate hero-${position}${sideClass}${active}${resting}${disconnected}" aria-label="${escapeHtml(
-        `${name}, ${roleText}, score ${score}, cards ${cards}, tricks ${tricks}`
-      )}">
-        <div class="hero-main-row">
-          <span class="hero-avatar-medallion">
+      <section class="hero-plate hero-${position}${sideClass}${active}${resting}${disconnected}" aria-label="${escapeHtml(ariaText)}">
+        <div class="hero-header">
+          <span class="hero-avatar-wrap">
             <img class="hero-avatar" src="${avatar}" data-fallback="${fallback}" alt="" />
           </span>
-          <div class="hero-id-col">
-            <span class="hero-seat">${escapeHtml(roleLabel)}</span>
+          <div class="hero-id">
+            <span class="hero-position-tag">${positionTag}</span>
             <span class="hero-name">${escapeHtml(name)}</span>
           </div>
-          <div class="hero-tags">
+          <div class="hero-role-tags">
             ${ombreTag}
             ${turnTag}
-            ${stateTag}
+            ${restingTag}
+            ${bidStatusHtml}
           </div>
         </div>
-        <div class="hero-badges-row">
-          <span class="hero-badge score"><span class="hero-badge-icon">🏆</span><span class="hero-badge-label">Score</span><span class="hero-badge-num">${score}</span></span>
-          <span class="hero-badge cards"><span class="hero-badge-icon">🃏</span><span class="hero-badge-label">Cards</span><span class="hero-badge-num">${cards}</span></span>
-          <span class="hero-badge tricks"><span class="hero-badge-icon">🎯</span><span class="hero-badge-label">Tricks</span><span class="hero-badge-num">${tricks}</span></span>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <span class="hero-stat-label">SCORE</span>
+            <span class="hero-stat-value">${score}</span>
+          </div>
+          <div class="hero-stat">
+            <span class="hero-stat-label">CARDS</span>
+            <span class="hero-stat-value">${cards}</span>
+          </div>
+          <div class="hero-stat">
+            <span class="hero-stat-label">TRICKS</span>
+            <span class="hero-stat-value">${tricks}</span>
+          </div>
         </div>
-        <div class="hero-trick-dots" aria-label="${escapeHtml(`Tricks won ${tricks}`)}">${this.renderTrickDots(tricks)}</div>
+        <div class="hero-card-dots" aria-label="${escapeHtml(`Cards remaining: ${cards}`)}">${cardDotsHtml}</div>
       </section>
     `;
   }
 
-  private renderTrickDots(tricks: number): string {
-    const maxDots = 6;
-    const filled = Math.max(0, Math.min(maxDots, tricks));
+  private renderCardDots(cardsRemaining: number): string {
+    const maxDots = 9;
+    const filled = Math.max(0, Math.min(maxDots, cardsRemaining));
     const dots = Array.from({ length: maxDots }, (_, idx) => {
       const active = idx < filled ? " filled" : "";
-      return `<span class="hero-trick-dot${active}" aria-hidden="true"></span>`;
+      return `<span class="hero-card-dot${active}" aria-hidden="true"></span>`;
     });
     return dots.join("");
   }
@@ -1036,11 +1437,12 @@ export class GameScreen implements Screen {
         if (seat === null) return "";
         const player = game.players[seat];
         const name = player?.handle || `Seat ${seat}`;
+        const score = game.scores[seat] || 0;
         const tricks = game.tricks[seat] || 0;
+        const cards = game.handsCount[seat] || 0;
         const active = game.turn === seat ? " active-turn" : "";
         const disconnected = player && !player.connected ? " disconnected" : "";
         const isOmbre = game.ombre === seat;
-        const role = this.roleLabelForSeat(seat);
         const avatarUrl = player?.isBot
           ? buildBotAvatarUrl(
               player.handle || `bot-${seat}`,
@@ -1049,18 +1451,24 @@ export class GameScreen implements Screen {
             )
           : buildDiceBearUrl(name || `seat-${seat}`, "identicon");
         const fallback = fallbackAvatarAt(seat);
-        const aria = `${role.toLowerCase()} ${name}, tricks ${tricks}`;
+        const aria = `${pos} ${name}, score ${score}, tricks ${tricks}, cards ${cards}`;
+
+        // Card-back lines (small horizontal indicators for remaining cards)
+        const cardLines = Array.from({ length: Math.min(cards, 9) }, () =>
+          `<span class="mob-card-line"></span>`
+        ).join("");
 
         return `
           <div class="mobile-opponent${active}${disconnected}" role="listitem" aria-label="${escapeHtml(aria)}">
-            <img class="mobile-opponent-avatar" src="${avatarUrl}" data-fallback="${fallback}" alt="" />
-            <div class="mobile-opponent-meta">
-              <span class="mobile-opponent-seat">${escapeHtml(role)}</span>
-              <span class="mobile-opponent-name">${escapeHtml(name)}</span>
+            <div class="mob-opp-top">
+              <img class="mobile-opponent-avatar" src="${avatarUrl}" data-fallback="${fallback}" alt="" />
+              ${isOmbre ? `<span class="mob-opp-crown" aria-label="Ombre">&#x1F451;</span>` : ""}
             </div>
-            ${isOmbre ? `<span class="mobile-opponent-ombre">👑 JUGADOR</span>` : ""}
+            <span class="mobile-opponent-name">${escapeHtml(name)}</span>
+            <div class="mob-opp-card-lines" aria-label="Cards: ${cards}">${cardLines}</div>
             <div class="mobile-opponent-stats">
-              <span>🎯 ${tricks}</span>
+              <span class="mob-stat">Pts: ${score}</span>
+              <span class="mob-stat">Trk: ${tricks}</span>
             </div>
           </div>
         `;
@@ -1159,6 +1567,19 @@ export class GameScreen implements Screen {
       chip.classList.add("exit");
       window.setTimeout(() => chip.remove(), 260);
     }, ttlMs);
+  }
+
+  private showTrickResultBanner(text: string): void {
+    this.trickResultBanner.textContent = text;
+    this.trickResultBanner.hidden = false;
+    this.trickResultBanner.classList.remove("exit");
+    setTimeout(() => {
+      this.trickResultBanner.classList.add("exit");
+      setTimeout(() => {
+        this.trickResultBanner.hidden = true;
+        this.trickResultBanner.classList.remove("exit");
+      }, 300);
+    }, 1400);
   }
 
   private seatLabelForAnnouncements(seat: number): string {
@@ -1355,7 +1776,7 @@ export class GameScreen implements Screen {
       cards,
       playOrder,
       winner,
-      expiresAt: Date.now() + 900,
+      expiresAt: Date.now() + 1500,
     });
     this.renderDomCardLayers();
 
@@ -1368,7 +1789,7 @@ export class GameScreen implements Screen {
       this.renderer.setResolvedTrickOverlay(null);
       this.renderDomCardLayers();
       this.trickOverlayTimer = null;
-    }, 900);
+    }, 1500);
   }
 
   private handleResize = (): void => {

@@ -86,8 +86,12 @@ export function legalPlays(
   }
   const ledIsTrump = isTrump(tr, led);
   if (ledIsTrump) {
-    const must = hand.filter((c) => isTrump(tr, c));
-    return must.length ? must : hand.slice();
+    const trumps = hand.filter((c) => isTrump(tr, c));
+    const nonMatadorTrumps = trumps.filter(c => !isMatador(tr, c));
+    if (nonMatadorTrumps.length > 0) {
+      return trumps; // Has non-matador trumps: must play a trump (any trump including matadors)
+    }
+    return hand.slice(); // Only matadors or no trumps: can play anything (matador privilege)
   }
   // Matadors always behave as trump, not as plain suit followers.
   const must = hand.filter((c) => c.s === led.s && !isMatador(tr, c));
@@ -133,17 +137,22 @@ export function trickWinner(
 
 // ---- Bot auction evaluation ----
 export function trumpCardPoints(card: Card, trump: Suit): number {
+  // Spadille (espadas ace) is always the #1 trump
+  if (card.s === "espadas" && card.r === 1) return 10;
+  // Manille (#2 trump) — rank depends on suit color
+  if (isManille(trump, card)) return 9;
+  // Basto (bastos ace) is always #3 trump (unless bastos is trump, then it's already manille)
+  if (card.s === "bastos" && card.r === 1 && trump !== "bastos") return 8;
+  // In-suit trump cards (remaining non-matador trumps)
   if (card.s === trump) {
-    if (card.r === 1) return 9;
-    if (card.r === 2) return 8;
-    if (card.r === 3) return 7;
-    if (card.r === 12) return 6;
-    if (card.r === 11) return 5;
-    if (card.r === 10) return 4;
-    if (card.r === 7) return 3;
-    return 2;
+    if (card.r === 12) return 6; // King
+    if (card.r === 11) return 5; // Queen
+    if (card.r === 10) return 4; // Jack
+    // Remaining trumps by plain suit value: ace is strong in red, 7 is strong in black
+    return 1 + plainSuitValue(trump, card.r); // range ~2-8 depending on suit color
   }
-  if (card.r === 12) return 2; // off-suit kings
+  // Off-suit kings
+  if (card.r === 12) return 2;
   return 0;
 }
 

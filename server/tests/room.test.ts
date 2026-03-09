@@ -247,12 +247,12 @@ describe("Room - auction", () => {
 
   it("quadrille all-pass with active spadille holder does not start penetro", () => {
     const qRoom = makeRoom("quadrille");
-    addHuman(qRoom, 0);
+    addHuman(qRoom, 1);
     qRoom.startGame();
     qRoom.conns.forEach((c) => (c.isBot = false));
 
-    // Force spadille into an active player's hand
-    qRoom.hands[0] = [{ s: "espadas", r: 1, id: "e1" }];
+    // Force spadille into an active player's hand (seat 0 rests first in quadrille)
+    qRoom.hands[1] = [{ s: "espadas", r: 1, id: "e1" }];
 
     const order = qRoom.state.auction.order.slice();
     for (const seat of order) {
@@ -261,7 +261,7 @@ describe("Room - auction", () => {
 
     expect(qRoom.state.contract).toBe("entrada");
     expect(qRoom.state.phase).toBe("trump_choice");
-    expect(qRoom.state.ombre).toBe(0);
+    expect(qRoom.state.ombre).toBe(1);
   });
 });
 
@@ -594,24 +594,24 @@ describe("Room - exchange", () => {
 
   it("rejects bola bid in auction (bola is implicit-only)", () => {
     const qRoom = makeRoom("quadrille");
-    const { ws } = addHuman(qRoom, 0);
+    const { ws } = addHuman(qRoom, 1);
     qRoom.startGame();
 
-    // Keep seat 0 as human, rest as bots (from fillWithBots)
+    // Keep seat 1 as human, rest as bots (seat 0 rests first in quadrille)
     // Disable bot auto-act so we can drive the auction manually
     const origBotMaybeAct = (qRoom as any).botMaybeAct.bind(qRoom);
     (qRoom as any).botMaybeAct = () => {};
 
     const order = qRoom.state.auction.order.slice();
-    const seat0Idx = order.indexOf(0 as SeatIndex);
+    const seat1Idx = order.indexOf(1 as SeatIndex);
 
-    // All players before seat 0 pass
-    for (let i = 0; i < seat0Idx; i++) {
+    // All players before seat 1 pass
+    for (let i = 0; i < seat1Idx; i++) {
       qRoom.applyBid(order[i], "pass");
     }
-    // Seat 0 attempts bola (must be rejected)
+    // Seat 1 attempts bola (must be rejected)
     const turnBefore = qRoom.state.turn;
-    qRoom.applyBid(0 as SeatIndex, "bola");
+    qRoom.applyBid(1 as SeatIndex, "bola");
     expect(qRoom.state.phase).toBe("auction");
     expect(qRoom.state.turn).toBe(turnBefore);
     expect(qRoom.state.contract).toBeNull();
@@ -670,13 +670,14 @@ describe("Room - exchange", () => {
 
   it("quadrille defenders follow clockwise order after ombre exchange", () => {
     const qRoom = makeRoom("quadrille");
-    addHuman(qRoom, 0);
+    addHuman(qRoom, 1);
     qRoom.startGame();
     qRoom.conns.forEach((c) => {
       c.isBot = false;
       if (!(c.ws as any)?._sent) c.ws = makeFakeWs();
     });
 
+    // Seat 0 rests first in quadrille; ombre is seat 2
     qRoom.state.ombre = 2 as SeatIndex;
     qRoom.state.contract = "entrada";
     qRoom.state.phase = "trump_choice";
@@ -689,7 +690,8 @@ describe("Room - exchange", () => {
     ] as any;
 
     qRoom.chooseTrump(2 as SeatIndex, "copas");
-    expect(qRoom.state.exchange.order.slice(0, 3)).toEqual([2, 3, 0]);
+    // Active seats: 1, 2, 3 (seat 0 rests). Clockwise from ombre(2): 2, 3, 1
+    expect(qRoom.state.exchange.order.slice(0, 3)).toEqual([2, 3, 1]);
 
     qRoom.finishExchange(2 as SeatIndex, []);
     expect(qRoom.state.turn).toBe(3);

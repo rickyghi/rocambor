@@ -41,8 +41,8 @@ function ensureAssetsLoaded(): void {
       watermarkReady = true;
     };
     watermarkImage.onerror = () => {
-      if (watermarkImage && !watermarkImage.src.endsWith("/assets/rocambor/logo-final.png")) {
-        watermarkImage.src = "/assets/rocambor/logo-final.png";
+      if (watermarkImage && !watermarkImage.src.endsWith("/assets/rocambor/logo-light.png")) {
+        watermarkImage.src = "/assets/rocambor/logo-light.png";
         return;
       }
       if (watermarkImage && !watermarkImage.src.endsWith("/brand/rocambor-watermark.svg")) {
@@ -51,7 +51,7 @@ function ensureAssetsLoaded(): void {
       }
       watermarkReady = false;
     };
-    watermarkImage.src = "/assets/rocambor/logo-final.png";
+    watermarkImage.src = "/assets/rocambor/logo-light.png";
   }
 }
 

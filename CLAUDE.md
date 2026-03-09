@@ -23,7 +23,7 @@ cd server && npm start
 ```bash
 cd server && npx vitest run
 ```
-All 87 tests should pass. Simulation tests use `vi.useFakeTimers()` from Vitest to control the Room's internal timer-driven bot flow.
+All 152 tests should pass. Simulation tests use `vi.useFakeTimers()` from Vitest to control the Room's internal timer-driven bot flow.
 
 ## Key Architecture Decisions
 
@@ -37,6 +37,9 @@ It is called from `server.ts` (not just internally in `room.ts`). Do not make it
 
 ### Null trump handling (bola/contrabola)
 In bola and contrabola contracts, `state.trump` is `null`. The `legalPlays()` function has an early guard: if `tr` is null, use simple follow-suit logic without trump checks. Never use `tr!` assertions without checking for null first.
+
+### Matador renounce rule
+When trump is led, players with non-matador trumps must play a trump. But players holding **only** matadors (no regular trumps) may play **any** card — this is the matador privilege. Implemented in `legalPlays()` in engine.ts. The three matadors are: espadilla (espadas-1), manilla (trump-suit rank 7 for red, rank 2 for black), basto (bastos-1).
 
 ## Spanish Card Ranking (Critical for Tests)
 
@@ -53,13 +56,14 @@ King(12) > Queen(11) > Jack(10) > 7 > 6 > 5 > 4 > 3 > 2 > Ace(1)
 ```
 
 ### Trump card point values (`trumpCardPoints` in engine.ts)
-When evaluating hands for bot bidding:
-- Rank 1 (Ace) = 9 pts, Rank 2 = 8 pts, Rank 3 = 7 pts
-- Rank 12 (King) = 6 pts, Rank 11 (Queen) = 5 pts, Rank 10 (Jack) = 4 pts
-- Rank 7 = 3 pts, Other ranks = 2 pts
+When evaluating hands for bot bidding (uses `isManille()` for suit-color-aware ranking):
+- Spadille (espadas-1, always #1 trump) = 10 pts
+- Manille (#2 trump: rank 7 for red suits, rank 2 for black) = 9 pts
+- Basto (bastos-1, always #3 trump) = 8 pts
+- In-suit King(12) = 6, Queen(11) = 5, Jack(10) = 4, Rank 7 = 3, other = 2
 - Off-suit Kings = 2 pts each
 
-**Important**: Rank 2 and Rank 3 score very high as trump cards. When constructing "weak" test hands, avoid putting rank-2 or rank-3 cards in any single suit, or they'll score 15+ as potential trump.
+**Important**: The manille rank depends on suit color. For red trump (oros/copas), rank 7 is the manille. For black trump (espadas/bastos), rank 2 is the manille. When constructing test hands, be aware of this asymmetry.
 
 ## Simulation Test Pattern
 The simulation tests (`simulation.test.ts`) use Vitest fake timers to run full bot-vs-bot games:
@@ -80,7 +84,8 @@ The simulation tests (`simulation.test.ts`) use Vitest fake timers to run full b
 
 ### Typography
 - **Inter** — Body/UI text (variable weight sans-serif)
-- **Playfair Display** — Serif headings (loaded via Google Fonts)
+- **Lora** — Serif headings for home/lobby screens (loaded via Google Fonts)
+- **Playfair Display** — Serif headings (loaded via Google Fonts, legacy)
 - **NoeDisplay Bold** — Display/logo text (local @font-face)
 
 ### Design Token System
@@ -104,12 +109,45 @@ TypeScript constants in `design-tokens.ts` — `COLORS`, `FONT`, `SPACING`, `RAD
 --dur-slow: 400ms;    /* Entrance animations (fadeInUp) */
 ```
 
+### Asset Paths
+- **Logo**: `/assets/rocambor/logo-light.png` — Light version for dark backgrounds (home panel, game watermark)
+- **Favicon**: `/assets/rocambor/coin.png` — Gold coin (favicon in index.html, nav icon in home/lobby)
+- **Source assets**: `/Users/rickyghi/Desktop/Rocambor/Assets/Finales/` — Original high-res PNGs
+
 ### Canvas Rendering
-- Fixed 1024×720 logical resolution, CSS-scaled to container
+- Desktop: 1320×760 logical resolution; Mobile: 760×1020 logical resolution; CSS-scaled to container
 - `renderer.ts` — Main render loop (table bg, players, cards, animations, HUD)
 - Unified top HUD strip: phase | contract · trump | target
 - Card skins: procedural (`drawCard()`) + image-based (`CardImageAtlas`)
 - Animations: `CardPlayAnimation`, `TrickWinAnimation` (with sparkle dots), `CardDealAnimation`, `ScoreChangeAnimation`
+
+### Sprite-Mode DOM Card Rendering
+- In production, cards render as DOM elements using CSS spritesheet (`.roc-card` at 96×138 base), not canvas
+- Spritesheet cards scaled via `transform: scale()` inside wrapper containers that define layout box
+- Desktop hand cards: 128×192 (auction), 112×176 (play); trick cards: 96×144
+- Mobile hand cards: 96×144 (auction), 80×128 (play), with scroll-snap swiping
+- Phase-specific CSS classes (`.phase-auction`, `.phase-play`, `.phase-exchange`, `.phase-trump`) toggle card sizes
+- `renderDomCardLayers()` in `game.ts` rebuilds both trick and hand card DOM on every state change
+- Spritesheet CSS classes from `card-sprites.ts`: `spriteClassForCard(card)`, `spriteBackClass()`
+
+### Game Table Architecture
+- Hybrid Canvas + DOM: canvas renders table background (felt, rim, vignette); DOM renders cards, plates, controls
+- `GameScreen.spriteMode` flag controls which layer is active
+- `game.css` is ~2000 lines with responsive breakpoints at 920px, 430px, 360px
+- Mobile uses `isMobilePortrait` flag set by `handleResize()` (width ≤ 900px + portrait orientation)
+- Controls are rendered by `GameControls` class (`controls.ts`) into `#game-controls` slot
+- `GameControls.attachHandlers()` relies on specific CSS class names (`.bid-btn`, `.trump-btn`, `.exchange-btn`, `.penetro-btn`) — preserve these when modifying control markup
+
+### Game Table UI Components
+- **HUD Bar**: Contextual pill strip (`game-hud-bar`) with phase-specific info (round, trick count, trump, turn, contract)
+- **Hero Plates**: Player info cards with avatar, position tag (LEFT/ACROSS/RIGHT/YOU), OMBRE/TURN badges, stat grid (score/cards/tricks), card-dot indicators
+- **Parchment Auction Panel**: Ivory gradient panel (desktop) or dark glass panel (mobile) with 2×2 bid grid, header with icon, status line, decorative quote
+- **Trick Area**: DOM-rendered trick cards with player name labels and winner badge overlay
+- **Trick Result Banner**: Auto-dismissing green glass pill showing trick winner name + card
+- **Turn-to-Lead Prompt**: Floating glass pill when player leads a new trick
+- **Mobile Hand Dock**: Scroll-snap cards with "Your Hand" header, "SLIDE TO SELECT" hint, scroll dot indicators, full-width action button (play/exchange)
+- **Arena Phase Banner**: Centered glass panel showing current phase + contextual guidance text
+- **Arena Toast Feed**: Stack of auto-dismissing chip notifications for game events
 
 ### Card Skin System
 - `card-skin-registry.ts` — Built-in skins (rocambor, classic, minimal, parchment, clasica) + custom import/export via localStorage
@@ -121,8 +159,8 @@ TypeScript constants in `design-tokens.ts` — `COLORS`, `FONT`, `SPACING`, `RAD
 - Hybrid DOM + Canvas: screens implement `Screen` interface (`mount`/`unmount`)
 - 6 screens: `home`, `lobby`, `game`, `post-hand`, `match-summary`, `leaderboard`
 - Each screen injects `<style>` via `addStyles()` with ID-gated dedup
-- Home: single Play CTA + mode toggle, ornament dividers, skin gallery in settings
-- Lobby: seat plaques with text badges, compact room header
+- Home: dark panel with logo, mode toggle, action rows (Create/Quick Play/Join), secondary links, quote
+- Lobby: dark felt theme, glass navbar, room code header, player seat cards with gold accents, match config, gold Start Game button. Mobile: vertical card list + sticky bottom bar.
 - Game: canvas + dark felt-themed DOM controls (`.game-screen` scoped overrides in `game.css`)
 - Leaderboard: skeleton loading, gradient rank badges, self-row highlight, empty state
 
@@ -131,7 +169,8 @@ TypeScript constants in `design-tokens.ts` — `COLORS`, `FONT`, `SPACING`, `RAD
 - Dark panel CSS vars in `theme.css`: `--panel-dark`, `--panel-dark-alt`, `--panel-dark-border`, `--text-on-panel`, `--text-on-panel-muted`
 - Panels use `backdrop-filter: blur(16px)` for glass effect on felt background
 - Text uses ivory (`var(--text-on-panel)`) instead of dark ink on game screen surfaces
-- Trick dots are CSS-only rotated diamonds (not text characters)
+- Card dot indicators are CSS-only diamonds (filled = gold, empty = transparent with border)
+- Auction panel switches from parchment (desktop) to dark glass (mobile) via 920px media query
 
 ## Deployment
 
@@ -179,16 +218,19 @@ The server tsconfig uses `rootDir: ".."` so tsc outputs preserve the full direct
 
 ### CI/CD
 GitHub Actions (`.github/workflows/ci.yml`) runs on push to `main`:
-- Server job: install → type-check → test (87 tests) → build
+- Server job: install → type-check → test (152 tests) → build
 - Client job: install → type-check → build
 
 ## File Structure
 ```
 server/src/
-  room.ts      — Core game state machine (~1100 lines), handles all game phases
+  room.ts      — Core game state machine (~1400 lines), handles all game phases
   server.ts    — HTTP/WebSocket entry point, room creation/joining
   engine.ts    — Card logic: legal plays, trick winner, deck generation
   bot.ts       — Bot AI: bidding, trump choice, exchange, play decisions
+  scoring.ts   — Pure scoring calculations (sacada/codille/puesta/bola/contrabola/penetro)
+  auction-utils.ts — Bid ranking, validation, mapBidToContract (pure functions)
+  exchange-utils.ts — Exchange limits and order calculation (pure functions)
   lobby.ts     — Matchmaking queue for quick play
   redis.ts     — Redis connection (optional)
   db.ts        — PostgreSQL connection (optional)
@@ -201,6 +243,8 @@ client/src/
   state.ts      — Client-side state management
   router.ts     — Screen navigation
   screens/      — UI screens (home, lobby, game, post-hand, match-summary, leaderboard)
+    game.ts       — Game screen (~1700 lines): hero plates, hand dock, trick overlay, HUD, phase logic
+    game.css      — Game screen styles (~2000 lines): responsive breakpoints, animations, all game UI
   canvas/       — HTML5 Canvas rendering (cards, players, table, animations)
     renderer.ts   — Main render loop + unified HUD strip
     cards.ts      — Procedural card drawing
@@ -209,9 +253,13 @@ client/src/
     animations.ts — Card play, trick win (sparkle dots), deal, score animations
     table.ts      — Table background rendering
     players.ts    — Player names, scores, opponent cards
-    layout.ts     — Canvas layout calculations
+    layout.ts     — Canvas layout calculations (desktop 1320×760, mobile 760×1020)
   ui/           — Controls, settings, modals, toasts
+    controls.ts   — GameControls: auction panel, trump choice, exchange, penetro render methods + event wiring
   audio/        — Sound effects
+  lib/
+    card-sprites.ts — Spritesheet CSS class generation (spriteClassForCard, spriteBackClass)
+    avatars.ts    — Avatar URL builders (bot, DiceBear, fallback)
   styles/
     theme.css       — CSS custom properties (:root), body/html base styles
     global.css      — Utility resets, keyframe animations, responsive helpers
