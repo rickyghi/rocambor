@@ -44,9 +44,9 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, calc(-50% - 20px));
-  width: min(800px, 60vw);
-  height: min(500px, 50vh);
+  transform: translate(-50%, calc(-50% - 10px));
+  width: min(860px, 64vw);
+  height: min(480px, 48vh);
   border: 1.5px solid rgba(200, 166, 81, 0.1);
   border-radius: 50%;
   pointer-events: none;
@@ -145,14 +145,21 @@
 }
 
 .game-header-center {
-  grid-area: center;
-  min-width: 0;
-  display: none;
-  gap: 4px;
-  justify-items: center;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
+  /* Desktop: reposition as a floating message pill in top-right, below header */
+  position: absolute;
+  top: 52px;
+  right: 12px;
+  z-index: 21;
+  display: grid;
+  gap: 2px;
+  justify-items: flex-end;
+  padding: 5px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  max-width: 280px;
 }
 
 .game-header-right {
@@ -193,21 +200,17 @@
 }
 
 .game-header-main {
-  font-family: var(--font-display);
-  font-size: clamp(18px, 1.36vw, 22px);
-  font-weight: 700;
-  color: var(--text-on-panel);
-  line-height: 1.12;
-  text-align: center;
+  display: none; /* duplicated by arena-phase-banner on desktop */
 }
 
 .game-header-sub {
   font-family: var(--font-sans);
-  font-size: clamp(14px, 1.02vw, 16px);
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-on-panel-muted);
   line-height: 1.2;
-  text-align: center;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .game-header-sub.urgent {
@@ -324,7 +327,7 @@
 
 .game-stage-top {
   position: absolute;
-  top: 48px;
+  top: 56px;
   left: 0;
   right: 0;
   z-index: 8;
@@ -458,20 +461,20 @@
 }
 
 .hero-left {
-  left: 16px;
+  left: min(8vw, 100px);
   top: 50%;
   transform: translateY(-50%);
 }
 
 .hero-right {
-  right: 16px;
+  right: min(8vw, 100px);
   top: 50%;
   transform: translateY(-50%);
 }
 
 .hero-across {
   left: 50%;
-  top: 56px;
+  top: 90px;
   transform: translateX(-50%);
   z-index: 9; /* above game-stage-top (z:8) so top player is always visible */
 }
@@ -488,7 +491,7 @@
 .phase-play .hero-self-slot {
   position: relative;
   z-index: 10;
-  margin-bottom: -20px; /* overlap into the hand area below */
+  margin-bottom: -40px; /* overlap deeper into the hand area below */
 }
 
 .phase-play .hero-self-slot .hero-self {
@@ -833,7 +836,7 @@
   z-index: 8;
   display: grid;
   gap: 6px;
-  padding: 0 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  padding: 0 8px calc(4px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Play phase: remove gap since self hero floats over cards */
@@ -881,7 +884,7 @@
 
 /* Play phase: taller hand row for larger cards covering lower third */
 .phase-play .hand-row {
-  min-height: 240px;
+  min-height: 280px;
 }
 
 .hand-card-wrap {
@@ -915,12 +918,12 @@
 
 /* Phase-specific card sizes — play phase: larger cards covering lower third */
 .phase-play .hand-card-wrap {
-  width: var(--card-w-play, 152px);
-  height: var(--card-h-play, 218px);
-  margin-left: -30px;
+  width: var(--card-w-play, 180px);
+  height: var(--card-h-play, 259px);
+  margin-left: -36px;
 }
 .phase-play .hand-card-wrap .roc-card {
-  transform: scale(var(--card-scale-play, 1.583));
+  transform: scale(var(--card-scale-play, 1.875));
 }
 
 .hand-card-wrap:hover:not(:disabled) {
@@ -979,6 +982,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* When controls bar wraps a parchment panel (auction/exchange), strip outer shell styling */
+.game-controls-bar:has(.auction-panel) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  padding: 0;
+}
+.game-controls-bar:has(.auction-panel)::before {
+  display: none !important;
 }
 
 .control-group {
@@ -1744,15 +1760,29 @@
   }
 
   .game-header-main {
+    display: block;
+    font-family: var(--font-display);
     font-size: 15px;
+    font-weight: 700;
+    color: var(--text-on-panel);
+    line-height: 1.12;
+    text-align: center;
   }
 
   .game-header-sub {
     font-size: 12px;
+    text-align: center;
+    white-space: normal;
   }
 
   .game-header-center {
     display: none;
+    position: static;
+    background: none;
+    border: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 0;
   }
 
   .game-header {
@@ -1812,14 +1842,14 @@
 
   .mobile-opponent {
     display: grid;
-    gap: 3px;
+    gap: 2px;
     justify-items: center;
     align-content: center;
-    min-height: 72px;
+    min-height: 56px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(0, 0, 0, 0.2);
-    border-radius: 12px;
-    padding: 4px;
+    border-radius: 10px;
+    padding: 4px 3px;
   }
 
   .mobile-opponent.active-turn {
@@ -1837,8 +1867,8 @@
   }
 
   .mobile-opponent-avatar {
-    width: var(--avatar-mob, 40px);
-    height: var(--avatar-mob, 40px);
+    width: var(--avatar-mob, 34px);
+    height: var(--avatar-mob, 34px);
     border-radius: 50%;
     object-fit: cover;
     border: 2px solid rgba(200, 166, 81, 0.25);
@@ -1894,7 +1924,7 @@
   }
 
   .mobile-opponent-name {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--text-on-panel);
     max-width: 100%;
@@ -1920,11 +1950,7 @@
   }
 
   .mobile-opponent-stats {
-    display: inline-flex;
-    gap: 6px;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-on-panel-muted);
+    display: none; /* Pts/Trk are redundant on mobile — trick dots + ombre badge suffice */
   }
 
   .mob-stat {
@@ -1962,40 +1988,28 @@
     display: none;
   }
 
-  .hero-self-slot .hero-self {
-    width: 100%;
-    max-width: none;
-    border-radius: 12px;
-    padding: 6px 10px;
-  }
-
-  /* On mobile play phase, self plate overlays on top of cards */
-  .phase-play .hero-self-slot {
-    position: relative;
-    bottom: auto;
-    left: auto;
-    transform: none;
-    z-index: 10;
-    margin-bottom: -8px; /* overlap into cards */
-  }
-
-  .phase-play .hero-self-slot .hero-self {
-    opacity: 0.92;
+  /* On mobile, hide self plate — info shown in HUD pills + hand header */
+  .hero-self-slot {
+    display: none;
   }
 
   /* game-canvas-wrap is already position:absolute;inset:0 — no box overrides needed */
 
+  /* Compact phase banner — single-line pill, hide sub text */
   .arena-phase-banner {
-    width: min(98%, 480px);
-    padding: 6px 10px;
+    width: auto;
+    max-width: min(80%, 260px);
+    padding: 4px 14px;
+    border-radius: 20px;
   }
 
   .arena-phase-main {
-    font-size: clamp(14px, 4vw, 18px);
+    font-size: 12px;
+    letter-spacing: 0.06em;
   }
 
   .arena-phase-sub {
-    font-size: 11px;
+    display: none;
   }
 
   /* Reset exchange phase desktop-only top-right positioning on mobile */
@@ -2055,9 +2069,9 @@
   .game-controls-bar {
     width: 100%;
     border-radius: 12px;
-    min-height: 56px;
-    padding: 8px;
-    max-height: min(35vh, 260px);
+    min-height: 48px;
+    padding: 6px;
+    max-height: min(25vh, 160px);
     overflow-y: auto;
   }
 
@@ -2066,11 +2080,11 @@
   }
 
   .control-label {
-    font-size: 14px;
+    font-size: 13px;
   }
 
   .controls-hint {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .bid-btn,
@@ -2079,9 +2093,9 @@
   .rematch-btn,
   .start-btn,
   .penetro-btn {
-    min-height: 46px;
-    min-width: 104px;
-    font-size: 14px;
+    min-height: 40px;
+    min-width: 90px;
+    font-size: 13px;
   }
 
   .control-row-bids,
@@ -2095,55 +2109,49 @@
     pointer-events: auto;
   }
 
+  /* ── All-phase mobile hand: scroll-snap, no overlap, legible cards ── */
   .hand-row {
     width: 100%;
-    min-height: 162px;
-    justify-content: center;
-    gap: 0;
-    padding: 8px 8px 0;
+    min-height: 124px;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 4px 12px 0;
     overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
   }
   .hand-row::-webkit-scrollbar { display: none; }
 
   .hand-card-wrap {
-    width: 110px;
-    height: 158px;
-    transform: none;
-    margin-left: -20px;
-    overflow: hidden;
-  }
-
-  .hand-card-wrap .roc-card {
-    transform: scale(1.146);
-    transform-origin: top left;
-  }
-
-  .phase-play .hand-card-wrap {
-    --mob-card-w: min(calc((100vw - 48px) / 3), 130px);
-    width: var(--mob-card-w);
+    width: 76px;
     height: auto;
     aspect-ratio: 96 / 138;
+    transform: none;
     margin-left: 0;
     flex-shrink: 0;
     scroll-snap-align: center;
     overflow: visible;
   }
+
+  .hand-card-wrap .roc-card {
+    transform: scale(0.792); /* 76/96 */
+    transform-origin: top left;
+  }
+
+  .phase-play .hand-card-wrap {
+    width: 82px;
+  }
   .phase-play .hand-card-wrap .roc-card {
-    /* Scale card sprite to fill wrapper — 96px is sprite base width */
-    transform: scale(1.354); /* ~130/96 for ~130px cards */
+    transform: scale(0.854); /* 82/96 */
     transform-origin: top left;
   }
 
   .phase-play .hand-row {
-    justify-content: flex-start;
-    gap: 8px;
-    padding: 8px 16px 0;
-    scroll-snap-type: x mandatory;
-    scroll-behavior: smooth;
-    min-height: 200px;
-    overflow-x: auto;
+    gap: 10px;
+    padding: 4px 14px 0;
+    min-height: 132px;
   }
 
   .hand-card-wrap:hover:not(:disabled),
@@ -2155,24 +2163,24 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 12px 4px;
+    padding: 0 12px 2px;
   }
 
   .hand-label {
     font-family: var(--font-sans);
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--text-on-panel);
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
 
   .hand-hint {
     font-family: var(--font-sans);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     color: var(--gold);
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     opacity: 0.8;
   }
@@ -2181,13 +2189,13 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 6px;
-    padding: 6px 0 2px;
+    gap: 5px;
+    padding: 3px 0 1px;
   }
 
   .hand-dot {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background: rgba(248, 246, 240, 0.25);
     transition: background 200ms var(--easeLuxe), transform 200ms var(--easeLuxe);
@@ -2201,14 +2209,14 @@
   .hand-action-btn {
     display: block;
     width: calc(100% - 16px);
-    margin: 4px auto 0;
-    min-height: 52px;
-    font-size: 16px;
+    margin: 2px auto 0;
+    min-height: 46px;
+    font-size: 15px;
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    border-radius: 14px;
-    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+    border-radius: 12px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
     transition: opacity 200ms var(--easeLuxe), transform 120ms var(--easeLuxe);
   }
 
@@ -2224,45 +2232,42 @@
     animation: action-btn-ready 400ms var(--easeLuxe);
   }
 
+  /* ── Compact auction panel: strip chrome, just buttons ── */
   .auction-panel {
     width: 100%;
-    padding: 10px 10px 8px;
-    border-radius: 14px;
+    padding: 6px;
+    border-radius: 12px;
     background: var(--panel-dark);
     border-color: var(--panel-dark-border);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 
   .auction-panel::before { opacity: 0.03; }
 
-  .auction-panel-header { margin-bottom: 6px; }
-  .auction-panel-status { margin-bottom: 8px; }
+  .auction-panel-header { display: none; }
+  .auction-panel-status { display: none; }
   .auction-panel-divider { display: none; }
   .auction-panel-quote { display: none; }
 
-  .auction-header-title { color: var(--text-on-panel); font-size: 18px; }
-  .auction-header-svg { stroke: var(--text-on-panel-muted); }
-  .auction-panel-status { color: var(--text-on-panel-muted); }
-
-  /* Auction bid grid → horizontal 4-across row on mobile */
+  /* Auction bid grid → tight horizontal 4-across row */
   .auction-bid-grid {
     grid-template-columns: repeat(4, 1fr);
     gap: 6px;
-    margin-bottom: 8px;
+    margin-bottom: 0;
   }
 
   .auction-bid {
-    min-height: 44px;
-    padding: 8px 4px;
-    border-radius: 12px;
+    min-height: 40px;
+    padding: 6px 4px;
+    border-radius: 10px;
   }
 
   .auction-bid-icon { display: none; }
   .auction-bid-desc { display: none; }
 
-  .auction-bid-name { font-size: 13px; }
+  .auction-bid-name { font-size: 12px; font-weight: 800; }
 
   /* Keep distinct desktop bid colors on mobile */
   .auction-bid[data-bid="entrada"] {
@@ -2359,22 +2364,18 @@
   }
 
   .mobile-opponent {
-    min-height: 80px;
-    padding: 4px;
-    border-radius: 10px;
+    min-height: 50px;
+    padding: 3px;
+    border-radius: 8px;
   }
 
   .mobile-opponent-avatar {
-    width: 36px;
-    height: 36px;
+    width: 30px;
+    height: 30px;
   }
 
   .mobile-opponent-name {
     font-size: 10px;
-  }
-
-  .mobile-opponent-stats {
-    font-size: 9px;
   }
 
   .mob-card-line {
@@ -2411,41 +2412,38 @@
   }
 
   .game-controls-bar {
-    min-height: 58px;
-    padding: 7px 6px;
+    min-height: 44px;
+    padding: 5px;
   }
 
   .hand-row {
-    min-height: 148px;
-    padding: 6px;
-    gap: 0;
+    min-height: 116px;
+    padding: 4px 10px 0;
+    gap: 6px;
   }
 
   .hand-card-wrap {
-    width: 100px;
-    height: 144px;
-    margin-left: -20px;
+    width: 70px;
+    aspect-ratio: 96 / 138;
+    height: auto;
+    margin-left: 0;
+  }
+  .hand-card-wrap .roc-card {
+    transform: scale(0.729); /* 70/96 */
   }
 
   .phase-play .hand-card-wrap {
-    width: min(calc((100vw - 40px) / 3), 110px);
-    aspect-ratio: 96 / 138;
-    margin-left: 0;
-    scroll-snap-align: center;
+    width: 76px;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: scale(1.146); /* ~110/96 */
+    transform: scale(0.792); /* 76/96 */
   }
 
-  .auction-panel-quote, .auction-panel-divider { display: none; }
   .auction-bid-grid {
-    grid-template-columns: repeat(4, 1fr);
     gap: 4px;
   }
-  .auction-bid { min-height: 40px; padding: 6px 3px; border-radius: 10px; }
-  .auction-bid-icon { display: none; }
+  .auction-bid { min-height: 36px; padding: 5px 3px; border-radius: 8px; }
   .auction-bid-name { font-size: 11px; }
-  .auction-bid-desc { display: none; }
 
   .turn-lead-prompt { display: none; }
 
@@ -2480,21 +2478,17 @@
   }
 
   .mobile-opponent {
-    min-height: 76px;
-    padding: 4px 3px;
+    min-height: 44px;
+    padding: 3px 2px;
   }
 
   .mobile-opponent-avatar {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
   }
 
   .mobile-opponent-name {
     font-size: 9px;
-  }
-
-  .mobile-opponent-stats {
-    font-size: 8px;
   }
 
   .mob-card-line {
@@ -2513,19 +2507,20 @@
   }
 
   .hand-card-wrap {
-    width: 92px;
-    height: 132px;
-    margin-left: -18px;
+    width: 64px;
+    aspect-ratio: 96 / 138;
+    height: auto;
+    margin-left: 0;
+  }
+  .hand-card-wrap .roc-card {
+    transform: scale(0.667); /* 64/96 */
   }
 
   .phase-play .hand-card-wrap {
-    width: min(calc((100vw - 32px) / 3), 100px);
-    aspect-ratio: 96 / 138;
-    margin-left: 0;
-    scroll-snap-align: center;
+    width: 70px;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: scale(1.042); /* ~100/96 */
+    transform: scale(0.729); /* 70/96 */
   }
 
   .hand-action-btn {

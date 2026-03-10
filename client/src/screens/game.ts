@@ -1028,8 +1028,8 @@ export class GameScreen implements Screen {
         seconds !== null && game.turn !== null ? `${prompt} · ${seconds}s` : prompt;
       this.headerSub.classList.toggle("urgent", seconds !== null && seconds <= 5 && this.ctx.state.isMyTurn);
 
-      // Populate the contextual HUD bar with phase-specific pills
-      this.hudBar.innerHTML = this.renderHudPills(game, false);
+      // Populate the contextual HUD bar — compact on mobile for space
+      this.hudBar.innerHTML = this.renderHudPills(game, this.isMobilePortrait);
     } else {
       this.headerMain.textContent = "Waiting for game state";
       this.headerSub.textContent = "";
@@ -1082,15 +1082,8 @@ export class GameScreen implements Screen {
     switch (game.phase) {
       case "auction": {
         pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`));
-        pills.push(pill(compact ? "Auction" : "Phase: Auction"));
-        pills.push(
-          pill(
-            game.trump
-              ? `${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`
-              : compact ? "Undecided" : "Trump: Undecided",
-            "trump"
-          )
-        );
+        if (!compact) pills.push(pill("Phase: Auction"));
+        pills.push(pill(compact ? `Target: ${game.gameTarget}` : `Target: ${game.gameTarget}`));
         if (game.turn !== null) {
           pills.push(
             pill(
@@ -1124,7 +1117,7 @@ export class GameScreen implements Screen {
           const ombreName = game.ombre !== null ? this.seatLabelForAnnouncements(game.ombre) : "";
           pills.push(
             pill(
-              compact ? contractLabel : ombreName ? `${ombreName} · ${contractLabel}` : contractLabel,
+              ombreName ? `${ombreName}: ${contractLabel}` : contractLabel,
               "hud-pill-contract"
             )
           );
@@ -1155,17 +1148,21 @@ export class GameScreen implements Screen {
       }
 
       case "exchange": {
-        pills.push(pill(compact ? "Exchange" : "Phase: Exchange"));
+        if (!compact) pills.push(pill("Phase: Exchange"));
         if (game.exchange.current !== null) {
           const exchName =
             game.exchange.current === this.ctx.state.mySeat
               ? "You"
               : this.seatLabelForAnnouncements(game.exchange.current);
-          pills.push(pill(compact ? exchName : `Exchanging: ${exchName}`));
+          pills.push(pill(compact ? `${exchName} exchanging` : `Exchanging: ${exchName}`));
         }
         pills.push(
           pill(compact ? `Talon: ${game.exchange.talonSize}` : `Talon: ${game.exchange.talonSize} remaining`)
         );
+        if (game.contract) {
+          const contractLabel = this.contractDisplayLabel(game.contract, game.trump);
+          pills.push(pill(contractLabel, "hud-pill-contract"));
+        }
         break;
       }
 
