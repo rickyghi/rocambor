@@ -192,21 +192,24 @@ Use these file keys with the Figma MCP `get_screenshot` tool to compare against 
 ## Deployment
 
 ### Live URLs
-- **Client**: https://rocambor-game.netlify.app (Netlify)
+- **Client**: https://rocambor.app (Netlify, custom domain)
 - **Server**: https://rocambor-server-production.up.railway.app (Railway)
 - **GitHub**: https://github.com/rickyghi/rocambor
 
 ### Railway (Server)
 - Config: `railway.toml` — NIXPACKS builder, start: `cd server && npm start`
 - Healthcheck: `/healthz` (120s timeout)
-- CLI: `railway up -d` to deploy, `railway logs` to view logs
+- CLI: `railway up -d --service rocambor-server` to deploy, `railway logs` to view logs
 - The NIXPACKS build phase runs `npm run build` (root script builds both server + client). The start command only runs the server.
 
 ### Netlify (Client)
 - Config: `netlify.toml` — builds from `client/`, publishes `dist/`, SPA fallback, security headers (CSP allows Google Fonts)
-- Deploy pre-built dist: `cd client && npx netlify-cli deploy --prod --dir dist --no-build`
-- Site ID: `b1b0f56c-fad3-401a-b2eb-ef23cd2ab33a` (stored in `client/.netlify/state.json`)
-- The Netlify CLI has a monorepo detection bug — use `--no-build` with pre-built dist to avoid interactive prompts
+- Deploy pre-built dist (use absolute path for `--dir` to work around monorepo bug):
+  ```bash
+  cd client && npx netlify-cli deploy --prod --dir /Users/rickyghi/Desktop/Rocambor/RocamborMP/client/dist --no-build
+  ```
+- Site ID: `af83d768-1128-471d-bf0b-75c5b9d3c46c` (stored in `client/.netlify/state.json`)
+- The Netlify CLI has a monorepo detection bug — relative `--dir dist` resolves to project root instead of `client/`. Always use absolute path.
 - Build command in `netlify.toml` includes `VITE_WS_URL` and `VITE_API_URL` env vars
 
 ### WebSocket URL (cross-domain)
