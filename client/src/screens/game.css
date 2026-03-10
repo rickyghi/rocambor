@@ -471,14 +471,28 @@
 
 .hero-across {
   left: 50%;
-  top: 50px;
+  top: 56px;
   transform: translateX(-50%);
+  z-index: 9; /* above game-stage-top (z:8) so top player is always visible */
 }
 
 .hero-self-slot {
   display: flex;
   justify-content: center;
   min-height: 0;
+  position: relative;
+  z-index: 10;
+}
+
+/* During play phase: self hero plate floats over cards at 90% opacity */
+.phase-play .hero-self-slot {
+  position: relative;
+  z-index: 10;
+  margin-bottom: -20px; /* overlap into the hand area below */
+}
+
+.phase-play .hero-self-slot .hero-self {
+  opacity: 0.9;
 }
 
 .hero-self-slot .hero-self {
@@ -822,6 +836,11 @@
   padding: 0 8px calc(8px + env(safe-area-inset-bottom, 0px));
 }
 
+/* Play phase: remove gap since self hero floats over cards */
+.phase-play .game-stage-bottom {
+  gap: 0;
+}
+
 .game-hand-dock {
   position: relative;
   display: flex;
@@ -860,6 +879,11 @@
   overflow-y: hidden;
 }
 
+/* Play phase: taller hand row for larger cards covering lower third */
+.phase-play .hand-row {
+  min-height: 240px;
+}
+
 .hand-card-wrap {
   width: var(--card-w, 140px);
   height: var(--card-h, 201px);
@@ -889,14 +913,14 @@
   transform-origin: top left;
 }
 
-/* Phase-specific card sizes — play phase uses slightly smaller hand cards */
+/* Phase-specific card sizes — play phase: larger cards covering lower third */
 .phase-play .hand-card-wrap {
-  width: var(--card-w-play, 128px);
-  height: var(--card-h-play, 184px);
-  margin-left: -22px;
+  width: var(--card-w-play, 152px);
+  height: var(--card-h-play, 218px);
+  margin-left: -30px;
 }
 .phase-play .hand-card-wrap .roc-card {
-  transform: scale(var(--card-scale-play, 1.333));
+  transform: scale(var(--card-scale-play, 1.583));
 }
 
 .hand-card-wrap:hover:not(:disabled) {
@@ -1478,6 +1502,66 @@
   letter-spacing: 0.02em;
 }
 
+/* ── Compact Exchange Panel ── */
+.exchange-panel-compact {
+  width: min(340px, 92%) !important;
+  padding: 14px 18px 12px !important;
+  border-radius: 16px !important;
+}
+
+.exchange-panel-compact .auction-panel-header {
+  margin-bottom: 8px;
+}
+
+.exchange-panel-compact .auction-header-title {
+  font-size: clamp(16px, 1.3vw, 20px);
+}
+
+.exchange-panel-compact .auction-panel-status {
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.exchange-panel-compact .auction-bid {
+  min-height: 56px;
+  padding: 8px 8px;
+  gap: 3px;
+}
+
+.exchange-panel-compact .auction-bid-name {
+  font-size: 13px;
+}
+
+.exchange-panel-compact .auction-bid-grid {
+  margin-bottom: 0;
+}
+
+/* ── Move announcements to top-right corner during exchange ── */
+.phase-exchange .game-stage-top {
+  justify-items: end;
+  padding-right: 16px;
+}
+
+.phase-exchange .arena-phase-banner {
+  width: auto;
+  max-width: min(320px, 40%);
+  padding: 5px 14px;
+  border-radius: 14px;
+}
+
+.phase-exchange .arena-phase-main {
+  font-size: clamp(13px, 1.1vw, 16px);
+}
+
+.phase-exchange .arena-phase-sub {
+  font-size: clamp(10px, 0.8vw, 12px);
+}
+
+.phase-exchange .arena-toast-feed {
+  width: auto;
+  max-width: min(300px, 38%);
+}
+
 @keyframes fadeInDown {
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1720,21 +1804,22 @@
   .game-opponents-strip {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 5px;
-    padding: 6px;
+    gap: 4px;
+    padding: 4px;
+    margin: 4px 4px 0;
     border-radius: var(--rMd);
   }
 
   .mobile-opponent {
     display: grid;
-    gap: 4px;
+    gap: 3px;
     justify-items: center;
     align-content: center;
-    min-height: 90px;
+    min-height: 72px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(0, 0, 0, 0.2);
     border-radius: 12px;
-    padding: 6px;
+    padding: 4px;
   }
 
   .mobile-opponent.active-turn {
@@ -1752,8 +1837,8 @@
   }
 
   .mobile-opponent-avatar {
-    width: var(--avatar-mob, 48px);
-    height: var(--avatar-mob, 48px);
+    width: var(--avatar-mob, 40px);
+    height: var(--avatar-mob, 40px);
     border-radius: 50%;
     object-fit: cover;
     border: 2px solid rgba(200, 166, 81, 0.25);
@@ -1881,21 +1966,47 @@
     width: 100%;
     max-width: none;
     border-radius: 12px;
+    padding: 6px 10px;
+  }
+
+  /* On mobile play phase, self plate overlays on top of cards */
+  .phase-play .hero-self-slot {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    z-index: 10;
+    margin-bottom: -8px; /* overlap into cards */
+  }
+
+  .phase-play .hero-self-slot .hero-self {
+    opacity: 0.92;
   }
 
   /* game-canvas-wrap is already position:absolute;inset:0 — no box overrides needed */
 
   .arena-phase-banner {
     width: min(98%, 480px);
-    padding: 8px 10px;
+    padding: 6px 10px;
   }
 
   .arena-phase-main {
-    font-size: clamp(16px, 5vw, 22px);
+    font-size: clamp(14px, 4vw, 18px);
   }
 
   .arena-phase-sub {
-    font-size: 12px;
+    font-size: 11px;
+  }
+
+  /* Reset exchange phase desktop-only top-right positioning on mobile */
+  .phase-exchange .game-stage-top {
+    justify-items: center;
+    padding-right: 0;
+  }
+
+  .phase-exchange .arena-phase-banner {
+    width: min(98%, 480px);
+    max-width: none;
   }
 
   .arena-toast-feed {
@@ -1944,9 +2055,9 @@
   .game-controls-bar {
     width: 100%;
     border-radius: 12px;
-    min-height: 62px;
+    min-height: 56px;
     padding: 8px;
-    max-height: min(30vh, 230px);
+    max-height: min(35vh, 260px);
     overflow-y: auto;
   }
 
@@ -2010,13 +2121,29 @@
   }
 
   .phase-play .hand-card-wrap {
-    width: 96px;
-    height: 138px;
-    margin-left: -16px;
+    --mob-card-w: min(calc((100vw - 48px) / 3), 130px);
+    width: var(--mob-card-w);
+    height: auto;
+    aspect-ratio: 96 / 138;
+    margin-left: 0;
+    flex-shrink: 0;
+    scroll-snap-align: center;
+    overflow: visible;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: scale(1);
+    /* Scale card sprite to fill wrapper — 96px is sprite base width */
+    transform: scale(1.354); /* ~130/96 for ~130px cards */
     transform-origin: top left;
+  }
+
+  .phase-play .hand-row {
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 8px 16px 0;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    min-height: 200px;
+    overflow-x: auto;
   }
 
   .hand-card-wrap:hover:not(:disabled),
@@ -2119,40 +2246,46 @@
   .auction-header-svg { stroke: var(--text-on-panel-muted); }
   .auction-panel-status { color: var(--text-on-panel-muted); }
 
-  /* Auction bid grid → horizontal row on mobile (Figma) */
+  /* Auction bid grid → horizontal 4-across row on mobile */
   .auction-bid-grid {
-    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: 6px;
     margin-bottom: 8px;
   }
 
   .auction-bid {
-    background: rgba(200, 166, 81, 0.12);
-    border-color: rgba(200, 166, 81, 0.3);
-    color: var(--text-on-panel);
-    min-height: 48px;
-    padding: 8px 6px;
+    min-height: 44px;
+    padding: 8px 4px;
     border-radius: 12px;
   }
 
   .auction-bid-icon { display: none; }
   .auction-bid-desc { display: none; }
 
-  .auction-bid:hover:not(:disabled) {
-    background: rgba(200, 166, 81, 0.2);
+  .auction-bid-name { font-size: 13px; }
+
+  /* Keep distinct desktop bid colors on mobile */
+  .auction-bid[data-bid="entrada"] {
+    background: rgba(248, 246, 240, 0.92);
+    color: #1a1a1a;
+    border-color: rgba(200, 166, 81, 0.3);
+  }
+  .auction-bid[data-bid="volteo"],
+  .auction-bid[data-bid="oros"] {
+    background: rgba(200, 166, 81, 0.85);
+    color: #1a1a1a;
     border-color: rgba(200, 166, 81, 0.5);
   }
-
-  .auction-bid-name { font-size: 14px; }
-
-  .auction-bid.pass-btn {
-    background: rgba(176, 46, 46, 0.85);
-    border-color: rgba(176, 46, 46, 0.4);
+  .auction-bid[data-bid="solo"],
+  .auction-bid[data-bid="solo_oros"] {
+    background: rgba(176, 46, 46, 0.9);
     color: #fff;
+    border-color: rgba(176, 46, 46, 0.5);
   }
-  .auction-bid.pass-btn:hover:not(:disabled) {
-    background: rgba(176, 46, 46, 1);
-    border-color: rgba(176, 46, 46, 0.6);
+  .auction-bid.pass-btn {
+    background: rgba(13, 13, 13, 0.85);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #fff;
   }
 
   .auction-suit-btn {
@@ -2295,19 +2428,23 @@
   }
 
   .phase-play .hand-card-wrap {
-    width: 86px;
-    height: 124px;
-    margin-left: -16px;
+    width: min(calc((100vw - 40px) / 3), 110px);
+    aspect-ratio: 96 / 138;
+    margin-left: 0;
+    scroll-snap-align: center;
+  }
+  .phase-play .hand-card-wrap .roc-card {
+    transform: scale(1.146); /* ~110/96 */
   }
 
   .auction-panel-quote, .auction-panel-divider { display: none; }
   .auction-bid-grid {
-    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    grid-template-columns: repeat(4, 1fr);
     gap: 4px;
   }
-  .auction-bid { min-height: 44px; padding: 6px 4px; border-radius: 10px; }
+  .auction-bid { min-height: 40px; padding: 6px 3px; border-radius: 10px; }
   .auction-bid-icon { display: none; }
-  .auction-bid-name { font-size: 12px; }
+  .auction-bid-name { font-size: 11px; }
   .auction-bid-desc { display: none; }
 
   .turn-lead-prompt { display: none; }
@@ -2382,9 +2519,13 @@
   }
 
   .phase-play .hand-card-wrap {
-    width: 80px;
-    height: 115px;
-    margin-left: -14px;
+    width: min(calc((100vw - 32px) / 3), 100px);
+    aspect-ratio: 96 / 138;
+    margin-left: 0;
+    scroll-snap-align: center;
+  }
+  .phase-play .hand-card-wrap .roc-card {
+    transform: scale(1.042); /* ~100/96 */
   }
 
   .hand-action-btn {

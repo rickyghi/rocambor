@@ -28,37 +28,21 @@
   opacity: 0.55;
 }
 
-/* ---- Navbar ---- */
-.lobby-navbar {
-  position: sticky;
-  top: 0;
+/* ---- Floating Leave button (replaces old navbar) ---- */
+.lobby-float-leave {
+  position: absolute;
+  top: 16px;
+  left: 16px;
   z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 64px;
-  padding: 0 24px;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  flex-shrink: 0;
-}
-
-.lobby-nav-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.lobby-back-btn {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   color: rgba(255, 255, 255, 0.7);
   font-size: 13px;
   font-weight: 600;
@@ -67,63 +51,13 @@
   min-height: 40px;
 }
 
-.lobby-back-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+.lobby-float-leave:hover {
+  background: rgba(0, 0, 0, 0.5);
   color: rgba(255, 255, 255, 0.95);
-  border-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
-.lobby-back-btn:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring), var(--focus-ring-offset);
-}
-
-.lobby-nav-center {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.lobby-nav-logo {
-  width: 32px;
-  height: 30px;
-  object-fit: contain;
-}
-
-.lobby-nav-title {
-  font-family: var(--font-lora);
-  font-weight: 700;
-  font-size: 22px;
-  color: var(--home-gold);
-  letter-spacing: 0.02em;
-}
-
-.lobby-nav-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.lobby-nav-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.5);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background var(--dur-fast), color var(--dur-fast);
-}
-
-.lobby-nav-icon:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.lobby-nav-icon:focus-visible {
+.lobby-float-leave:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring), var(--focus-ring-offset);
 }
@@ -635,28 +569,16 @@
    Mobile layout (<768px)
    ========================================================= */
 @media (max-width: 768px) {
-  .lobby-navbar {
-    height: 56px;
-    padding: 0 12px;
-  }
-
-  .lobby-back-btn span:not(.lobby-back-arrow) {
+  .lobby-float-leave span:not(.lobby-back-arrow) {
     display: none;
   }
 
-  .lobby-back-btn {
+  .lobby-float-leave {
     padding: 8px 10px;
     min-width: 40px;
     justify-content: center;
-  }
-
-  .lobby-nav-title {
-    font-size: 18px;
-  }
-
-  .lobby-nav-logo {
-    width: 26px;
-    height: 24px;
+    top: 12px;
+    left: 12px;
   }
 
   .lobby-body {

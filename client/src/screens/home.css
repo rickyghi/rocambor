@@ -12,116 +12,48 @@
   overflow-y: auto;
 }
 
-/* ---- Navbar ---- */
-.home-navbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
+/* ---- Bottom bar (settings + profile) ---- */
+.home-bottom-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 72px;
-  padding: 0 24px;
-  background: var(--home-nav-bg);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.home-nav-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.home-nav-logo {
-  width: 40px;
-  height: 38px;
-  object-fit: contain;
-}
-
-.home-nav-title {
-  font-family: var(--font-lora);
-  font-weight: 700;
-  font-size: 28px;
-  color: var(--home-gold);
-  letter-spacing: 0.02em;
-}
-
-.home-nav-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.home-nav-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--home-text-muted);
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 18px;
-  transition: background var(--dur-fast), color var(--dur-fast);
+  gap: 24px;
 }
 
-.home-nav-icon:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--home-text-light);
-}
-
-.home-nav-icon:focus-visible {
-  box-shadow: var(--focus-ring), var(--focus-ring-offset);
-}
-
-.home-nav-profile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 12px 4px 4px;
-  border: none;
-  background: transparent;
-  color: var(--home-text-light);
-  cursor: pointer;
-  border-radius: 24px;
-  transition: background var(--dur-fast);
-}
-
-.home-nav-profile:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.home-nav-profile:focus-visible {
-  box-shadow: var(--focus-ring), var(--focus-ring-offset);
-}
-
-.home-nav-profile-info {
+.home-bottom-btn {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-}
-
-.home-nav-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--home-text-light);
-}
-
-.home-nav-rank {
-  font-size: 10px;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
   color: var(--home-text-muted);
+  cursor: pointer;
+  border-radius: 12px;
+  transition: color var(--dur-fast), background var(--dur-fast);
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.home-nav-avatar {
-  width: 40px;
-  height: 40px;
+.home-bottom-btn svg {
+  width: 28px;
+  height: 28px;
+}
+
+.home-bottom-btn:hover {
+  color: var(--home-gold);
+  background: rgba(214, 166, 74, 0.08);
+}
+
+.home-bottom-btn:focus-visible {
+  box-shadow: var(--focus-ring), var(--focus-ring-offset);
+}
+
+.home-bottom-avatar {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid rgba(214, 166, 74, 0.3);
@@ -330,43 +262,7 @@
   margin: 4px auto;
 }
 
-/* ---- Secondary links row ---- */
-.home-secondary {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-}
-
-.home-secondary-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  border: none;
-  background: transparent;
-  color: var(--home-text-muted);
-  cursor: pointer;
-  border-radius: 8px;
-  transition: color var(--dur-fast), background var(--dur-fast);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.home-secondary-btn:hover {
-  color: var(--home-gold);
-  background: rgba(214, 166, 74, 0.08);
-}
-
-.home-secondary-btn:focus-visible {
-  box-shadow: var(--focus-ring), var(--focus-ring-offset);
-}
-
-.home-secondary-icon {
-  font-size: 18px;
-}
+/* (secondary links removed — replaced by .home-bottom-bar) */
 
 /* ---- Quote ---- */
 .home-quote {
@@ -497,26 +393,6 @@
 @media (max-width: 768px) {
   .home-screen {
     background: var(--home-green-bg);
-  }
-
-  .home-navbar {
-    height: 64px;
-    padding: 0 16px;
-    background: var(--home-panel-bg);
-    backdrop-filter: blur(4px);
-  }
-
-  .home-nav-title {
-    font-size: 22px;
-  }
-
-  .home-nav-logo {
-    width: 34px;
-    height: 32px;
-  }
-
-  .home-nav-profile-info {
-    display: none;
   }
 
   .home-body {
@@ -709,20 +585,6 @@
 
   .home-connection-hint {
     grid-column: 1 / -1;
-  }
-
-  /* Mobile secondary */
-  .home-secondary {
-    gap: 16px;
-  }
-
-  .home-secondary-btn {
-    color: #565d6d;
-  }
-
-  .home-secondary-btn:hover {
-    color: var(--home-gold);
-    background: rgba(214, 166, 74, 0.06);
   }
 
   /* Quote lighter on mobile */

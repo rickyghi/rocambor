@@ -258,32 +258,26 @@ export class GameControls {
     const cardsSvg = `<svg class="auction-header-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="18" rx="2"/><rect x="7" y="1" width="14" height="18" rx="2"/></svg>`;
 
     return `
-      <div class="auction-panel">
+      <div class="auction-panel exchange-panel-compact">
         <div class="auction-panel-header">
           <span class="auction-header-icon">${cardsSvg}</span>
-          <span class="auction-header-title">Exchange Cards</span>
+          <span class="auction-header-title">Exchange</span>
         </div>
-        <div class="auction-panel-status">${hintText} \u2014 ${selected} / ${maxExchange} selected</div>
+        <div class="auction-panel-status">${hintText} \u2014 ${selected} / ${maxExchange}</div>
         <div class="auction-bid-grid">
           <button class="auction-bid exchange-btn" data-action="confirm" ${canConfirm ? "" : "disabled"}>
             <span class="auction-bid-icon">${swapSvg}</span>
-            <span class="auction-bid-name">Exchange Selected</span>
-            <span class="auction-bid-desc">${selected} card${selected !== 1 ? "s" : ""} chosen</span>
+            <span class="auction-bid-name">Exchange</span>
           </button>
           ${min > 0 ? "" : `<button class="auction-bid exchange-btn pass-btn" data-action="skip">
             <span class="auction-bid-icon">${crossSvg}</span>
             <span class="auction-bid-name">Keep All</span>
-            <span class="auction-bid-desc">No exchange</span>
           </button>`}
           ${canDefer ? `<button class="auction-bid exchange-btn" data-action="defer">
             <span class="auction-bid-icon">${clockSvg}</span>
-            <span class="auction-bid-name">Exchange Second</span>
-            <span class="auction-bid-desc">Defer your turn</span>
+            <span class="auction-bid-name">Defer</span>
           </button>` : ""}
         </div>
-        ${needsSelectionHint ? `<div class="auction-panel-status">${requireExactOne ? "Select exactly 1 card" : `Select 1\u2013${maxExchange} cards`}</div>` : ""}
-        <div class="auction-panel-divider"></div>
-        <div class="auction-panel-quote">\u201CFortune favors the bold\u201D</div>
       </div>
     `;
   }

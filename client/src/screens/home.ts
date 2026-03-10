@@ -75,26 +75,6 @@ export class HomeScreen implements Screen {
 
     this.container.innerHTML = `
       <div class="screen home-screen">
-        <!-- Navbar -->
-        <nav class="home-navbar">
-          <div class="home-nav-left">
-            <img class="home-nav-logo" src="/assets/rocambor/coin.png" alt="" />
-            <span class="home-nav-title">Rocambor</span>
-          </div>
-          <div class="home-nav-right">
-            <button class="home-nav-icon home-settings-btn" type="button" aria-label="Settings">${ICON_SETTINGS}</button>
-            <button class="home-nav-icon home-volume-btn" type="button" aria-label="Sound">${ICON_VOLUME}</button>
-            <button class="home-nav-profile home-profile-btn" type="button" aria-label="Player profile">
-              <div class="home-nav-profile-info">
-                <span class="home-nav-name">${this.escapeHtml(profile.name)}</span>
-                <span class="home-nav-rank">Player</span>
-              </div>
-              <img class="home-nav-avatar" src="${profile.avatar}" alt="${this.escapeHtml(profile.name)}"
-                   onerror="this.src='${fallbackAvatar}'" />
-            </button>
-          </div>
-        </nav>
-
         <!-- Main body -->
         <div class="home-body">
           <!-- Mobile hero section (hidden on desktop via CSS) -->
@@ -129,19 +109,16 @@ export class HomeScreen implements Screen {
             <!-- Divider -->
             <div class="home-divider" aria-hidden="true"></div>
 
-            <!-- Secondary links -->
-            <div class="home-secondary">
-              <button class="home-secondary-btn home-rules-btn" type="button">
-                <span class="home-secondary-icon">${ICON_BOOK}</span>
-                How to Play
+            <!-- Bottom bar: Settings + Profile -->
+            <div class="home-bottom-bar">
+              <button class="home-bottom-btn home-settings-btn" type="button" aria-label="Settings">
+                ${ICON_SETTINGS}
+                <span>Settings</span>
               </button>
-              <button class="home-secondary-btn home-leaderboard-btn" type="button">
-                <span class="home-secondary-icon">${ICON_TROPHY}</span>
-                Hall of Fame
-              </button>
-              <button class="home-secondary-btn home-honors-btn" type="button">
-                <span class="home-secondary-icon">${ICON_SHIELD}</span>
-                Honors
+              <button class="home-bottom-btn home-profile-btn" type="button" aria-label="Player profile">
+                <img class="home-bottom-avatar" src="${profile.avatar}" alt="${this.escapeHtml(profile.name)}"
+                     onerror="this.src='${fallbackAvatar}'" />
+                <span>${this.escapeHtml(profile.name)}</span>
               </button>
             </div>
 
@@ -255,28 +232,6 @@ export class HomeScreen implements Screen {
     this.container.querySelector(".home-settings-btn")?.addEventListener("click", () => {
       openSettingsModal(this.ctx.settings);
     });
-
-    // Volume toggle
-    this.container.querySelector(".home-volume-btn")?.addEventListener("click", () => {
-      const current = this.ctx.settings.get("soundEnabled");
-      this.ctx.settings.set("soundEnabled", !current);
-      showToast(current ? "Sound muted" : "Sound enabled", "info");
-    });
-
-    // Rules
-    this.container.querySelector(".home-rules-btn")?.addEventListener("click", () => {
-      this.showRulesModal();
-    });
-
-    // Leaderboard
-    this.container.querySelector(".home-leaderboard-btn")?.addEventListener("click", () => {
-      this.ctx.router.navigate("leaderboard");
-    });
-
-    // Honors (placeholder)
-    this.container.querySelector(".home-honors-btn")?.addEventListener("click", () => {
-      showToast("Honors coming soon", "info");
-    });
   }
 
   private showCreateRoomModal(): void {
@@ -298,6 +253,7 @@ export class HomeScreen implements Screen {
     showModal({
       title: "Create Room",
       size: "sm",
+      modalClassName: "modal-dark",
       content,
       actions: [
         { label: "Cancel", className: "btn-secondary", onClick: () => {} },
@@ -333,6 +289,7 @@ export class HomeScreen implements Screen {
     showModal({
       title: "Join by Code",
       size: "sm",
+      modalClassName: "modal-dark",
       content,
       actions: [
         { label: "Cancel", className: "btn-secondary", onClick: () => {} },

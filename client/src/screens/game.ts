@@ -1083,7 +1083,6 @@ export class GameScreen implements Screen {
       case "auction": {
         pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`));
         pills.push(pill(compact ? "Auction" : "Phase: Auction"));
-        pills.push(pill(compact ? `Tgt: ${game.gameTarget}` : `Target: ${game.gameTarget} Pts`));
         pills.push(
           pill(
             game.trump

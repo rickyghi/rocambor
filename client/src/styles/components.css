@@ -377,6 +377,80 @@ textarea {
   padding: 10px 12px;
 }
 
+/* ---- Dark modal variant (game-consistent) ---- */
+.modal.modal-dark {
+  background: rgba(15, 18, 15, 0.95);
+  border-color: rgba(200, 166, 81, 0.2);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(200, 166, 81, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.modal.modal-dark h2 {
+  color: rgba(255, 255, 255, 0.92);
+  font-family: var(--font-lora);
+}
+
+.modal.modal-dark .modal-close {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.modal.modal-dark .modal-close:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.modal.modal-dark .modal-form-group label {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.modal.modal-dark input,
+.modal.modal-dark select,
+.modal.modal-dark textarea {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(200, 166, 81, 0.25);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.modal.modal-dark input:focus,
+.modal.modal-dark select:focus,
+.modal.modal-dark textarea:focus {
+  border-color: rgba(200, 166, 81, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.modal.modal-dark select option {
+  background: #1a1f1a;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.modal.modal-dark .btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.6);
+  box-shadow: none;
+}
+
+.modal.modal-dark .btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.modal.modal-dark .btn-primary {
+  border-color: color-mix(in srgb, var(--gold) 75%, #6e5728);
+  background: linear-gradient(180deg, #e2c878 0%, #c8a651 55%, #b08e3c 100%);
+  color: #1a1a1a;
+  box-shadow: var(--shadow-plaque), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.modal.modal-dark .btn-primary:hover:not(:disabled) {
+  filter: brightness(1.05);
+  background: linear-gradient(180deg, #e8cf84 0%, #d0af5a 55%, #b89842 100%);
+}
+
 /* Toasts */
 #toasts {
   position: fixed;
