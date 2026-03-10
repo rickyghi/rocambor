@@ -169,13 +169,15 @@ export class GameRenderer {
     this.ctx.clearRect(0, 0, width, height);
     const cardSkin = this.settings.get("cardSkin");
 
-    // 1. Table background
-    drawTableBackground(
-      this.ctx,
-      width,
-      height,
-      this.settings.get("tableTheme")
-    );
+    // 1. Table background (skip when DOM handles visuals — canvas is animation-only overlay)
+    if (!this.domPlatesEnabled) {
+      drawTableBackground(
+        this.ctx,
+        width,
+        height,
+        this.settings.get("tableTheme")
+      );
+    }
 
     // 2. Players (names, scores, opponent cards)
     const colorblind = this.settings.get("colorblindMode");

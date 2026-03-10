@@ -192,11 +192,6 @@ export class LobbyScreen implements Screen {
         <!-- Body -->
         <div class="lobby-body">
           <div class="lobby-panel">
-            <!-- Decorative watermark logo -->
-            <div class="lobby-watermark" aria-hidden="true">
-              <img class="lobby-watermark-img" src="/assets/rocambor/logo-light.png" alt="" />
-            </div>
-
             <!-- Mobile header (visible only on small screens via CSS) -->
             <div class="lobby-mobile-header" aria-hidden="true">
               <div class="lobby-mobile-title">Royal Salon</div>
@@ -247,17 +242,6 @@ export class LobbyScreen implements Screen {
 
             <!-- Divider -->
             <div class="lobby-divider" aria-hidden="true"></div>
-
-            <!-- Invite row -->
-            <div class="lobby-invite-row">
-              <button class="lobby-invite-btn" data-action="copy" type="button">
-                ${ICON_SHARE}
-                <span>Invite Friends</span>
-              </button>
-            </div>
-
-            <!-- Ornamental divider -->
-            <div class="lobby-ornament-divider" aria-hidden="true"></div>
 
             <!-- Start game (desktop) -->
             <div class="lobby-desktop-start">

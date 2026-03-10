@@ -97,11 +97,11 @@ export class GameControls {
       ({ entrada: 0, oros: 1, volteo: 2, solo: 3, solo_oros: 4 } as Partial<Record<Bid, number>>)[bid] ?? -1;
     const opening = currentBid === "pass";
     const rankedBids: Array<{ value: Bid; label: string; icon: string; desc: string }> = [
-      { value: "entrada", label: "Entrada", icon: "\u2660", desc: "Standard opening" },
-      { value: "oros", label: "Entrada Oros", icon: "\u2600\uFE0F", desc: "Entrada with Oros" },
-      { value: "volteo", label: "Volteo", icon: "\u26A1", desc: "Trump from talon" },
-      { value: "solo", label: "Solo", icon: "\uD83D\uDC51", desc: "Choose trump now" },
-      { value: "solo_oros", label: "Solo Oros", icon: "\uD83D\uDC51", desc: "Solo with Oros" },
+      { value: "entrada", label: "Entrada", icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>`, desc: "Challenge the table" },
+      { value: "oros", label: "Entrada Oros", icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>`, desc: "Entrada with Oros" },
+      { value: "volteo", label: "Volteo", icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`, desc: "Flip top card" },
+      { value: "solo", label: "Solo", icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/><circle cx="12" cy="12" r="3"/></svg>`, desc: "Play alone" },
+      { value: "solo_oros", label: "Solo Oros", icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/><circle cx="12" cy="12" r="3"/></svg>`, desc: "Solo with Oros" },
     ];
 
     const legal = opening
@@ -142,24 +142,28 @@ export class GameControls {
       ? `Leading bid: ${this.bidLabel(currentBid)}`
       : "No leading bid";
 
+    const gavelSvg = `<svg class="auction-header-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2.5L18 6l-9 9-3.5-3.5 9-9z"/><path d="M4 20l3.5-3.5"/><path d="M2 22l2-2"/></svg>`;
+    const crossSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+    const diceSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="4"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>`;
+
     return `
       <div class="auction-panel">
         <div class="auction-panel-header">
-          <span class="auction-header-icon">\u2696\uFE0F</span>
+          <span class="auction-header-icon">${gavelSvg}</span>
           <span class="auction-header-title">The Auction</span>
         </div>
         <div class="auction-panel-status">${statusText}</div>
         <div class="auction-bid-grid">
           ${btns}
           ${showContrabola ? `<button class="auction-bid bid-btn contrabola-btn" data-bid="contrabola">
-            <span class="auction-bid-icon">\uD83C\uDFB2</span>
+            <span class="auction-bid-icon">${diceSvg}</span>
             <span class="auction-bid-name">Contrabola</span>
             <span class="auction-bid-desc">Last all-pass special</span>
           </button>` : ""}
           <button class="auction-bid bid-btn pass-btn" data-bid="pass">
-            <span class="auction-bid-icon">\u2717</span>
+            <span class="auction-bid-icon">${crossSvg}</span>
             <span class="auction-bid-name">Pass</span>
-            <span class="auction-bid-desc">Skip this round</span>
+            <span class="auction-bid-desc">Wait for turn</span>
           </button>
         </div>
         ${soloPicker}
@@ -170,21 +174,24 @@ export class GameControls {
   }
 
   private renderPenetroChoice(): string {
+    const crossSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+    const swordSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2.5L18 6l-9 9-3.5-3.5 9-9z"/><path d="M4 20l3.5-3.5"/><path d="M2 22l2-2"/></svg>`;
+    const gavelSvg = `<svg class="auction-header-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2.5L18 6l-9 9-3.5-3.5 9-9z"/><path d="M4 20l3.5-3.5"/><path d="M2 22l2-2"/></svg>`;
     return `
       <div class="auction-panel">
         <div class="auction-panel-header">
-          <span class="auction-header-icon">\u2696\uFE0F</span>
+          <span class="auction-header-icon">${gavelSvg}</span>
           <span class="auction-header-title">Penetro Decision</span>
         </div>
         <div class="auction-panel-status">No active bidder. As resting player, choose whether to play Penetro.</div>
         <div class="auction-bid-grid">
           <button class="auction-bid bid-btn penetro-btn" data-accept="false">
-            <span class="auction-bid-icon">\u2717</span>
+            <span class="auction-bid-icon">${crossSvg}</span>
             <span class="auction-bid-name">Decline</span>
             <span class="auction-bid-desc">Redeal hand</span>
           </button>
           <button class="auction-bid bid-btn penetro-btn" data-accept="true">
-            <span class="auction-bid-icon">\u2694\uFE0F</span>
+            <span class="auction-bid-icon">${swordSvg}</span>
             <span class="auction-bid-name">Play Penetro</span>
             <span class="auction-bid-desc">Resting player enters</span>
           </button>
@@ -209,14 +216,18 @@ export class GameControls {
     const btns = suits
       .map(
         (s) =>
-          `<button class="auction-trump-btn trump-btn" data-suit="${s.value}" style="--suit-color: ${s.color}" ${orosOnly && s.value !== "oros" ? "disabled" : ""}>${s.symbol} ${s.label}</button>`
+          `<button class="auction-trump-btn trump-btn" data-suit="${s.value}" style="--suit-color: ${s.color}" ${orosOnly && s.value !== "oros" ? "disabled" : ""}>
+            <span class="trump-suit-symbol" style="color: ${s.color}">${s.symbol}</span>
+            <span class="trump-suit-name">${s.label}</span>
+          </button>`
       )
       .join("");
 
+    const swordSvg = `<svg class="auction-header-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2.5L18 6l-9 9-3.5-3.5 9-9z"/><path d="M4 20l3.5-3.5"/><path d="M2 22l2-2"/></svg>`;
     return `
       <div class="auction-panel">
         <div class="auction-panel-header">
-          <span class="auction-header-icon">\u2694\uFE0F</span>
+          <span class="auction-header-icon">${swordSvg}</span>
           <span class="auction-header-title">Choose Trump</span>
         </div>
         <div class="auction-trump-grid">
@@ -241,26 +252,31 @@ export class GameControls {
 
     const hintText = requireExactOne ? "Select exactly 1 card" : `Choose up to ${maxExchange} cards`;
 
+    const swapSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
+    const crossSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+    const clockSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+    const cardsSvg = `<svg class="auction-header-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="18" rx="2"/><rect x="7" y="1" width="14" height="18" rx="2"/></svg>`;
+
     return `
       <div class="auction-panel">
         <div class="auction-panel-header">
-          <span class="auction-header-icon">\uD83C\uDCCF</span>
+          <span class="auction-header-icon">${cardsSvg}</span>
           <span class="auction-header-title">Exchange Cards</span>
         </div>
         <div class="auction-panel-status">${hintText} \u2014 ${selected} / ${maxExchange} selected</div>
         <div class="auction-bid-grid">
           <button class="auction-bid exchange-btn" data-action="confirm" ${canConfirm ? "" : "disabled"}>
-            <span class="auction-bid-icon">\u2194\uFE0F</span>
+            <span class="auction-bid-icon">${swapSvg}</span>
             <span class="auction-bid-name">Exchange Selected</span>
             <span class="auction-bid-desc">${selected} card${selected !== 1 ? "s" : ""} chosen</span>
           </button>
           ${min > 0 ? "" : `<button class="auction-bid exchange-btn pass-btn" data-action="skip">
-            <span class="auction-bid-icon">\u2717</span>
+            <span class="auction-bid-icon">${crossSvg}</span>
             <span class="auction-bid-name">Keep All</span>
             <span class="auction-bid-desc">No exchange</span>
           </button>`}
           ${canDefer ? `<button class="auction-bid exchange-btn" data-action="defer">
-            <span class="auction-bid-icon">\u23F3</span>
+            <span class="auction-bid-icon">${clockSvg}</span>
             <span class="auction-bid-name">Exchange Second</span>
             <span class="auction-bid-desc">Defer your turn</span>
           </button>` : ""}

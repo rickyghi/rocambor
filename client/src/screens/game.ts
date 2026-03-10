@@ -103,19 +103,22 @@ export class GameScreen implements Screen {
             </div>
             <div class="game-stage-mid">
               <div class="game-canvas-wrap">
-                <div class="hero-plates-layer" id="hero-plates-layer" aria-hidden="true"></div>
                 <canvas id="game-canvas"></canvas>
-                <div id="game-dom-layers" class="game-dom-layers" hidden>
-                  <div class="trick-overlay" aria-hidden="true">
-                    <div class="trick-overlay-inner" id="trick-layer"></div>
-                  </div>
-                </div>
               </div>
-              <div class="trick-result-banner" id="trick-result-banner" hidden></div>
-              <div class="turn-lead-prompt" id="turn-lead-prompt" hidden>
-                <span class="turn-lead-main">YOUR TURN TO LEAD</span>
-                <span class="turn-lead-sub">Play any card to start the trick</span>
+            </div>
+            <div class="hero-plates-layer" id="hero-plates-layer" aria-hidden="true"></div>
+            <div id="game-dom-layers" class="game-dom-layers" hidden>
+              <div class="trick-overlay" aria-hidden="true">
+                <div class="trick-overlay-inner" id="trick-layer"></div>
               </div>
+            </div>
+            <div class="trick-result-banner" id="trick-result-banner" hidden></div>
+            <div class="turn-lead-prompt" id="turn-lead-prompt" hidden>
+              <span class="turn-lead-main">YOUR TURN TO LEAD</span>
+              <span class="turn-lead-sub">Play any card to start the trick</span>
+            </div>
+            <div class="game-controls-shell" data-actionable="false">
+              <div class="game-controls-bar rc-panel rc-panel-noise" id="game-controls"></div>
             </div>
             <div class="game-stage-bottom">
               <div class="hero-self-slot" id="hero-self-slot" aria-hidden="true"></div>
@@ -124,12 +127,9 @@ export class GameScreen implements Screen {
                   <span class="hand-label">Your Hand</span>
                   <span class="hand-hint">SLIDE TO SELECT</span>
                 </div>
-                <div class="hand-row rc-panel rc-panel-noise" id="hand-layer" role="listbox" aria-label="Your hand"></div>
+                <div class="hand-row" id="hand-layer" role="listbox" aria-label="Your hand"></div>
                 <div class="hand-scroll-dots" id="hand-scroll-dots" aria-hidden="true"></div>
                 <button class="hand-action-btn btn-gold-plaque" id="hand-action-btn" type="button" hidden>Select a Card</button>
-              </div>
-              <div class="game-controls-shell" data-actionable="false">
-                <div class="game-controls-bar rc-panel rc-panel-noise" id="game-controls"></div>
               </div>
             </div>
           </div>
@@ -1038,7 +1038,7 @@ export class GameScreen implements Screen {
     }
 
     const latency = this.ctx.connection.latencyMs;
-    this.headerPing.textContent = latency === null ? "⏳ --" : `⏳ ${Math.round(latency)}ms`;
+    this.headerPing.textContent = latency === null ? "Ping --" : `Ping ${Math.round(latency)}ms`;
 
     this.headerName.textContent = profile.name;
     this.headerAvatar.src = profile.avatar || this.ctx.profile.getFallbackAvatar();
@@ -1047,7 +1047,10 @@ export class GameScreen implements Screen {
     };
 
     const soundOn = this.ctx.settings.get("soundEnabled");
-    this.soundToggleBtn.textContent = soundOn ? "🔊 On" : "🔇 Off";
+    const volumeSvg = soundOn
+      ? `<svg class="header-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`
+      : `<svg class="header-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>`;
+    this.soundToggleBtn.innerHTML = volumeSvg;
     this.soundToggleBtn.setAttribute("aria-pressed", String(soundOn));
   }
 
@@ -1078,16 +1081,14 @@ export class GameScreen implements Screen {
 
     switch (game.phase) {
       case "auction": {
-        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`, "", "📋"));
-        pills.push(pill(compact ? "Auction" : "Phase: Auction", "", "🔨"));
-        pills.push(pill(compact ? `Target: ${game.gameTarget}` : `Target: ${game.gameTarget} Pts`, "", "🎯"));
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`));
+        pills.push(pill(compact ? "Auction" : "Phase: Auction"));
+        pills.push(pill(compact ? `Tgt: ${game.gameTarget}` : `Target: ${game.gameTarget} Pts`));
         pills.push(
           pill(
             game.trump
-              ? `${this.suitIcon(game.trump)} ${compact ? this.capSuit(game.trump) : this.capSuit(game.trump)}`
-              : compact
-                ? "Undecided"
-                : "Trump: Undecided",
+              ? `${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}`
+              : compact ? "Undecided" : "Trump: Undecided",
             "trump"
           )
         );
@@ -1095,8 +1096,7 @@ export class GameScreen implements Screen {
           pills.push(
             pill(
               compact ? `${turnName}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
-              isMyTurn ? "hud-pill-active" : "",
-              "👤"
+              isMyTurn ? "hud-pill-active" : ""
             )
           );
         }
@@ -1104,22 +1104,10 @@ export class GameScreen implements Screen {
       }
 
       case "play": {
-        // Calculate current trick number from total tricks won so far
-        const totalTricksWon = Object.values(game.tricks).reduce(
-          (a, b) => a + b,
-          0
-        );
+        const totalTricksWon = Object.values(game.tricks).reduce((a, b) => a + b, 0);
         const currentTrick = totalTricksWon + 1;
         const totalTricks = 9;
-        pills.push(
-          pill(
-            compact
-              ? `Trick ${currentTrick}/${totalTricks}`
-              : `Trick ${currentTrick}/${totalTricks}`,
-            "",
-            "🃏"
-          )
-        );
+        pills.push(pill(compact ? `Trk ${currentTrick}/${totalTricks}` : `Trick ${currentTrick}/${totalTricks}`));
 
         if (game.trump) {
           pills.push(
@@ -1133,13 +1121,12 @@ export class GameScreen implements Screen {
         }
 
         if (game.contract) {
+          const contractLabel = this.contractDisplayLabel(game.contract, game.trump);
+          const ombreName = game.ombre !== null ? this.seatLabelForAnnouncements(game.ombre) : "";
           pills.push(
             pill(
-              compact
-                ? this.bidLabel(game.contract)
-                : `Contract: ${this.bidLabel(game.contract)}`,
-              "",
-              "📜"
+              compact ? contractLabel : ombreName ? `${ombreName} · ${contractLabel}` : contractLabel,
+              "hud-pill-contract"
             )
           );
         }
@@ -1148,8 +1135,7 @@ export class GameScreen implements Screen {
           pills.push(
             pill(
               compact ? `${turnName}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
-              isMyTurn ? "hud-pill-active" : "",
-              "👤"
+              isMyTurn ? "hud-pill-active" : ""
             )
           );
         }
@@ -1157,15 +1143,12 @@ export class GameScreen implements Screen {
       }
 
       case "trump_choice": {
-        pills.push(pill(compact ? "Choose Trump" : "Phase: Choose Trump", "", "🎨"));
+        pills.push(pill(compact ? "Choose Trump" : "Phase: Choose Trump"));
         if (game.turn !== null) {
           pills.push(
             pill(
-              compact
-                ? `${turnName} choosing...`
-                : `${turnName} choosing...`,
-              isMyTurn ? "hud-pill-active" : "",
-              "👤"
+              compact ? `${turnName} choosing...` : `${turnName} choosing...`,
+              isMyTurn ? "hud-pill-active" : ""
             )
           );
         }
@@ -1173,34 +1156,27 @@ export class GameScreen implements Screen {
       }
 
       case "exchange": {
-        pills.push(pill(compact ? "Exchange" : "Phase: Exchange", "", "🔄"));
+        pills.push(pill(compact ? "Exchange" : "Phase: Exchange"));
         if (game.exchange.current !== null) {
           const exchName =
             game.exchange.current === this.ctx.state.mySeat
               ? "You"
               : this.seatLabelForAnnouncements(game.exchange.current);
-          pills.push(pill(compact ? exchName : `Exchanging: ${exchName}`, "", "👤"));
+          pills.push(pill(compact ? exchName : `Exchanging: ${exchName}`));
         }
         pills.push(
-          pill(
-            compact
-              ? `Talon: ${game.exchange.talonSize}`
-              : `Talon: ${game.exchange.talonSize} remaining`,
-            "",
-            "🂠"
-          )
+          pill(compact ? `Talon: ${game.exchange.talonSize}` : `Talon: ${game.exchange.talonSize} remaining`)
         );
         break;
       }
 
       case "penetro_choice": {
-        pills.push(pill(compact ? "Penetro" : "Phase: Penetro Choice", "", "⚖️"));
+        pills.push(pill(compact ? "Penetro" : "Phase: Penetro Choice"));
         if (game.turn !== null) {
           pills.push(
             pill(
               compact ? `${turnName} deciding...` : `${turnName} deciding...`,
-              isMyTurn ? "hud-pill-active" : "",
-              "👤"
+              isMyTurn ? "hud-pill-active" : ""
             )
           );
         }
@@ -1208,26 +1184,26 @@ export class GameScreen implements Screen {
       }
 
       case "dealing": {
-        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`, "", "📋"));
-        pills.push(pill("Dealing...", "", "🂠"));
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`));
+        pills.push(pill("Dealing..."));
         break;
       }
 
       case "post_hand":
       case "scoring": {
-        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`, "", "📋"));
-        pills.push(pill("Hand Complete", "", "✅"));
-        pills.push(pill(`Target: ${game.gameTarget}`, "", "🎯"));
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`));
+        pills.push(pill("Hand Complete"));
+        pills.push(pill(`Target: ${game.gameTarget}`));
         break;
       }
 
       case "match_end": {
-        pills.push(pill("Match Complete", "", "🏆"));
+        pills.push(pill("Match Complete"));
         break;
       }
 
       default: {
-        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`, "", "📋"));
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`));
         pills.push(pill(this.phaseLabel(game.phase)));
         break;
       }
@@ -1300,8 +1276,6 @@ export class GameScreen implements Screen {
     const active = game.turn === seat ? " active-turn" : "";
     const resting = game.resting === seat ? " resting" : "";
     const disconnected = player && !player.connected ? " disconnected" : "";
-    const score = game.scores[seat] || 0;
-    const cards = game.handsCount[seat] || 0;
     const tricks = game.tricks[seat] || 0;
     const sideClass = isSelf ? "" : " hero-side";
 
@@ -1309,8 +1283,14 @@ export class GameScreen implements Screen {
     const positionTag = isSelf ? "YOU" : position.toUpperCase();
     const youClass = isSelf ? " you-tag" : "";
 
-    // Role tags
-    const ombreTag = game.ombre === seat ? `<span class="hero-badge-ombre">OMBRE</span>` : "";
+    // Role tags — show contract type on OMBRE badge, CONTRA for defenders
+    const isPlayPhase = game.phase === "play" || game.phase === "exchange" || game.phase === "trump_choice";
+    const ombreTag = game.ombre === seat
+      ? `<span class="hero-badge-ombre">OMBRE${game.contract ? ` · ${this.contractDisplayLabel(game.contract, game.trump)}` : ""}</span>`
+      : "";
+    const contraTag = isPlayPhase && game.ombre !== null && game.ombre !== seat && game.resting !== seat
+      ? `<span class="hero-badge-contra">CONTRA</span>`
+      : "";
     const turnTag = game.turn === seat ? `<span class="hero-badge-turn">TURN</span>` : "";
     const restingTag = game.resting === seat ? `<span class="hero-badge-resting">RESTING</span>` : "";
 
@@ -1326,13 +1306,15 @@ export class GameScreen implements Screen {
       }
     }
 
-    // Card dots (diamond indicators for remaining cards)
-    const cardDotsHtml = this.renderCardDots(cards);
+    // Trick dots (diamond indicators for tricks won)
+    const trickDotsHtml = this.renderTrickDots(tricks);
 
-    // Stat grid — inline for self plate, stacked for opponents
-    const statsInlineClass = isSelf ? " inline" : "";
+    // YOUR TURN flash — only on self plate when it's our turn
+    const turnFlashHtml = game.turn === seat
+      ? `<span class="hero-turn-flash">YOUR TURN</span>`
+      : "";
 
-    const ariaText = `${name}, ${positionTag.toLowerCase()}, score ${score}, cards ${cards}, tricks ${tricks}`;
+    const ariaText = `${name}, ${positionTag.toLowerCase()}, tricks ${tricks}`;
 
     if (isSelf) {
       return `
@@ -1347,24 +1329,12 @@ export class GameScreen implements Screen {
             </div>
             <div class="hero-role-tags">
               ${ombreTag}
-              ${turnTag}
+              ${contraTag}
               ${bidStatusHtml}
             </div>
-            <div class="hero-stats${statsInlineClass}">
-              <div class="hero-stat">
-                <span class="hero-stat-label">SCORE</span>
-                <span class="hero-stat-value">${score}</span>
-              </div>
-              <div class="hero-stat">
-                <span class="hero-stat-label">CARDS</span>
-                <span class="hero-stat-value">${cards}</span>
-              </div>
-              <div class="hero-stat">
-                <span class="hero-stat-label">TRICKS</span>
-                <span class="hero-stat-value">${tricks}</span>
-              </div>
-            </div>
+            ${turnFlashHtml}
           </div>
+          <div class="hero-trick-dots" aria-label="${escapeHtml(`Tricks won: ${tricks}`)}">${trickDotsHtml}</div>
         </section>
       `;
     }
@@ -1381,36 +1351,23 @@ export class GameScreen implements Screen {
           </div>
           <div class="hero-role-tags">
             ${ombreTag}
+            ${contraTag}
             ${turnTag}
             ${restingTag}
             ${bidStatusHtml}
           </div>
         </div>
-        <div class="hero-stats">
-          <div class="hero-stat">
-            <span class="hero-stat-label">SCORE</span>
-            <span class="hero-stat-value">${score}</span>
-          </div>
-          <div class="hero-stat">
-            <span class="hero-stat-label">CARDS</span>
-            <span class="hero-stat-value">${cards}</span>
-          </div>
-          <div class="hero-stat">
-            <span class="hero-stat-label">TRICKS</span>
-            <span class="hero-stat-value">${tricks}</span>
-          </div>
-        </div>
-        <div class="hero-card-dots" aria-label="${escapeHtml(`Cards remaining: ${cards}`)}">${cardDotsHtml}</div>
+        <div class="hero-trick-dots" aria-label="${escapeHtml(`Tricks won: ${tricks}`)}">${trickDotsHtml}</div>
       </section>
     `;
   }
 
-  private renderCardDots(cardsRemaining: number): string {
+  private renderTrickDots(tricksWon: number): string {
     const maxDots = 9;
-    const filled = Math.max(0, Math.min(maxDots, cardsRemaining));
+    const filled = Math.max(0, Math.min(maxDots, tricksWon));
     const dots = Array.from({ length: maxDots }, (_, idx) => {
       const active = idx < filled ? " filled" : "";
-      return `<span class="hero-card-dot${active}" aria-hidden="true"></span>`;
+      return `<span class="hero-trick-dot${active}" aria-hidden="true"></span>`;
     });
     return dots.join("");
   }
@@ -1458,13 +1415,29 @@ export class GameScreen implements Screen {
           `<span class="mob-card-line"></span>`
         ).join("");
 
+        // Bid status during auction
+        let bidTag = "";
+        if (game.phase === "auction") {
+          if (game.auction.passed.includes(seat)) {
+            bidTag = `<span class="mob-bid-tag passed">PASSED</span>`;
+          } else if (game.auction.currentBidder === seat && game.auction.currentBid !== "pass") {
+            bidTag = `<span class="mob-bid-tag active">${escapeHtml(this.bidLabel(game.auction.currentBid))}</span>`;
+          }
+        }
+
+        // Ombre contract tag
+        const ombreContractTag = isOmbre && game.contract
+          ? `<span class="mob-ombre-tag">${escapeHtml(this.contractDisplayLabel(game.contract, game.trump))}</span>`
+          : "";
+
         return `
           <div class="mobile-opponent${active}${disconnected}" role="listitem" aria-label="${escapeHtml(aria)}">
             <div class="mob-opp-top">
               <img class="mobile-opponent-avatar" src="${avatarUrl}" data-fallback="${fallback}" alt="" />
-              ${isOmbre ? `<span class="mob-opp-crown" aria-label="Ombre">&#x1F451;</span>` : ""}
+              ${isOmbre ? `<span class="mob-opp-crown" aria-label="Ombre" title="Ombre">&#9830;</span>` : ""}
             </div>
             <span class="mobile-opponent-name">${escapeHtml(name)}</span>
+            ${bidTag}${ombreContractTag}
             <div class="mob-opp-card-lines" aria-label="Cards: ${cards}">${cardLines}</div>
             <div class="mobile-opponent-stats">
               <span class="mob-stat">Pts: ${score}</span>
@@ -1698,6 +1671,27 @@ export class GameScreen implements Screen {
     return labels[value] || value;
   }
 
+  /** Format ombre contract for display, e.g. "Solo Oros", "Entrada Copas" */
+  private contractDisplayLabel(contract: string | null, trump: string | null): string {
+    if (!contract) return "";
+    const labels: Record<string, string> = {
+      entrada: "Entrada",
+      volteo: "Volteo",
+      solo: "Solo",
+      oros: "Oros",
+      solo_oros: "Solo Oros",
+      contrabola: "Contrabola",
+      bola: "Bola",
+      penetro: "Penetro",
+    };
+    const base = labels[contract] ?? contract;
+    // Add trump suit name if not already implicit in contract name
+    if (trump && !["oros", "solo_oros", "contrabola", "bola"].includes(contract)) {
+      return `${base} ${this.capSuit(trump)}`;
+    }
+    return base;
+  }
+
   private phaseLabel(phase: string): string {
     const labels: Record<string, string> = {
       dealing: "Dealing",
@@ -1804,25 +1798,13 @@ export class GameScreen implements Screen {
     this.rootEl.classList.toggle("mobile-portrait-mode", mobilePortrait);
     this.renderer.setViewportMode(mobilePortrait ? "mobile-portrait" : "desktop");
 
+    // Fill viewport — no aspect-ratio letterboxing
     const wrapRect = wrap.getBoundingClientRect();
     if (wrapRect.width <= 0 || wrapRect.height <= 0) return;
-    const logical = this.renderer.getLogicalSize();
-    const targetRatio = logical.width / logical.height;
-    const wrapRatio = wrapRect.width / wrapRect.height;
 
-    let displayW: number;
-    let displayH: number;
+    this.canvas.style.width = `${wrapRect.width}px`;
+    this.canvas.style.height = `${wrapRect.height}px`;
 
-    if (wrapRatio > targetRatio) {
-      displayH = wrapRect.height;
-      displayW = displayH * targetRatio;
-    } else {
-      displayW = wrapRect.width;
-      displayH = displayW / targetRatio;
-    }
-
-    this.canvas.style.width = `${displayW}px`;
-    this.canvas.style.height = `${displayH}px`;
     this.updateHeader();
     this.updateMobileSummary();
     this.updateMobileOpponents();

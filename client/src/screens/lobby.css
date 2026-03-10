@@ -558,73 +558,12 @@
   text-align: center;
 }
 
-/* ---- Invite section ---- */
-.lobby-invite-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-.lobby-invite-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 18px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
-  min-height: 40px;
-}
-
-.lobby-invite-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.9);
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
-.lobby-invite-btn:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring), var(--focus-ring-offset);
-}
-
 /* ---- Divider ---- */
 .lobby-divider {
   width: 80%;
   max-width: 400px;
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(200, 166, 81, 0.25), transparent);
-  margin: 0 auto;
-}
-
-/* ---- Decorative watermark logo ---- */
-.lobby-watermark {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.lobby-watermark-img {
-  width: 120px;
-  height: auto;
-  opacity: 0.4;
-  filter: grayscale(0.2);
-  user-select: none;
-  pointer-events: none;
-}
-
-/* ---- Ornamental gold divider ---- */
-.lobby-ornament-divider {
-  width: 100%;
-  max-width: 280px;
-  height: 18px;
-  background: center / contain no-repeat url("/assets/rocambor/divider-1.png");
-  opacity: 0.65;
   margin: 0 auto;
 }
 
@@ -735,10 +674,6 @@
     max-width: 100%;
     width: 100%;
     background: rgba(15, 18, 15, 0.88);
-  }
-
-  .lobby-watermark-img {
-    width: 90px;
   }
 
   /* Mobile: Room header */
@@ -868,15 +803,6 @@
     font-size: 11px;
   }
 
-  .lobby-invite-row {
-    width: 100%;
-  }
-
-  .lobby-invite-btn {
-    flex: 1;
-    justify-content: center;
-    min-height: 44px;
-  }
 }
 
 /* Very small screens */

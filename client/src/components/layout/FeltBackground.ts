@@ -5,6 +5,7 @@ export function renderFeltBackgroundMarkup(): string {
       <div class="felt-texture"></div>
       <div class="felt-vignette"></div>
       <div class="felt-noise"></div>
+      <div class="felt-ellipse"></div>
     </div>
   `;
 }

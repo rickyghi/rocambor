@@ -110,42 +110,57 @@ TypeScript constants in `design-tokens.ts` — `COLORS`, `FONT`, `SPACING`, `RAD
 ```
 
 ### Asset Paths
-- **Logo**: `/assets/rocambor/logo-light.png` — Light version for dark backgrounds (home panel, game watermark)
+- **Logo**: `/assets/rocambor/logo-light.png` — Light version for dark backgrounds (home panel)
 - **Favicon**: `/assets/rocambor/coin.png` — Gold coin (favicon in index.html, nav icon in home/lobby)
 - **Source assets**: `/Users/rickyghi/Desktop/Rocambor/Assets/Finales/` — Original high-res PNGs
 
+### Figma Design References
+Use these file keys with the Figma MCP `get_screenshot` tool to compare against current implementation:
+- **Desktop Auction**: `ea2vMte70fT6zMCsvAba0p` node `3:208`
+- **Mobile Auction**: `NnRJzIEqu2mAMRDHnBw2rc` node `10:223`
+- **Desktop Play**: `IMIN8TTFJvZ7pbFougOJSl` node `3:481`
+- **Mobile Play**: `q4yNDyVjQNEREPorA9Dh3g` node `10:2`
+
 ### Canvas Rendering
-- Desktop: 1320×760 logical resolution; Mobile: 760×1020 logical resolution; CSS-scaled to container
-- `renderer.ts` — Main render loop (table bg, players, cards, animations, HUD)
-- Unified top HUD strip: phase | contract · trump | target
+- Desktop: 1320×760 logical resolution; Mobile: 760×1020 logical resolution; CSS-scaled to fill viewport
+- `renderer.ts` — Main render loop. In sprite mode (`domPlatesEnabled`): canvas is `clearRect` only (transparent), animations still render. In fallback mode: draws full table background.
 - Card skins: procedural (`drawCard()`) + image-based (`CardImageAtlas`)
 - Animations: `CardPlayAnimation`, `TrickWinAnimation` (with sparkle dots), `CardDealAnimation`, `ScoreChangeAnimation`
 
 ### Sprite-Mode DOM Card Rendering
 - In production, cards render as DOM elements using CSS spritesheet (`.roc-card` at 96×138 base), not canvas
-- Spritesheet cards scaled via `transform: scale()` inside wrapper containers that define layout box
-- Desktop hand cards: 128×192 (auction), 112×176 (play); trick cards: 96×144
-- Mobile hand cards: 96×144 (auction), 80×128 (play), with scroll-snap swiping
+- Spritesheet cards scaled via `transform: scale()` inside `.hand-card-wrap` containers that define layout box
+- Cards overlap via negative `margin-left` (`:first-child { margin-left: 0 }`) — NOT spread with gaps
+- Desktop hand cards: 140×201 (auction, scale 1.458), 128×184 (play, scale 1.333); trick cards: 96×144
+- Desktop card overlap: -28px (auction), -22px (play)
+- Mobile 920px: 110×158 (auction), 96×138 (play); overlap -20px / -16px
+- Mobile 430px: 100×144 (auction), 86×124 (play); overlap -20px / -16px
+- Mobile 360px: 92×132 (auction), 80×115 (play); overlap -18px / -14px
 - Phase-specific CSS classes (`.phase-auction`, `.phase-play`, `.phase-exchange`, `.phase-trump`) toggle card sizes
 - `renderDomCardLayers()` in `game.ts` rebuilds both trick and hand card DOM on every state change
 - Spritesheet CSS classes from `card-sprites.ts`: `spriteClassForCard(card)`, `spriteBackClass()`
 
 ### Game Table Architecture
-- Hybrid Canvas + DOM: canvas renders table background (felt, rim, vignette); DOM renders cards, plates, controls
+- **Full-viewport layout**: `.game-stage` fills entire viewport (`position: absolute; inset: 0`). No bounded box — the viewport IS the table.
+- Hybrid Canvas + DOM: in sprite mode, canvas is transparent (animations only); `FeltBackground.ts` provides CSS felt + `.felt-ellipse` decorative outline
 - `GameScreen.spriteMode` flag controls which layer is active
-- `game.css` is ~2000 lines with responsive breakpoints at 920px, 430px, 360px
+- `game.css` is ~2350 lines with responsive breakpoints at 1060px, 920px (portrait), 430px (portrait), 360px (portrait)
 - Mobile uses `isMobilePortrait` flag set by `handleResize()` (width ≤ 900px + portrait orientation)
-- Controls are rendered by `GameControls` class (`controls.ts`) into `#game-controls` slot
-- `GameControls.attachHandlers()` relies on specific CSS class names (`.bid-btn`, `.trump-btn`, `.exchange-btn`, `.penetro-btn`) — preserve these when modifying control markup
+- Controls rendered by `GameControls` class (`controls.ts`) into `#game-controls` slot inside `.game-controls-shell`
+- `.game-controls-shell` is a **direct child of `.game-stage`** (not inside `.game-stage-bottom`)
+- Desktop controls: `position: absolute; top: calc(50% - 30px); left: 50%; transform: translate(-50%, -50%)` — centered in viewport
+- Mobile controls: `position: relative; margin-top: auto` inside flex column `.game-stage`
+- `GameControls.attachHandlers()` relies on CSS class names (`.bid-btn`, `.trump-btn`, `.exchange-btn`, `.penetro-btn`) — preserve these
 
 ### Game Table UI Components
-- **HUD Bar**: Contextual pill strip (`game-hud-bar`) with phase-specific info (round, trick count, trump, turn, contract)
-- **Hero Plates**: Player info cards with avatar, position tag (LEFT/ACROSS/RIGHT/YOU), OMBRE/TURN badges, stat grid (score/cards/tricks), card-dot indicators
-- **Parchment Auction Panel**: Ivory gradient panel (desktop) or dark glass panel (mobile) with 2×2 bid grid, header with icon, status line, decorative quote
+- **HUD Bar**: Floating pill strip (`game-hud-bar`) — desktop: transparent header (pills float on felt with own glass backgrounds); mobile: dark glass header bar
+- **Hero Plates**: Two styles — **opponents** float on felt (no panel bg, transparent container) with avatar, name, position pill, role badge (OMBRE/CONTRA/TURN), trick dots. **Self plate** is a compact dark glass strip (`min(500px, 90vw)`) with avatar, name, YOU pill, role badge, YOUR TURN flash, trick dots. Diamond dots now track **tricks won** (not cards remaining). Positioned: left 16px, right 16px, across top 50px, self bottom. Active turn: opponents get avatar gold glow, self gets panel border glow + pulsing YOUR TURN pill.
+- **Parchment Auction Panel**: Ivory gradient panel (desktop) or dark glass panel (mobile). Desktop: 2×2 bid grid with icons/descriptions. Mobile: **horizontal 4-across row** (icons/descriptions hidden, compact pill buttons)
+- **Auction Bid Colors**: `[data-bid="entrada|volteo|solo"]` selectors on `.auction-bid` set distinct colors (ivory/gold/crimson). These have higher specificity than generic `.auction-bid` overrides. Mobile pass button: crimson.
 - **Trick Area**: DOM-rendered trick cards with player name labels and winner badge overlay
 - **Trick Result Banner**: Auto-dismissing green glass pill showing trick winner name + card
 - **Turn-to-Lead Prompt**: Floating glass pill when player leads a new trick
-- **Mobile Hand Dock**: Scroll-snap cards with "Your Hand" header, "SLIDE TO SELECT" hint, scroll dot indicators, full-width action button (play/exchange)
+- **Mobile Hand Dock**: Overlapping cards (negative margin-left) with "Your Hand" header, "SLIDE TO SELECT" hint, scroll dot indicators, full-width action button (play/exchange)
 - **Arena Phase Banner**: Centered glass panel showing current phase + contextual guidance text
 - **Arena Toast Feed**: Stack of auto-dismissing chip notifications for game events
 
@@ -167,9 +182,11 @@ TypeScript constants in `design-tokens.ts` — `COLORS`, `FONT`, `SPACING`, `RAD
 ### Game Screen Dark Theme
 - Game screen uses dark semi-transparent panels instead of ivory (scoped via `.game-screen .rc-panel` etc.)
 - Dark panel CSS vars in `theme.css`: `--panel-dark`, `--panel-dark-alt`, `--panel-dark-border`, `--text-on-panel`, `--text-on-panel-muted`
-- Panels use `backdrop-filter: blur(16px)` for glass effect on felt background
-- Text uses ivory (`var(--text-on-panel)`) instead of dark ink on game screen surfaces
-- Card dot indicators are CSS-only diamonds (filled = gold, empty = transparent with border)
+- Desktop header is **transparent** — HUD pills float on felt with individual `rgba(0,0,0,0.4)` + `backdrop-filter: blur(8px)` backgrounds
+- Settings/sound buttons have subtle circular glass backgrounds (`rgba(0,0,0,0.2)` + blur) for felt visibility
+- Profile avatar uses gold border + shadow; profile name uses ivory color + text-shadow for felt legibility
+- Mobile header (920px) restores dark glass bar (`var(--panel-dark)` + border + blur)
+- Trick dot indicators (`.hero-trick-dot`) are CSS-only diamonds (filled = gold for tricks won, empty = transparent with border). Replaced old card-remaining dots.
 - Auction panel switches from parchment (desktop) to dark glass (mobile) via 920px media query
 
 ## Deployment
@@ -243,8 +260,8 @@ client/src/
   state.ts      — Client-side state management
   router.ts     — Screen navigation
   screens/      — UI screens (home, lobby, game, post-hand, match-summary, leaderboard)
-    game.ts       — Game screen (~1700 lines): hero plates, hand dock, trick overlay, HUD, phase logic
-    game.css      — Game screen styles (~2000 lines): responsive breakpoints, animations, all game UI
+    game.ts       — Game screen (~1850 lines): hero plates, hand dock, trick overlay, HUD, phase logic
+    game.css      — Game screen styles (~2350 lines): responsive breakpoints, animations, all game UI
   canvas/       — HTML5 Canvas rendering (cards, players, table, animations)
     renderer.ts   — Main render loop + unified HUD strip
     cards.ts      — Procedural card drawing
@@ -254,6 +271,9 @@ client/src/
     table.ts      — Table background rendering
     players.ts    — Player names, scores, opponent cards
     layout.ts     — Canvas layout calculations (desktop 1320×760, mobile 760×1020)
+  components/
+    layout/
+      FeltBackground.ts — Full-viewport felt background with `.felt-ellipse` decorative gold outline
   ui/           — Controls, settings, modals, toasts
     controls.ts   — GameControls: auction panel, trump choice, exchange, penetro render methods + event wiring
   audio/        — Sound effects
