@@ -238,6 +238,10 @@ export class HomeScreen implements Screen {
     const content = document.createElement("div");
     content.innerHTML = `
       <div class="modal-form-group">
+        <label class="room-name-label" style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:rgba(248,246,240,0.6);margin-bottom:4px;display:block;">Room Name (optional)</label>
+        <input type="text" class="room-name-input" id="create-room-name" placeholder="e.g. La Mesa de Oro" maxlength="30" />
+      </div>
+      <div class="modal-form-group">
         <label for="create-mode">Mode</label>
         <select id="create-mode">
           <option value="tresillo" ${this.selectedMode === "tresillo" ? "selected" : ""}>Tresillo (3 players)</option>
@@ -263,6 +267,7 @@ export class HomeScreen implements Screen {
           onClick: () => {
             const mode = (content.querySelector("#create-mode") as HTMLSelectElement).value as Mode;
             const target = parseInt((content.querySelector("#create-target") as HTMLInputElement).value, 10);
+            const roomName = (content.querySelector("#create-room-name") as HTMLInputElement)?.value?.trim() || "";
             this.ctx.connection.send({
               type: "CREATE_ROOM",
               mode,
@@ -270,6 +275,7 @@ export class HomeScreen implements Screen {
               rules: {
                 espadaObligatoria: this.ctx.settings.get("espadaObligatoria"),
               },
+              roomName,
             });
           },
         },

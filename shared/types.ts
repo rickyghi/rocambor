@@ -86,6 +86,7 @@ export type C2SMessage =
       type: "CREATE_ROOM";
       mode: Mode;
       target?: number;
+      roomName?: string;
       rules?: {
         espadaObligatoria?: boolean;
       };

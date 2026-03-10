@@ -855,15 +855,6 @@
   display: none !important;
 }
 
-/* ── Mobile hand dock header + scroll dots + action button ── */
-.hand-section-header {
-  display: none; /* shown only on mobile via media query */
-}
-
-.hand-scroll-dots {
-  display: none; /* shown only on mobile via media query */
-}
-
 .hand-action-btn {
   display: none; /* shown only on mobile via media query */
 }
@@ -1806,7 +1797,11 @@
     min-height: 24px;
     padding: 2px 8px;
     white-space: nowrap;
-    flex-shrink: 0;
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .game-settings-btn,
@@ -1964,6 +1959,7 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   .game-stage-top {
@@ -1978,6 +1974,7 @@
     width: 100%;
     margin-top: auto;
     padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+    grid-template-rows: 36px 1fr;
   }
 
   .hero-plates-layer {
@@ -1988,27 +1985,100 @@
     display: none;
   }
 
-  /* On mobile, hide self plate — info shown in HUD pills + hand header */
+  /* On mobile, show self hero as compact strip above hand dock */
   .hero-self-slot {
+    position: relative;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    width: 100%;
+    max-width: 100%;
+    transform: none;
+    height: 32px;
+    min-height: 32px;
+    padding: 3px 10px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(200, 166, 81, 0.12);
+  }
+
+  .hero-self-slot .hero-avatar {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+
+  .hero-self-slot .hero-name {
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
+  }
+
+  .hero-self-slot .hero-role-badge {
+    font-size: 9px;
+    padding: 1px 6px;
+  }
+
+  .hero-self-slot .hero-trick-dots {
+    margin-left: auto;
+    gap: 3px;
+  }
+
+  .hero-self-slot .hero-trick-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+  /* Hide verbose stats on mobile self hero */
+  .hero-self-slot .hero-stats,
+  .hero-self-slot .hero-pos-pill {
     display: none;
+  }
+
+  .hero-self-slot .hero-plate {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .hero-self-slot .hero-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .hero-self-slot .hero-id {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .hero-self-slot .hero-turn-flash {
+    font-size: 9px;
+    padding: 1px 6px;
+    position: static;
+    margin-left: 4px;
   }
 
   /* game-canvas-wrap is already position:absolute;inset:0 — no box overrides needed */
 
-  /* Compact phase banner — single-line pill, hide sub text */
+  /* Hide phase banner on mobile — HUD pills convey all phase info */
   .arena-phase-banner {
-    width: auto;
-    max-width: min(80%, 260px);
-    padding: 4px 14px;
-    border-radius: 20px;
-  }
-
-  .arena-phase-main {
-    font-size: 12px;
-    letter-spacing: 0.06em;
-  }
-
-  .arena-phase-sub {
     display: none;
   }
 
@@ -2034,26 +2104,28 @@
   }
 
   .trick-overlay-inner {
-    width: min(88vw, 370px);
-    min-height: 170px;
+    width: min(92vw, 370px);
+    min-height: 130px;
+    gap: 4px;
   }
 
   .trick-card-wrap {
-    width: 82px;
-    height: 118px;
+    width: 72px;
+    height: auto;
+    aspect-ratio: 96 / 138;
   }
 
   .trick-card-wrap .roc-card {
-    transform: scale(0.854);
+    transform: scale(0.75); /* 72/96 */
     transform-origin: top left;
   }
 
   .trick-card-label {
-    top: calc(100% + 4px);
-    min-height: 20px;
-    max-width: 108px;
-    padding: 2px 7px;
-    font-size: 9px;
+    top: calc(100% + 2px);
+    min-height: 16px;
+    max-width: 90px;
+    padding: 1px 5px;
+    font-size: 8px;
   }
 
   .game-controls-shell {
@@ -2071,8 +2143,6 @@
     border-radius: 12px;
     min-height: 48px;
     padding: 6px;
-    max-height: min(25vh, 160px);
-    overflow-y: auto;
   }
 
   .control-group {
@@ -2109,14 +2179,16 @@
     pointer-events: auto;
   }
 
-  /* ── All-phase mobile hand: scroll-snap, no overlap, legible cards ── */
+  /* ── All-phase mobile hand: scroll-snap, no overlap, larger cards ── */
   .hand-row {
     width: 100%;
-    min-height: 124px;
+    min-height: 120px;
     justify-content: flex-start;
+    align-items: flex-end;
     gap: 8px;
-    padding: 4px 12px 0;
+    padding: 4px 10px;
     overflow-x: auto;
+    overflow-y: visible;
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
     scrollbar-width: none;
@@ -2125,7 +2197,7 @@
   .hand-row::-webkit-scrollbar { display: none; }
 
   .hand-card-wrap {
-    width: 76px;
+    width: 96px;
     height: auto;
     aspect-ratio: 96 / 138;
     transform: none;
@@ -2133,25 +2205,31 @@
     flex-shrink: 0;
     scroll-snap-align: center;
     overflow: visible;
+    border-radius: 8px;
   }
 
   .hand-card-wrap .roc-card {
-    transform: scale(0.792); /* 76/96 */
+    transform: scale(1); /* full sprite size */
     transform-origin: top left;
   }
 
+  /* CRITICAL: must repeat ALL base .phase-play properties to win specificity */
   .phase-play .hand-card-wrap {
-    width: 82px;
+    width: 104px;
+    height: auto;
+    aspect-ratio: 96 / 138;
+    margin-left: 0;
+    overflow: visible;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: scale(0.854); /* 82/96 */
+    transform: scale(1.083); /* 104/96 */
     transform-origin: top left;
   }
 
   .phase-play .hand-row {
     gap: 10px;
-    padding: 4px 14px 0;
-    min-height: 132px;
+    padding: 4px 14px;
+    min-height: 130px;
   }
 
   .hand-card-wrap:hover:not(:disabled),
@@ -2159,57 +2237,10 @@
     transform: translateY(-6px);
   }
 
-  .hand-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 12px 2px;
-  }
-
-  .hand-label {
-    font-family: var(--font-sans);
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-on-panel);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .hand-hint {
-    font-family: var(--font-sans);
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--gold);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    opacity: 0.8;
-  }
-
-  .hand-scroll-dots {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 0 1px;
-  }
-
-  .hand-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: rgba(248, 246, 240, 0.25);
-    transition: background 200ms var(--easeLuxe), transform 200ms var(--easeLuxe);
-  }
-
-  .hand-dot.active {
-    background: var(--gold);
-    transform: scale(1.3);
-  }
-
   .hand-action-btn {
     display: block;
     width: calc(100% - 16px);
-    margin: 2px auto 0;
+    margin: 4px auto 0;
     min-height: 46px;
     font-size: 15px;
     font-weight: 800;
@@ -2251,17 +2282,17 @@
   .auction-panel-divider { display: none; }
   .auction-panel-quote { display: none; }
 
-  /* Auction bid grid → tight horizontal 4-across row */
+  /* Auction bid grid → clean horizontal 4-across row */
   .auction-bid-grid {
     grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
+    gap: 8px;
     margin-bottom: 0;
   }
 
   .auction-bid {
-    min-height: 40px;
-    padding: 6px 4px;
-    border-radius: 10px;
+    min-height: 44px;
+    padding: 8px 6px;
+    border-radius: 12px;
   }
 
   .auction-bid-icon { display: none; }
@@ -2383,26 +2414,6 @@
     height: 2px;
   }
 
-  .hero-self-slot .hero-self {
-    padding: 6px 10px;
-  }
-
-  .hero-self-slot .hero-name {
-    font-size: 13px;
-  }
-
-  .arena-phase-banner {
-    padding: 7px 8px;
-  }
-
-  .arena-phase-main {
-    font-size: clamp(14px, 5vw, 20px);
-  }
-
-  .arena-phase-sub {
-    font-size: 11px;
-  }
-
   .arena-toast-chip {
     font-size: 11px;
   }
@@ -2417,26 +2428,30 @@
   }
 
   .hand-row {
-    min-height: 116px;
-    padding: 4px 10px 0;
+    min-height: 150px;
+    padding: 4px 8px 0;
     gap: 6px;
   }
 
   .hand-card-wrap {
-    width: 70px;
+    width: 86px;
     aspect-ratio: 96 / 138;
     height: auto;
     margin-left: 0;
   }
   .hand-card-wrap .roc-card {
-    transform: scale(0.729); /* 70/96 */
+    transform: scale(0.896); /* 86/96 */
   }
 
   .phase-play .hand-card-wrap {
-    width: 76px;
+    width: 96px;
+    height: auto;
+    aspect-ratio: 96 / 138;
+    margin-left: 0;
+    overflow: visible;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: scale(0.792); /* 76/96 */
+    transform: scale(1); /* 96/96 full size */
   }
 
   .auction-bid-grid {
@@ -2446,23 +2461,6 @@
   .auction-bid-name { font-size: 11px; }
 
   .turn-lead-prompt { display: none; }
-
-  .hand-hint {
-    display: none;
-  }
-
-  .hand-label {
-    font-size: 11px;
-  }
-
-  .hand-scroll-dots {
-    gap: 4px;
-  }
-
-  .hand-dot {
-    width: 5px;
-    height: 5px;
-  }
 
   .hand-action-btn {
     min-height: 48px;
@@ -2507,29 +2505,29 @@
   }
 
   .hand-card-wrap {
-    width: 64px;
+    width: 80px;
     aspect-ratio: 96 / 138;
     height: auto;
     margin-left: 0;
   }
   .hand-card-wrap .roc-card {
-    transform: scale(0.667); /* 64/96 */
+    transform: scale(0.833); /* 80/96 */
   }
 
   .phase-play .hand-card-wrap {
-    width: 70px;
+    width: 86px;
+    height: auto;
+    aspect-ratio: 96 / 138;
+    margin-left: 0;
+    overflow: visible;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: scale(0.729); /* 70/96 */
+    transform: scale(0.896); /* 86/96 */
   }
 
   .hand-action-btn {
     min-height: 44px;
     font-size: 13px;
-  }
-
-  .hand-section-header {
-    padding: 0 6px 2px;
   }
 }
 
@@ -2551,10 +2549,6 @@
   .trick-result-banner.exit,
   .turn-lead-prompt {
     animation-duration: 1ms;
-  }
-
-  .hand-dot {
-    transition-duration: 1ms;
   }
 
   .hand-action-btn.ready {

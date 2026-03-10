@@ -52,12 +52,10 @@ export class GameScreen implements Screen {
   private trickLayer!: HTMLElement;
   private handDock!: HTMLElement;
   private handLayer!: HTMLElement;
-  private handScrollDots!: HTMLElement;
   private handActionBtn!: HTMLButtonElement;
   private trickResultBanner!: HTMLElement;
   private turnLeadPrompt!: HTMLElement;
   private spriteMode = false;
-  private handScrollHandler: (() => void) | null = null;
 
   private prevPhase: string | null = null;
   private prevTurn: number | null = null;
@@ -123,12 +121,7 @@ export class GameScreen implements Screen {
             <div class="game-stage-bottom">
               <div class="hero-self-slot" id="hero-self-slot" aria-hidden="true"></div>
               <div class="game-hand-dock" id="game-hand-dock" aria-label="Your hand area">
-                <div class="hand-section-header">
-                  <span class="hand-label">Your Hand</span>
-                  <span class="hand-hint">SLIDE TO SELECT</span>
-                </div>
                 <div class="hand-row" id="hand-layer" role="listbox" aria-label="Your hand"></div>
-                <div class="hand-scroll-dots" id="hand-scroll-dots" aria-hidden="true"></div>
                 <button class="hand-action-btn btn-gold-plaque" id="hand-action-btn" type="button" hidden>Select a Card</button>
               </div>
             </div>
@@ -169,7 +162,6 @@ export class GameScreen implements Screen {
     this.trickLayer = container.querySelector("#trick-layer") as HTMLElement;
     this.handDock = container.querySelector("#game-hand-dock") as HTMLElement;
     this.handLayer = container.querySelector("#hand-layer") as HTMLElement;
-    this.handScrollDots = container.querySelector("#hand-scroll-dots") as HTMLElement;
     this.handActionBtn = container.querySelector("#hand-action-btn") as HTMLButtonElement;
     this.trickResultBanner = container.querySelector("#trick-result-banner") as HTMLElement;
     this.turnLeadPrompt = container.querySelector("#turn-lead-prompt") as HTMLElement;
@@ -219,10 +211,6 @@ export class GameScreen implements Screen {
 
     this.handLayer?.removeEventListener("click", this.handleDomHandClick);
     this.handActionBtn?.removeEventListener("click", this.handleMobileActionClick);
-    if (this.handScrollHandler) {
-      this.handLayer?.removeEventListener("scroll", this.handScrollHandler);
-      this.handScrollHandler = null;
-    }
 
     window.removeEventListener("resize", this.handleResize);
     if (this.headerTicker !== null) {
@@ -436,8 +424,7 @@ export class GameScreen implements Screen {
     const showLeadPrompt = game.phase === "play" && state.isMyTurn && game.table.length === 0 && !this.trickDisplayOverlay;
     this.turnLeadPrompt.hidden = !showLeadPrompt;
 
-    // Update mobile scroll dots and action button
-    this.updateHandScrollDots();
+    // Update mobile action button
     this.updateMobileActionButton();
   }
 
@@ -663,49 +650,6 @@ export class GameScreen implements Screen {
     // Force reflow so repeated invalid actions retrigger animation.
     void (row as HTMLElement).offsetWidth;
     row.classList.add("invalid-shake");
-  }
-
-  private updateHandScrollDots(): void {
-    if (!this.isMobilePortrait || !this.spriteMode) {
-      this.handScrollDots.innerHTML = "";
-      return;
-    }
-
-    const cards = this.ctx.state.hand;
-    if (cards.length <= 3) {
-      this.handScrollDots.innerHTML = "";
-      return;
-    }
-
-    // Build dots - one per card
-    const dots = cards
-      .map(
-        (_, i) =>
-          `<span class="hand-dot${i === 0 ? " active" : ""}" data-idx="${i}"></span>`
-      )
-      .join("");
-    this.handScrollDots.innerHTML = dots;
-
-    // Remove previous scroll listener and re-attach
-    if (this.handScrollHandler) {
-      this.handLayer.removeEventListener("scroll", this.handScrollHandler);
-      this.handScrollHandler = null;
-    }
-
-    const cardCount = cards.length;
-    this.handScrollHandler = () => {
-      const scrollLeft = this.handLayer.scrollLeft;
-      const scrollWidth = this.handLayer.scrollWidth - this.handLayer.clientWidth;
-      if (scrollWidth <= 0) return;
-      const progress = scrollLeft / scrollWidth;
-      const activeIdx = Math.round(progress * (cardCount - 1));
-      this.handScrollDots.querySelectorAll(".hand-dot").forEach((dot, i) => {
-        dot.classList.toggle("active", i === activeIdx);
-      });
-    };
-    this.handLayer.addEventListener("scroll", this.handScrollHandler, {
-      passive: true,
-    });
   }
 
   private updateMobileActionButton(): void {
@@ -1085,9 +1029,10 @@ export class GameScreen implements Screen {
         if (!compact) pills.push(pill("Phase: Auction"));
         pills.push(pill(compact ? `Target: ${game.gameTarget}` : `Target: ${game.gameTarget}`));
         if (game.turn !== null) {
+          const shortTurn = compact ? this.seatLabelShort(game.turn) : turnName;
           pills.push(
             pill(
-              compact ? `${turnName}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
+              compact ? `${shortTurn}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
               isMyTurn ? "hud-pill-active" : ""
             )
           );
@@ -1114,7 +1059,9 @@ export class GameScreen implements Screen {
 
         if (game.contract) {
           const contractLabel = this.contractDisplayLabel(game.contract, game.trump);
-          const ombreName = game.ombre !== null ? this.seatLabelForAnnouncements(game.ombre) : "";
+          const ombreName = game.ombre !== null
+            ? (compact ? this.seatLabelShort(game.ombre) : this.seatLabelForAnnouncements(game.ombre))
+            : "";
           pills.push(
             pill(
               ombreName ? `${ombreName}: ${contractLabel}` : contractLabel,
@@ -1124,9 +1071,10 @@ export class GameScreen implements Screen {
         }
 
         if (game.turn !== null) {
+          const shortTurn = compact ? this.seatLabelShort(game.turn) : turnName;
           pills.push(
             pill(
-              compact ? `${turnName}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
+              compact ? `${shortTurn}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
               isMyTurn ? "hud-pill-active" : ""
             )
           );
@@ -1153,7 +1101,7 @@ export class GameScreen implements Screen {
           const exchName =
             game.exchange.current === this.ctx.state.mySeat
               ? "You"
-              : this.seatLabelForAnnouncements(game.exchange.current);
+              : (compact ? this.seatLabelShort(game.exchange.current) : this.seatLabelForAnnouncements(game.exchange.current));
           pills.push(pill(compact ? `${exchName} exchanging` : `Exchanging: ${exchName}`));
         }
         pills.push(
@@ -1570,6 +1518,13 @@ export class GameScreen implements Screen {
   private turnActorLabelForHud(turnSeat: number | null): string {
     if (turnSeat === null) return "Waiting";
     return this.seatLabelForAnnouncements(turnSeat);
+  }
+
+  /** Short name for compact HUD pills — just the handle or "You" */
+  private seatLabelShort(seat: number): string {
+    if (this.ctx.state.mySeat === seat) return "You";
+    const handle = this.ctx.state.game?.players[seat]?.handle;
+    return handle || `P${seat}`;
   }
 
   private phaseGuidance(phase: string, turnSeat: number | null): string {

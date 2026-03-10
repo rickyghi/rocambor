@@ -180,16 +180,19 @@ export class GameRenderer {
     }
 
     // 2. Players (names, scores, opponent cards)
+    // Skip entirely when DOM plates handle all player visuals (sprite mode)
     const colorblind = this.settings.get("colorblindMode");
-    drawPlayers(
-      this.ctx,
-      this.state,
-      this.layout,
-      colorblind,
-      cardSkin,
-      this.profile.get(),
-      this.viewportMode === "mobile-portrait" || this.domPlatesEnabled
-    );
+    if (!this.domPlatesEnabled) {
+      drawPlayers(
+        this.ctx,
+        this.state,
+        this.layout,
+        colorblind,
+        cardSkin,
+        this.profile.get(),
+        this.viewportMode === "mobile-portrait"
+      );
+    }
 
     if (this.resolvedTrickOverlay && Date.now() > this.resolvedTrickOverlay.expiresAt) {
       this.resolvedTrickOverlay = null;

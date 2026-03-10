@@ -14,17 +14,15 @@
   position: relative;
 }
 
-/* Subtle vignette + noise overlay */
+/* Subtle vignette overlay */
 .lobby-screen::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  background:
-    radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0, 0, 0, 0.45) 100%),
-    url("/assets/rocambor/noise-texture.png");
-  background-size: cover, var(--noise-env-size, 420px 420px);
+  background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0, 0, 0, 0.45) 100%);
+  background-size: cover;
   opacity: 0.55;
 }
 
@@ -574,15 +572,16 @@
   }
 
   .lobby-float-leave {
-    padding: 8px 10px;
-    min-width: 40px;
+    padding: 6px 8px;
+    min-width: 36px;
     justify-content: center;
-    top: 12px;
-    left: 12px;
+    top: 8px;
+    left: 10px;
+    min-height: 36px;
   }
 
   .lobby-body {
-    padding: 0 0 120px;
+    padding: 0 0 100px;
     justify-content: flex-start;
     gap: 0;
   }
@@ -591,8 +590,8 @@
     border-radius: 0;
     border-left: none;
     border-right: none;
-    padding: 20px 16px;
-    gap: 20px;
+    padding: 14px 14px;
+    gap: 14px;
     max-width: 100%;
     width: 100%;
     background: rgba(15, 18, 15, 0.88);
@@ -603,78 +602,105 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 0 0 4px;
+    gap: 2px;
+    padding: 0;
   }
 
   .lobby-mobile-title {
     font-family: var(--font-lora);
     font-weight: 700;
-    font-size: 20px;
+    font-size: 18px;
     color: rgba(255, 255, 255, 0.9);
     text-align: center;
   }
 
   .lobby-mobile-subtitle {
-    font-size: 12px;
+    font-size: 11px;
     color: rgba(255, 255, 255, 0.45);
     text-align: center;
+  }
+
+  /* Mobile: Room code header compact */
+  .lobby-code-header {
+    gap: 4px;
+  }
+
+  .lobby-code-label {
+    font-size: 10px;
+    letter-spacing: 2px;
   }
 
   /* Mobile code: full width */
   .lobby-code-row {
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
   }
 
   .lobby-code-value {
-    font-size: 28px;
+    font-size: 24px;
   }
 
   .lobby-copy-btn {
     width: 100%;
     justify-content: center;
-    min-height: 44px;
+    min-height: 38px;
+    padding: 6px 14px;
+    font-size: 11px;
+  }
+
+  /* Mobile: meta row compact */
+  .lobby-meta-row {
+    gap: 10px;
+  }
+
+  .lobby-player-count {
+    font-size: 12px;
   }
 
   /* Mobile seats: vertical stack */
   .lobby-seats,
   .lobby-seats.tresillo {
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 6px;
   }
 
   .lobby-seat {
     flex-direction: row;
     align-items: center;
     min-height: auto;
-    padding: 12px 14px;
-    gap: 12px;
+    padding: 8px 12px;
+    gap: 10px;
     border-left-width: 4px;
   }
 
   .lobby-seat-avatar {
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
   }
 
   .lobby-seat-info {
     flex: 1;
     align-items: flex-start;
-    gap: 3px;
+    gap: 2px;
   }
 
   .lobby-seat-name {
-    font-size: 15px;
+    font-size: 14px;
     text-align: left;
+  }
+
+  .lobby-seat-badge {
+    font-size: 9px;
+    padding: 2px 8px;
   }
 
   .lobby-sit-btn {
     margin-top: 0;
     width: auto;
     flex-shrink: 0;
-    min-height: 40px;
-    padding: 8px 16px;
+    min-height: 34px;
+    padding: 6px 14px;
+    font-size: 11px;
   }
 
   /* Hide desktop start area on mobile */
@@ -685,6 +711,27 @@
   /* Show mobile header */
   .lobby-mobile-header {
     display: flex;
+  }
+
+  /* Mobile: config row compact */
+  .lobby-config-row {
+    gap: 8px;
+    padding: 0 4px;
+  }
+
+  .lobby-config-item {
+    font-size: 11px;
+  }
+
+  /* Mobile: divider compact */
+  .lobby-divider {
+    margin: 0 auto;
+  }
+
+  /* Mobile: bot hint compact */
+  .lobby-bot-hint {
+    padding: 4px 10px;
+    font-size: 11px;
   }
 
   /* Sticky start bar on mobile */
@@ -699,30 +746,23 @@
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-top: 1px solid rgba(255, 255, 255, 0.08);
-    padding: 12px 16px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 14px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 6px;
+    gap: 4px;
   }
 
   .lobby-start-btn {
     max-width: none;
-    min-height: 48px;
+    min-height: 44px;
+    padding: 10px 24px;
+    font-size: 15px;
   }
 
   .lobby-start-hint {
-    font-size: 11px;
-  }
-
-  /* Config row wrap */
-  .lobby-config-row {
-    gap: 10px;
-  }
-
-  .lobby-config-item {
-    font-size: 11px;
+    font-size: 10px;
   }
 
 }
@@ -730,12 +770,23 @@
 /* Very small screens */
 @media (max-width: 360px) {
   .lobby-panel {
-    padding: 16px 12px;
+    padding: 10px 10px;
+    gap: 10px;
   }
 
   .lobby-code-value {
-    font-size: 24px;
+    font-size: 22px;
     letter-spacing: 0.1em;
+  }
+
+  .lobby-seat {
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .lobby-seat-avatar {
+    width: 32px;
+    height: 32px;
   }
 }
 

@@ -371,6 +371,27 @@
   background: var(--crimson);
 }
 
+/* ---- Room name input (Create Room modal) ---- */
+.room-name-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(200, 166, 81, 0.3);
+  background: rgba(0, 0, 0, 0.3);
+  color: #F8F6F0;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  margin-bottom: 12px;
+  outline: none;
+  transition: border-color 200ms;
+}
+.room-name-input:focus {
+  border-color: rgba(200, 166, 81, 0.6);
+}
+.room-name-input::placeholder {
+  color: rgba(248, 246, 240, 0.35);
+}
+
 /* ---- Animations ---- */
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -392,7 +413,7 @@
    ========================================================= */
 @media (max-width: 768px) {
   .home-screen {
-    background: var(--home-green-bg);
+    background: radial-gradient(ellipse at 50% 40%, #2A4D41 0%, #1a3329 45%, #0f1f18 100%);
   }
 
   .home-body {
@@ -401,17 +422,7 @@
     gap: 16px;
   }
 
-  /* Mobile hero visible */
-  .home-hero-mobile {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 24px 16px 8px;
-    text-align: center;
-    width: 100%;
-    position: relative;
-  }
+  .home-hero-mobile { display: none; }
 
   .home-hero-mobile::before {
     content: "";
@@ -457,18 +468,23 @@
     margin: 0;
   }
 
-  /* Panel becomes white card on mobile */
   .home-panel {
-    background: var(--home-card-bg);
-    border-color: transparent;
+    background: rgba(13, 13, 13, 0.7);
+    border: 1px solid rgba(200, 166, 81, 0.15);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: #F8F6F0;
     padding: 24px 20px 20px;
     gap: 16px;
     border-radius: 32px;
   }
 
-  /* Hide desktop logo on mobile */
   .home-panel-logo {
-    display: none;
+    display: flex;
+    margin-bottom: 12px;
+  }
+  .home-panel-logo-img {
+    max-height: 60px;
   }
 
   /* Mode cards side-by-side on mobile */
@@ -493,9 +509,9 @@
     flex: 1;
     padding: 20px 12px;
     border-radius: 16px;
-    border: 2px solid #dee1e6;
-    background: white;
-    color: #171a1f;
+    border: 2px solid rgba(200, 166, 81, 0.2);
+    background: rgba(0, 0, 0, 0.25);
+    color: rgba(248, 246, 240, 0.6);
     font-family: var(--font-lora);
     font-size: 13px;
     display: flex;
@@ -506,14 +522,14 @@
   }
 
   .home-mode-btn.active {
-    background: rgba(214, 166, 74, 0.05);
-    border-color: var(--home-gold);
-    color: #171a1f;
+    background: rgba(200, 166, 81, 0.12);
+    border-color: var(--gold);
+    color: #F8F6F0;
   }
 
   .home-mode-btn:not(.active):hover {
-    color: #171a1f;
-    border-color: var(--home-gold);
+    color: #F8F6F0;
+    border-color: rgba(200, 166, 81, 0.5);
   }
 
   /* Action rows adapt for mobile */
@@ -522,6 +538,9 @@
   }
 
   .home-action-row {
+    background: rgba(200, 166, 81, 0.15);
+    border-color: rgba(200, 166, 81, 0.3);
+    color: #F8F6F0;
     height: 72px;
     padding: 0 16px;
   }
@@ -533,13 +552,13 @@
 
   .home-action-row--join,
   .home-action-row--create {
-    background: white;
-    border: 1px solid rgba(214, 166, 74, 0.4);
+    background: rgba(200, 166, 81, 0.12);
+    border: 1px solid rgba(200, 166, 81, 0.25);
   }
 
   .home-action-row--join .home-action-title,
   .home-action-row--create .home-action-title {
-    color: #171a1f;
+    color: #F8F6F0;
     font-size: 12px;
   }
 
@@ -550,8 +569,8 @@
 
   .home-action-row--join .home-action-icon,
   .home-action-row--create .home-action-icon {
-    background: rgba(214, 166, 74, 0.1);
-    color: var(--home-gold);
+    background: rgba(200, 166, 81, 0.15);
+    color: var(--gold);
   }
 
   /* Mobile: Quick Play full-width on top, Create + Join side-by-side below */
