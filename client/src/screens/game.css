@@ -449,9 +449,15 @@
 
 .hero-side {
   width: auto;
-  max-width: 280px;
-  padding: 0;
+  max-width: 200px;
+  padding: 12px 14px;
   gap: 6px;
+  background: rgba(34, 53, 49, 0.92);
+  border: 1px solid rgba(200, 166, 81, 0.15);
+  border-radius: 14px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
 .hero-left,
@@ -491,11 +497,18 @@
 .phase-play .hero-self-slot {
   position: relative;
   z-index: 10;
-  margin-bottom: -40px; /* overlap deeper into the hand area below */
+  margin-bottom: -12px; /* slight overlap into hand area */
 }
 
 .phase-play .hero-self-slot .hero-self {
   opacity: 0.9;
+  background: rgba(83, 61, 19, 0.8);
+  border-color: rgba(200, 166, 81, 0.35);
+}
+
+.phase-exchange .hero-self-slot .hero-self {
+  background: rgba(83, 61, 19, 0.8);
+  border-color: rgba(200, 166, 81, 0.35);
 }
 
 .hero-self-slot .hero-self {
@@ -735,6 +748,39 @@
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-on-panel-dim);
   font-style: italic;
+}
+
+/* -- Hero Stat Blocks (Score / Cards / Tricks) -- */
+
+.hero-stats {
+  display: flex;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.hero-stat {
+  flex: 1;
+  text-align: center;
+  padding: 4px 0;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+.hero-stat-label {
+  display: block;
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: rgba(248, 246, 240, 0.5);
+  letter-spacing: 0.06em;
+}
+
+.hero-stat-value {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(248, 246, 240, 0.9);
+  font-family: var(--font-sans);
 }
 
 /* -- Side plate sizing adjustments -- */

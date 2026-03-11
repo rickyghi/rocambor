@@ -1056,9 +1056,12 @@ export class GameScreen implements Screen {
 
     switch (game.phase) {
       case "auction": {
-        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`));
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}/${game.gameTarget}`));
         if (!compact) pills.push(pill("Phase: Auction"));
         pills.push(pill(compact ? `Target: ${game.gameTarget}` : `Target: ${game.gameTarget}`));
+        if (!compact) {
+          pills.push(pill(game.trump ? `Trump: ${this.suitIcon(game.trump)} ${this.capSuit(game.trump)}` : "Trump: Undecided", game.trump ? "trump" : ""));
+        }
         if (game.turn !== null) {
           const shortTurn = compact ? this.seatLabelShort(game.turn) : turnName;
           pills.push(
@@ -1159,14 +1162,14 @@ export class GameScreen implements Screen {
       }
 
       case "dealing": {
-        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`));
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}/${game.gameTarget}`));
         pills.push(pill("Dealing..."));
         break;
       }
 
       case "post_hand":
       case "scoring": {
-        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`));
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}/${game.gameTarget}`));
         pills.push(pill("Hand Complete"));
         pills.push(pill(`Target: ${game.gameTarget}`));
         break;
@@ -1178,7 +1181,7 @@ export class GameScreen implements Screen {
       }
 
       default: {
-        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}`));
+        pills.push(pill(compact ? `R: ${game.handNo}` : `Round ${game.handNo}/${game.gameTarget}`));
         pills.push(pill(this.phaseLabel(game.phase)));
         break;
       }
@@ -1252,6 +1255,8 @@ export class GameScreen implements Screen {
     const resting = game.resting === seat ? " resting" : "";
     const disconnected = player && !player.connected ? " disconnected" : "";
     const tricks = game.tricks[seat] || 0;
+    const score = game.scores[seat] || 0;
+    const cards = game.handsCount[seat] ?? 0;
     const sideClass = isSelf ? "" : " hero-side";
 
     // Position tag: "YOU" for self, "LEFT"/"ACROSS"/"RIGHT" for opponents
@@ -1309,6 +1314,11 @@ export class GameScreen implements Screen {
             </div>
             ${turnFlashHtml}
           </div>
+          <div class="hero-stats">
+            <div class="hero-stat"><span class="hero-stat-label">SCORE</span><span class="hero-stat-value">${score}</span></div>
+            <div class="hero-stat"><span class="hero-stat-label">CARDS</span><span class="hero-stat-value">${cards}</span></div>
+            <div class="hero-stat"><span class="hero-stat-label">TRICKS</span><span class="hero-stat-value">${tricks}</span></div>
+          </div>
           <div class="hero-trick-dots" aria-label="${escapeHtml(`Tricks won: ${tricks}`)}">${trickDotsHtml}</div>
         </section>
       `;
@@ -1331,6 +1341,11 @@ export class GameScreen implements Screen {
             ${restingTag}
             ${bidStatusHtml}
           </div>
+        </div>
+        <div class="hero-stats">
+          <div class="hero-stat"><span class="hero-stat-label">SCORE</span><span class="hero-stat-value">${score}</span></div>
+          <div class="hero-stat"><span class="hero-stat-label">CARDS</span><span class="hero-stat-value">${cards}</span></div>
+          <div class="hero-stat"><span class="hero-stat-label">TRICKS</span><span class="hero-stat-value">${tricks}</span></div>
         </div>
         <div class="hero-trick-dots" aria-label="${escapeHtml(`Tricks won: ${tricks}`)}">${trickDotsHtml}</div>
       </section>

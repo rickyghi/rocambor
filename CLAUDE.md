@@ -123,7 +123,7 @@ Use these file keys with the Figma MCP `get_screenshot` tool to compare against 
 
 ### Canvas Rendering
 - Desktop: 1320×760 logical resolution; Mobile: 760×1020 logical resolution; CSS-scaled to fill viewport
-- `renderer.ts` — Main render loop. In sprite mode (`domPlatesEnabled`): canvas is `clearRect` only (transparent), animations still render. In fallback mode: draws full table background.
+- `renderer.ts` — Main render loop. In sprite mode (`domPlatesEnabled`): canvas is `clearRect` only (transparent), animations still render. `drawPlayers()` is skipped entirely when `domPlatesEnabled` is true (prevents redundant canvas-drawn opponent card backs). In fallback mode: draws full table background.
 - Card skins: procedural (`drawCard()`) + image-based (`CardImageAtlas`)
 - Animations: `CardPlayAnimation`, `TrickWinAnimation` (with sparkle dots), `CardDealAnimation`, `ScoreChangeAnimation`
 
@@ -144,7 +144,7 @@ Use these file keys with the Figma MCP `get_screenshot` tool to compare against 
 - **Full-viewport layout**: `.game-stage` fills entire viewport (`position: absolute; inset: 0`). No bounded box — the viewport IS the table.
 - Hybrid Canvas + DOM: in sprite mode, canvas is transparent (animations only); `FeltBackground.ts` provides CSS felt + `.felt-ellipse` decorative outline
 - `GameScreen.spriteMode` flag controls which layer is active
-- `game.css` is ~2350 lines with responsive breakpoints at 1060px, 920px (portrait), 430px (portrait), 360px (portrait)
+- `game.css` is ~2560 lines with responsive breakpoints at 1060px, 920px (portrait), 430px (portrait), 360px (portrait)
 - Mobile uses `isMobilePortrait` flag set by `handleResize()` (width ≤ 900px + portrait orientation)
 - Controls rendered by `GameControls` class (`controls.ts`) into `#game-controls` slot inside `.game-controls-shell`
 - `.game-controls-shell` is a **direct child of `.game-stage`** (not inside `.game-stage-bottom`)
@@ -236,6 +236,24 @@ The server tsconfig uses `rootDir: ".."` so tsc outputs preserve the full direct
 | `VITE_WS_URL` | Build-time | Required for split deploy | WebSocket URL baked into client at build time |
 | `VITE_API_URL` | Build-time | Required for split deploy | REST API URL baked into client at build time |
 
+### Quick Ship to Production
+```bash
+# 1. Test & type-check
+cd server && npx vitest run && cd ../client && npx tsc --noEmit && cd ..
+
+# 2. Build client with prod WS URLs
+cd client && VITE_WS_URL=wss://rocambor-server-production.up.railway.app VITE_API_URL=https://rocambor-server-production.up.railway.app npm run build && cd ..
+
+# 3. Build server
+cd server && npm run build && cd ..
+
+# 4. Deploy client to Netlify
+cd client && npx netlify-cli deploy --prod --dir /Users/rickyghi/Desktop/Rocambor/RocamborMP/client/dist --no-build && cd ..
+
+# 5. Deploy server to Railway
+railway up -d --service rocambor-server
+```
+
 ### CI/CD
 GitHub Actions (`.github/workflows/ci.yml`) runs on push to `main`:
 - Server job: install → type-check → test (152 tests) → build
@@ -263,8 +281,8 @@ client/src/
   state.ts      — Client-side state management
   router.ts     — Screen navigation
   screens/      — UI screens (home, lobby, game, post-hand, match-summary, leaderboard)
-    game.ts       — Game screen (~1850 lines): hero plates, hand dock, trick overlay, HUD, phase logic
-    game.css      — Game screen styles (~2350 lines): responsive breakpoints, animations, all game UI
+    game.ts       — Game screen (~1770 lines): hero plates, hand dock, trick overlay, HUD, phase logic
+    game.css      — Game screen styles (~2560 lines): responsive breakpoints, animations, all game UI
   canvas/       — HTML5 Canvas rendering (cards, players, table, animations)
     renderer.ts   — Main render loop + unified HUD strip
     cards.ts      — Procedural card drawing
