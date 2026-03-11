@@ -2372,7 +2372,11 @@
   }
 
   .game-header-sub {
-    display: none;
+    display: block;
+    max-width: 140px;
+    font-size: 11px;
+    line-height: 1.15;
+    white-space: normal;
   }
 
   .game-ping-chip {

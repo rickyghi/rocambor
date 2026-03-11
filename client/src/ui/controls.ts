@@ -11,7 +11,6 @@ export class GameControls {
   private actionLocked = false;
   private unlockTimer: number | null = null;
   private lastSeq = -1;
-  private soloSuitPickerOpen = false;
 
   constructor(
     container: HTMLElement,
@@ -41,10 +40,6 @@ export class GameControls {
     const myTurn = this.state.isMyTurn;
     const canExchange = this.state.canExchangeNow;
     const phase = game.phase;
-
-    if (phase !== "auction" || !myTurn) {
-      this.soloSuitPickerOpen = false;
-    }
 
     let html = "";
     let actionable = false;
@@ -110,26 +105,13 @@ export class GameControls {
 
     const btns = legal
       .map((b) => {
-        const activeClass = b.value === "solo" && this.soloSuitPickerOpen ? " solo-active" : "";
-        return `<button class="auction-bid bid-btn${activeClass}" data-bid="${b.value}">
+        return `<button class="auction-bid bid-btn" data-bid="${b.value}">
           <span class="auction-bid-icon">${b.icon}</span>
           <span class="auction-bid-name">${b.label}</span>
           <span class="auction-bid-desc">${b.desc}</span>
         </button>`;
       })
       .join("");
-
-    const showSoloPicker =
-      this.soloSuitPickerOpen && legal.some((b) => b.value === "solo");
-    const soloPicker = showSoloPicker
-      ? `
-        <div class="auction-suit-picker">
-          <button class="auction-suit-btn solo-suit-btn" data-solo-suit="espadas" style="--suit-color: #0D0D0D">\u2660 Espadas</button>
-          <button class="auction-suit-btn solo-suit-btn" data-solo-suit="copas" style="--suit-color: #B02E2E">\u2665 Copas</button>
-          <button class="auction-suit-btn solo-suit-btn" data-solo-suit="bastos" style="--suit-color: #2A4D41">\u2663 Bastos</button>
-        </div>
-      `
-      : "";
 
     // Contrabola: only when all others passed and you're last in order
     const a = this.state.game!.auction;
@@ -166,7 +148,6 @@ export class GameControls {
             <span class="auction-bid-desc">Wait for turn</span>
           </button>
         </div>
-        ${soloPicker}
         <div class="auction-panel-divider"></div>
         <div class="auction-panel-quote">\u201CFortune favors the bold\u201D</div>
       </div>
@@ -283,23 +264,7 @@ export class GameControls {
   }
 
   private exchangeLimits(): { min: number; max: number } {
-    const game = this.state.game;
-    if (!game || this.state.mySeat === null) return { min: 0, max: 0 };
-
-    const isOmbre = game.ombre === this.state.mySeat;
-    const contract = game.contract;
-    const isSolo = contract === "solo" || contract === "solo_oros";
-    const isOros = contract === "oros" || contract === "solo_oros";
-
-    if (contract === "bola") return { min: 0, max: 0 };
-    if (contract === "contrabola") {
-      return isOmbre ? { min: 1, max: 1 } : { min: 0, max: 0 };
-    }
-    if (isOmbre) {
-      if (isSolo) return { min: 0, max: 0 };
-      return { min: 0, max: isOros ? 6 : 8 };
-    }
-    return { min: 0, max: Math.min(this.state.hand.length, game.exchange.talonSize) };
+    return this.state.getExchangeLimits();
   }
 
   private renderMatchEnd(): string {
@@ -339,24 +304,7 @@ export class GameControls {
       btn.addEventListener("click", () => {
         if (this.actionLocked) return;
         const bid = btn.dataset.bid as Bid;
-        if (bid === "solo") {
-          this.soloSuitPickerOpen = !this.soloSuitPickerOpen;
-          this.render();
-          return;
-        }
-        this.soloSuitPickerOpen = false;
         this.conn.send({ type: "BID", value: bid });
-        this.setActionLock(true);
-      });
-    });
-
-    this.container.querySelectorAll<HTMLButtonElement>(".solo-suit-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (this.actionLocked) return;
-        const suit = btn.dataset.soloSuit as Suit | undefined;
-        if (!suit) return;
-        this.soloSuitPickerOpen = false;
-        this.conn.send({ type: "BID", value: "solo", suit });
         this.setActionLock(true);
       });
     });

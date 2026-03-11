@@ -149,6 +149,11 @@ export class Room {
     this.broadcastState();
   }
 
+  private seatConn(seat: SeatIndex | null): Conn | undefined {
+    if (seat === null) return undefined;
+    return this.conns.find((c) => c.seat === seat && !c.isSpectator);
+  }
+
   private event(name: string, payload: Record<string, unknown>): void {
     this.conns.forEach((c) => this.send(c, { type: "EVENT", name, payload }));
   }
@@ -523,6 +528,11 @@ export class Room {
 
     this.state.phase = "auction";
     this.state.turn = order[0];
+    this.event("DEAL", {
+      activeSeats: active,
+      cardsPerHand: 9,
+      talonSize: this.talon.length,
+    });
     this.patch(this.state);
     this.armTimer();
     this.botMaybeAct();
@@ -538,6 +548,7 @@ export class Room {
   // ---- Timer ----
   private clearTurnTimer(): void {
     this.timerEpoch += 1;
+    this.botEpoch += 1;
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -551,6 +562,11 @@ export class Room {
 
   private armTimer(): void {
     this.clearTurnTimer();
+    const conn = this.seatConn(this.state.turn);
+    if (!conn || (!conn.isBot && conn.connected)) {
+      this.broadcastState();
+      return;
+    }
     const epoch = this.timerEpoch;
     this.state.turnDeadline = Date.now() + TURN_MS;
     this.timer = setTimeout(() => {
@@ -558,6 +574,7 @@ export class Room {
       this.timer = null;
       this.onTimeout();
     }, TURN_MS);
+    this.broadcastState();
   }
 
   private onTimeout(): void {
@@ -570,7 +587,7 @@ export class Room {
   private botMaybeAct(): void {
     const seat = this.state.turn;
     if (seat === null) return;
-    const conn = this.conns.find((c) => c.seat === seat);
+    const conn = this.seatConn(seat);
     if (conn?.isBot) {
       const delay = this.botDelayMs(seat);
       const epoch = ++this.botEpoch;
@@ -612,6 +629,9 @@ export class Room {
   }
 
   private doBotAction(seat: SeatIndex): void {
+    if (this.state.turn !== seat) return;
+    const conn = this.seatConn(seat);
+    if (!conn || (!conn.isBot && conn.connected)) return;
     const ctx = this.buildBotContext(seat);
 
     const action = botAct(ctx);
@@ -672,6 +692,13 @@ export class Room {
     }
 
     const a = this.state.auction;
+    if (a.passed.includes(seat)) {
+      return this.errorSeat(
+        seat,
+        "BIDDER_ALREADY_PASSED",
+        "Passed players cannot re-enter the auction"
+      );
+    }
     const allPassSoFar =
       a.currentBid === "pass" && a.passed.length === a.order.length - 1;
     const isLast = a.order.indexOf(seat) === a.order.length - 1;
@@ -729,8 +756,6 @@ export class Room {
       currentBidder: a.currentBidder,
     });
 
-    const idx = a.order.indexOf(seat);
-    const next = a.order[(idx + 1) % a.order.length];
     const alive = a.order.filter((s) => !a.passed.includes(s));
 
     if (alive.length === 0) return this.onPassOut();
@@ -774,6 +799,8 @@ export class Room {
       return;
     }
 
+    const next = this.nextAuctionSeat(seat, a.order, a.passed);
+    if (next === null) return this.onPassOut();
     this.state.turn = next;
     this.patch(this.state);
     this.armTimer();
@@ -804,6 +831,20 @@ export class Room {
 
     this.event("AUCTION_PASS_OUT", {});
     this.newHand();
+  }
+
+  private nextAuctionSeat(
+    from: SeatIndex,
+    order: SeatIndex[],
+    passed: SeatIndex[]
+  ): SeatIndex | null {
+    const idx = order.indexOf(from);
+    if (idx < 0) return null;
+    for (let step = 1; step <= order.length; step++) {
+      const candidate = order[(idx + step) % order.length];
+      if (!passed.includes(candidate)) return candidate;
+    }
+    return null;
   }
 
   private findSpadilleHolder(): SeatIndex | null {
@@ -1118,6 +1159,7 @@ export class Room {
     // Continuing after the "first five won" close window implies bola.
     if (this.canImplyBolaByContinuation(seat)) {
       this.state.contract = "bola";
+      this.state.ombre = seat;
       this.event("BOLA_IMPLIED", { ombre: seat });
       this.patch(this.state);
     }
@@ -1130,6 +1172,7 @@ export class Room {
     // Update visible state
     this.state.table = this.table.slice();
     this.state.playOrder = this.playOrder.slice();
+    this.event("CARD_PLAYED", { seat, card });
 
     const needed = this.state.contract === "penetro" ? 4 : 3;
 

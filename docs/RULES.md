@@ -83,9 +83,9 @@ The Ombre chooses the trump suit (unless the contract forces Oros).
 ### 4. Exchange
 
 Exchange limits depend on contract:
-- **Entrada / Volteo**: Ombre up to 8 cards, each defender up to 5
-- **Oros**: Ombre up to 6 cards, each defender up to 5
-- **Solo / Solo Oros**: Ombre exchanges 0, defenders up to 5
+- **Entrada / Volteo**: Ombre up to 8 cards, each defender up to their hand size or the remaining talon
+- **Oros**: Ombre up to 6 cards, each defender up to their hand size or the remaining talon
+- **Solo / Solo Oros**: Ombre exchanges 0, defenders up to their hand size or the remaining talon
 - **Bola**: nobody exchanges
 - **Contrabola**: Ombre must exchange exactly 1 card, nobody else exchanges
 
@@ -96,8 +96,9 @@ In non-solo, non-contrabola contracts, Ombre exchanges first; after that, either
 Players play tricks in turn order:
 - **Lead player** plays any card
 - Subsequent players must **follow suit** if possible
-- If unable to follow suit and holding trump, players **must trump**
-- If unable to follow suit or trump, any card may be played
+- If unable to follow a plain led suit, players may discard **any card**
+- If a matador or other trump leads, players must play a **lower trump only if they hold one**
+- Higher matadors are **not forced** under a lower matador lead
 - The highest trump wins, or if no trump, the highest card of the led suit
 
 In **Bola** and **Contrabola**, there is no trump suit (follow-suit only).

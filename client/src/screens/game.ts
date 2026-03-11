@@ -59,6 +59,10 @@ export class GameScreen implements Screen {
 
   private prevPhase: string | null = null;
   private prevTurn: number | null = null;
+  private lastObservedSeq = -1;
+  private lastObservedSeat: SeatIndex | null = null;
+  private lastObservedHandKey = "";
+  private lastObservedSelectionKey = "";
 
   private lastTouchTs = 0;
   private pendingPlayCard: string | null = null;
@@ -73,6 +77,8 @@ export class GameScreen implements Screen {
     winner: SeatIndex;
   } | null = null;
   private trickOverlayTimer: number | null = null;
+  private trickBannerTimer: number | null = null;
+  private trickBannerHideTimer: number | null = null;
   private isMobilePortrait = false;
 
   mount(container: HTMLElement, ctx: AppContext): void {
@@ -182,6 +188,10 @@ export class GameScreen implements Screen {
       this.prevPhase = ctx.state.game.phase;
       this.prevTurn = ctx.state.game.turn;
     }
+    this.lastObservedSeq = ctx.state.game?.seq ?? -1;
+    this.lastObservedSeat = ctx.state.mySeat;
+    this.lastObservedHandKey = this.handSignature();
+    this.lastObservedSelectionKey = this.selectionSignature();
 
     this.syncPhaseClass();
     this.updateHeader();
@@ -225,6 +235,14 @@ export class GameScreen implements Screen {
       clearTimeout(this.trickOverlayTimer);
       this.trickOverlayTimer = null;
     }
+    if (this.trickBannerTimer !== null) {
+      clearTimeout(this.trickBannerTimer);
+      this.trickBannerTimer = null;
+    }
+    if (this.trickBannerHideTimer !== null) {
+      clearTimeout(this.trickBannerHideTimer);
+      this.trickBannerHideTimer = null;
+    }
   }
 
   private bindEvents(): void {
@@ -266,16 +284,35 @@ export class GameScreen implements Screen {
   private setupSubscriptions(): void {
     this.unsubscribes.push(
       this.ctx.state.subscribe(() => {
+        const nextSeq = this.ctx.state.game?.seq ?? -1;
+        const nextSeat = this.ctx.state.mySeat;
+        const nextHandKey = this.handSignature();
+        const nextSelectionKey = this.selectionSignature();
+        const stateChanged =
+          nextSeq !== this.lastObservedSeq ||
+          nextSeat !== this.lastObservedSeat ||
+          nextHandKey !== this.lastObservedHandKey;
+        const selectionChanged = nextSelectionKey !== this.lastObservedSelectionKey;
+
+        this.lastObservedSeq = nextSeq;
+        this.lastObservedSeat = nextSeat;
+        this.lastObservedHandKey = nextHandKey;
+        this.lastObservedSelectionKey = nextSelectionKey;
+
         this.renderer.requestRender();
-        this.syncPhaseClass();
-        this.handlePhaseTransitions();
-        this.trackTrickFeedFromState();
-        this.updateHeader();
-        this.updateMobileSummary();
-        this.updateMobileOpponents();
-        this.renderHeroPlates();
-        this.updatePhaseBanner();
-        this.renderDomCardLayers();
+        if (stateChanged) {
+          this.syncPhaseClass();
+          this.handlePhaseTransitions();
+          this.trackTrickFeedFromState();
+          this.updateHeader();
+          this.updateMobileSummary();
+          this.updateMobileOpponents();
+          this.renderHeroPlates();
+          this.updatePhaseBanner();
+        }
+        if (stateChanged || selectionChanged) {
+          this.renderDomCardLayers();
+        }
       }),
 
       this.ctx.profile.subscribe(() => {
@@ -570,6 +607,13 @@ export class GameScreen implements Screen {
 
     if (state.phase === "exchange" && state.canExchangeNow) {
       const selected = Array.from(state.selectedCards);
+      const { min, max } = state.getExchangeLimits();
+      if (selected.length < min || selected.length > max) {
+        this.showInvalidAction(
+          min === 1 && max === 1 ? "Select exactly 1 card to exchange." : "Select a valid exchange."
+        );
+        return;
+      }
       if (selected.length > 0) {
         this.ctx.connection.send({ type: "EXCHANGE", discardIds: selected });
         this.ctx.sounds.cardPlay();
@@ -684,13 +728,15 @@ export class GameScreen implements Screen {
     if (state.phase === "exchange" && state.canExchangeNow) {
       this.handActionBtn.hidden = false;
       const count = state.selectedCards.size;
+      const { min, max } = state.getExchangeLimits();
+      const requireExactOne = min === 1 && max === 1;
       if (count > 0) {
         this.handActionBtn.textContent = `Exchange ${count} Card${count > 1 ? "s" : ""}`;
-        this.handActionBtn.disabled = false;
+        this.handActionBtn.disabled = requireExactOne ? count !== 1 : count < min || count > max;
         this.handActionBtn.classList.add("ready");
       } else {
-        this.handActionBtn.textContent = "Keep All Cards";
-        this.handActionBtn.disabled = false;
+        this.handActionBtn.textContent = requireExactOne ? "Select 1 Card to Exchange" : "Keep All Cards";
+        this.handActionBtn.disabled = min > 0;
         this.handActionBtn.classList.remove("ready");
       }
       return;
@@ -720,8 +766,9 @@ export class GameScreen implements Screen {
     const newTurn = game.turn;
 
     if (newPhase !== this.prevPhase) {
-      this.onPhaseChange(this.prevPhase, newPhase);
+      const oldPhase = this.prevPhase;
       this.prevPhase = newPhase;
+      this.onPhaseChange(oldPhase, newPhase);
     }
 
     if (newTurn !== this.prevTurn) {
@@ -830,9 +877,11 @@ export class GameScreen implements Screen {
       }
 
       case "CARD_PLAYED": {
-        this.ctx.sounds.cardPlay();
         const seat = payload.seat as number | undefined;
         const card = payload.card as Card | undefined;
+        if (seat !== this.ctx.state.mySeat) {
+          this.ctx.sounds.cardPlay();
+        }
         if (seat !== undefined && card) {
           this.pushArenaToast(
             `${this.seatLabelForAnnouncements(seat)} played ${this.cardLabel(card)}`,
@@ -924,7 +973,6 @@ export class GameScreen implements Screen {
     }
 
     const cards = game.table || [];
-    const playOrder = game.playOrder || [];
     if (!cards.length) {
       this.lastLiveTableIds = [];
       this.trickFeedPrimed = true;
@@ -935,23 +983,6 @@ export class GameScreen implements Screen {
       this.lastLiveTableIds = cards.map((card) => card.id);
       this.trickFeedPrimed = true;
       return;
-    }
-
-    const prev = this.lastLiveTableIds;
-    const prefixStable =
-      prev.length <= cards.length &&
-      prev.every((id, idx) => cards[idx] && cards[idx].id === id);
-
-    if (prefixStable && cards.length > prev.length) {
-      for (let i = prev.length; i < cards.length; i++) {
-        const seat = playOrder[i];
-        const card = cards[i];
-        if (seat === undefined || !card) continue;
-        this.pushArenaToast(
-          `${this.seatLabelForAnnouncements(seat)} played ${this.cardLabel(card)}`,
-          1300
-        );
-      }
     }
 
     this.lastLiveTableIds = cards.map((card) => card.id);
@@ -1487,16 +1518,34 @@ export class GameScreen implements Screen {
   }
 
   private showTrickResultBanner(text: string): void {
+    if (this.trickBannerTimer !== null) {
+      window.clearTimeout(this.trickBannerTimer);
+      this.trickBannerTimer = null;
+    }
+    if (this.trickBannerHideTimer !== null) {
+      window.clearTimeout(this.trickBannerHideTimer);
+      this.trickBannerHideTimer = null;
+    }
     this.trickResultBanner.textContent = text;
     this.trickResultBanner.hidden = false;
     this.trickResultBanner.classList.remove("exit");
-    setTimeout(() => {
+    this.trickBannerTimer = window.setTimeout(() => {
+      this.trickBannerTimer = null;
       this.trickResultBanner.classList.add("exit");
-      setTimeout(() => {
+      this.trickBannerHideTimer = window.setTimeout(() => {
+        this.trickBannerHideTimer = null;
         this.trickResultBanner.hidden = true;
         this.trickResultBanner.classList.remove("exit");
       }, 300);
     }, 1400);
+  }
+
+  private handSignature(): string {
+    return this.ctx.state.hand.map((card) => card.id).join("|");
+  }
+
+  private selectionSignature(): string {
+    return Array.from(this.ctx.state.selectedCards).sort().join("|");
   }
 
   private seatLabelForAnnouncements(seat: number): string {

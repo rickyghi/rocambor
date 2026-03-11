@@ -90,8 +90,7 @@ describe("decideBid", () => {
     ];
     const ctx = makeCtx({ hand, originalHand: hand });
     const bid = decideBid(ctx);
-    expect(["entrada", "oros", "volteo", "solo", "solo_oros"]).toContain(bid);
-    expect(bid).not.toBe("pass");
+    expect(bid).toBe("solo");
   });
 
   it("weak hand passes", () => {
@@ -105,7 +104,7 @@ describe("decideBid", () => {
     expect(bid).toBe("pass");
   });
 
-  it("does not bid below current bid", () => {
+  it("passes instead of forcing an unjustified overcall", () => {
     const hand = [
       card("oros", 1), card("oros", 12), card("oros", 11),
       card("oros", 10), card("oros", 7), card("copas", 12),
@@ -122,17 +121,34 @@ describe("decideBid", () => {
       },
     });
     const bid = decideBid(ctx);
-    // Should either pass or bid higher than solo
-    if (bid !== "pass") {
-      expect(["solo_oros"].includes(bid)).toBe(true);
-    }
+    expect(bid).toBe("pass");
   });
 
-  it("uses the smallest legal overcall instead of jumping to top bid", () => {
+  it("uses the smallest justified overcall instead of jumping to top bid", () => {
     const hand = [
       card("oros", 1), card("oros", 12), card("oros", 11),
-      card("oros", 5), card("oros", 4), card("copas", 12),
-      card("espadas", 12), card("bastos", 6), card("copas", 5),
+      card("oros", 10), card("oros", 7), card("oros", 5),
+      card("copas", 12), card("espadas", 12), card("bastos", 12),
+    ];
+    const ctx = makeCtx({
+      hand,
+      originalHand: hand,
+      auction: {
+        currentBid: "entrada" as Bid,
+        currentBidder: 1 as SeatIndex,
+        passed: [],
+        order: [0, 1, 2] as SeatIndex[],
+      },
+    });
+    const bid = decideBid(ctx);
+    expect(bid).toBe("oros");
+  });
+
+  it("reserves solo_oros for truly top-tier overcalls", () => {
+    const hand = [
+      card("oros", 1), card("oros", 12), card("oros", 11),
+      card("oros", 10), card("oros", 7), card("oros", 5),
+      card("copas", 12), card("espadas", 12), card("bastos", 12),
     ];
     const ctx = makeCtx({
       hand,
@@ -242,6 +258,59 @@ describe("decidePlay", () => {
     });
     const id = decidePlay(ctx);
     expect(id).toBe("e1");
+  });
+
+  it("ombre keeps a lone top matador in reserve when trump control is thin", () => {
+    const ctx = makeCtx({
+      phase: "play",
+      seat: 0 as SeatIndex,
+      ombre: 0 as SeatIndex,
+      trump: "oros",
+      table: [],
+      hand: [
+        card("espadas", 1),
+        card("oros", 12),
+        card("oros", 5),
+        card("oros", 4),
+        card("copas", 12),
+      ],
+    });
+    const id = decidePlay(ctx);
+    expect(id).toBe("c12");
+  });
+
+  it("defender does not lead a lone spadille just because they hold many trumps", () => {
+    const ctx = makeCtx({
+      phase: "play",
+      seat: 1 as SeatIndex,
+      ombre: 0 as SeatIndex,
+      trump: "oros",
+      table: [],
+      hand: [
+        card("espadas", 1),
+        card("oros", 12),
+        card("oros", 6),
+        card("oros", 5),
+        card("oros", 4),
+        card("copas", 12),
+      ],
+    });
+    const id = decidePlay(ctx);
+    expect(id).toBe("c12");
+  });
+
+  it("free discard sheds the shortest weak side suit when teammate is already winning", () => {
+    const ctx = makeCtx({
+      phase: "play",
+      seat: 2 as SeatIndex,
+      ombre: 0 as SeatIndex,
+      trump: "oros",
+      table: [card("copas", 10), card("copas", 11)],
+      playOrder: [0 as SeatIndex, 1 as SeatIndex],
+      hand: [card("bastos", 4), card("bastos", 6), card("espadas", 4)],
+    });
+    const id = decidePlay(ctx);
+    expect(id).toBe("e4");
   });
 });
 

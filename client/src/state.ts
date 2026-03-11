@@ -12,7 +12,13 @@ export class ClientState {
 
   update(gameState: GameState, hand: Card[] | null): void {
     this.game = gameState;
-    if (hand) this.hand = hand;
+    this.hand = hand ?? [];
+    if (this.selectedCards.size > 0) {
+      const validIds = new Set(this.hand.map((card) => card.id));
+      this.selectedCards.forEach((cardId) => {
+        if (!validIds.has(cardId)) this.selectedCards.delete(cardId);
+      });
+    }
     this.roomCode = gameState.roomCode;
 
     // Detect my seat from players info
@@ -23,6 +29,7 @@ export class ClientState {
   }
 
   setSeat(seat: SeatIndex | null): void {
+    if (this.mySeat === seat) return;
     this.mySeat = seat;
     this.notify();
   }
@@ -77,20 +84,28 @@ export class ClientState {
     this.notify();
   }
 
-  getExchangeMax(): number {
+  getExchangeLimits(): { min: number; max: number } {
     const g = this.game;
-    if (!g || g.phase !== "exchange" || this.mySeat === null) return 0;
+    if (!g || g.phase !== "exchange" || this.mySeat === null) return { min: 0, max: 0 };
     const isOmbre = this.mySeat === g.ombre;
     const contract = g.contract;
     const isSolo = contract === "solo" || contract === "solo_oros";
     const isOros = contract === "oros" || contract === "solo_oros";
-    if (contract === "bola") return 0;
-    if (contract === "contrabola") return isOmbre ? 1 : 0;
-    if (isOmbre) return isSolo ? 0 : isOros ? 6 : 8;
-    return Math.min(this.hand.length, g.exchange.talonSize);
+    if (contract === "bola") return { min: 0, max: 0 };
+    if (contract === "contrabola") return isOmbre ? { min: 1, max: 1 } : { min: 0, max: 0 };
+    if (isOmbre) {
+      if (isSolo) return { min: 0, max: 0 };
+      return { min: 0, max: Math.min(isOros ? 6 : 8, g.exchange.talonSize) };
+    }
+    return { min: 0, max: Math.min(this.hand.length, g.exchange.talonSize) };
+  }
+
+  getExchangeMax(): number {
+    return this.getExchangeLimits().max;
   }
 
   clearSelection(): void {
+    if (this.selectedCards.size === 0) return;
     this.selectedCards.clear();
     this.notify();
   }

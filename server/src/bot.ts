@@ -39,6 +39,29 @@ const BID_RANK: Record<string, number> = AUCTION_RANKED_BIDS.reduce(
   {} as Record<string, number>
 );
 
+const BID_THRESHOLDS: Array<{
+  bid: Bid;
+  minStrength: number;
+  openingAllowed: boolean;
+  requires?: (bestSuit: Suit) => boolean;
+}> = [
+  { bid: "entrada", minStrength: 26, openingAllowed: true },
+  {
+    bid: "oros",
+    minStrength: 34,
+    openingAllowed: false,
+    requires: (bestSuit) => bestSuit === "oros",
+  },
+  { bid: "volteo", minStrength: 36, openingAllowed: true },
+  { bid: "solo", minStrength: 44, openingAllowed: true },
+  {
+    bid: "solo_oros",
+    minStrength: 48,
+    openingAllowed: false,
+    requires: (bestSuit) => bestSuit === "oros",
+  },
+];
+
 export function evaluateHand(hand: Card[]): { bestSuit: Suit; points: number } {
   let bestSuit: Suit = "oros";
   let bestPts = -1;
@@ -109,6 +132,10 @@ function evaluateSuitStrength(hand: Card[], suit: Suit): number {
   return points + matadors * 4 + Math.max(0, trumps - 3) * 1.5;
 }
 
+function countMatadors(cards: Card[], trump: Suit): number {
+  return cards.filter((c) => isMatador(trump, c)).length;
+}
+
 export function decideBid(ctx: BotContext): Bid {
   const hand0 = ctx.originalHand.length > 0 ? ctx.originalHand : ctx.hand;
   let bestSuit: Suit = "oros";
@@ -121,57 +148,37 @@ export function decideBid(ctx: BotContext): Bid {
     }
   }
 
-  const ladder: Array<{ bid: Bid; minStrength: number }> =
-    bestSuit === "oros"
-      ? [
-          { bid: "solo_oros", minStrength: 35 },
-          { bid: "oros", minStrength: 30 },
-          { bid: "entrada", minStrength: 25 },
-        ]
-      : [
-          { bid: "solo", minStrength: 35 },
-          { bid: "volteo", minStrength: 30 },
-          { bid: "entrada", minStrength: 25 },
-        ];
+  const a = ctx.auction;
+  const openingStage = a.currentBid === "pass";
+  const qualifiedBids = BID_THRESHOLDS.filter((candidate) => {
+    if (bestStrength < candidate.minStrength) return false;
+    if (openingStage && !candidate.openingAllowed) return false;
+    return candidate.requires ? candidate.requires(bestSuit) : true;
+  }).map((candidate) => candidate.bid);
 
-  let bid: Bid = "pass";
-  for (const c of ladder) {
-    if (bestStrength >= c.minStrength) {
-      bid = c.bid;
-      break;
-    }
+  let bid: Bid;
+  if (openingStage) {
+    bid = qualifiedBids.length ? qualifiedBids[qualifiedBids.length - 1] : "pass";
+  } else {
+    const currentRank = BID_RANK[a.currentBid];
+    bid =
+      qualifiedBids.find((candidate) => {
+        const rank = BID_RANK[candidate];
+        return currentRank !== undefined && rank !== undefined && rank > currentRank;
+      }) ?? "pass";
   }
 
   // Contrabola edge case
-  const a = ctx.auction;
   const allPass =
     a.currentBid === "pass" && a.passed.length === a.order.length - 1;
   const isLast =
     a.order.indexOf(ctx.seat) === a.order.length - 1;
-  const openingStage = a.currentBid === "pass";
 
   if (allPass && isLast && bid === "pass") {
-    if (bestStrength >= 21) {
+    if (bestStrength >= 24) {
       bid = "entrada";
     } else if (Math.random() < 0.04) {
       bid = "contrabola";
-    }
-  }
-
-  if (openingStage) {
-    if (bid === "solo_oros") bid = "solo";
-    if (bid === "oros") bid = bestStrength >= 31 ? "volteo" : "entrada";
-  } else if (bid !== "pass" && bid !== "contrabola") {
-    const currentRank = BID_RANK[a.currentBid];
-    const bidRank = BID_RANK[bid];
-    if (currentRank === undefined || bidRank === undefined || bidRank <= currentRank) {
-      const candidates = AUCTION_RANKED_BIDS.filter((candidate) => {
-        const rank = BID_RANK[candidate];
-        return rank > currentRank;
-      });
-
-      // Prefer the smallest legal overcall.
-      bid = candidates.length ? candidates[0] : "pass";
     }
   }
 
@@ -180,7 +187,7 @@ export function decideBid(ctx: BotContext): Bid {
   if (
     bid !== "pass" &&
     bid !== "contrabola" &&
-    bestStrength < 25 &&
+    bestStrength < 28 &&
     currentRank !== undefined &&
     currentRank >= BID_RANK["entrada"]
   ) {
@@ -277,12 +284,12 @@ function chooseLeadCard(ctx: BotContext, legal: Card[]): Card {
   const isOmbre = ctx.ombre !== null && ctx.seat === ctx.ombre;
   const trump = ctx.trump;
 
-  if (trump && isOmbre && trumpCards.length >= 4) {
+  if (trump && isOmbre && trumpCards.length >= 4 && countMatadors(trumpCards, trump) >= 2) {
     const strongestTrump = pickHighest(trumpCards, trump);
     if (trumpOrderValue(strongestTrump, trump) >= 98) return strongestTrump;
   }
 
-  if (trump && !isOmbre && trumpCards.length >= 5) {
+  if (trump && !isOmbre && trumpCards.length >= 5 && countMatadors(trumpCards, trump) >= 2) {
     const strongestTrump = pickHighest(trumpCards, trump);
     if (trumpOrderValue(strongestTrump, trump) >= 99) return strongestTrump;
   }
@@ -305,7 +312,25 @@ function chooseLeadCard(ctx: BotContext, legal: Card[]): Card {
 
 function chooseDiscard(legal: Card[], trump: Suit | null): Card {
   const nonTrump = legal.filter((c) => !isTrump(trump, c));
-  if (nonTrump.length) return pickLowest(nonTrump, trump);
+  if (nonTrump.length) {
+    const suitCounts = new Map<Suit, number>();
+    for (const card of nonTrump) {
+      suitCounts.set(card.s, (suitCounts.get(card.s) ?? 0) + 1);
+    }
+
+    const sorted = nonTrump.slice().sort((a, b) => {
+      const keepA = trump ? keepValue(a, trump) : cardPower(a, trump);
+      const keepB = trump ? keepValue(b, trump) : cardPower(b, trump);
+      if (keepA !== keepB) return keepA - keepB;
+
+      const lenA = suitCounts.get(a.s) ?? 0;
+      const lenB = suitCounts.get(b.s) ?? 0;
+      if (lenA !== lenB) return lenA - lenB;
+
+      return cardPower(a, trump) - cardPower(b, trump);
+    });
+    return sorted[0];
+  }
   return pickLowest(legal, trump);
 }
 

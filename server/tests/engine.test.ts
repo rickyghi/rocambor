@@ -123,13 +123,12 @@ describe("legalPlays", () => {
     expect(legal.length).toBe(2);
   });
 
-  it("must trump when void in led suit and holding trump", () => {
-    // Void in copas, but holding oros-5 which is trump
+  it("can discard freely when void in led suit even if holding trump", () => {
+    // Void in copas, but holding oros-5 which is trump.
+    // Rocambor does not force a trump when the led suit is absent.
     const hand = [card("oros", 5), card("espadas", 3)];
     const legal = legalPlays(trump, hand, card("copas", 7));
-    // Must play trump (oros-5), not free choice
-    expect(legal.length).toBe(1);
-    expect(legal[0].id).toBe("o5");
+    expect(legal.length).toBe(2);
   });
 
   it("any card legal when void in both led suit and trump", () => {
@@ -139,13 +138,12 @@ describe("legalPlays", () => {
     expect(legal.length).toBe(2);
   });
 
-  it("must trump includes matadors when void in led suit", () => {
-    // Void in copas, but holding spadille (espadas-1 = matador = trump)
+  it("can discard freely when void in led suit and holding only matador trumps", () => {
+    // Void in copas, but holding spadille (espadas-1 = matador = trump).
+    // A matador is not forced here because no suit-follow is possible.
     const hand = [card("espadas", 1), card("bastos", 5)];
     const legal = legalPlays(trump, hand, card("copas", 7));
-    // Must play spadille (it's a matador = trump)
-    expect(legal.length).toBe(1);
-    expect(legal[0].id).toBe("e1");
+    expect(legal.length).toBe(2);
   });
 
   it("must follow with trump when trump led", () => {
@@ -307,34 +305,55 @@ describe("legalPlays - matador exemption", () => {
   it("when hand has ONLY a matador vs a plain suit lead, can play anything (matador exempt)", () => {
     // Trump is oros. Lead is copas (plain). Hand has only espadas-1 (matador = trump, not copas).
     // No copas to follow, matador is exempt from plain-suit obligation.
-    // The must-play array will be empty -> falls through to trump obligation check.
     const hand = [card("espadas", 1), card("bastos", 6)];
     const legal = legalPlays("oros", hand, card("copas", 3));
-    // No copas in hand (matador is not a copas follower), so checks trump:
-    // espadas-1 IS trump. Must play trump.
-    expect(legal.some((c) => c.id === "e1")).toBe(true);
+    expect(legal.length).toBe(2);
   });
 });
 
-describe("legalPlays - void-suit trump obligation", () => {
-  it("void in led suit and holding a regular trump: must play trump", () => {
+describe("legalPlays - void-suit freedom", () => {
+  it("void in led suit and holding a regular trump: any card is legal", () => {
     const hand = [card("oros", 6), card("bastos", 4)]; // oros = trump
     const legal = legalPlays("oros", hand, card("copas", 7)); // copas led, void
-    expect(legal.length).toBe(1);
-    expect(legal[0].id).toBe("o6");
+    expect(legal.length).toBe(2);
   });
 
-  it("void in led suit and holding only matadors as trump: must play matador", () => {
+  it("void in led suit and holding only matadors as trump: any card is legal", () => {
     const hand = [card("espadas", 1), card("bastos", 4)]; // spadille is trump (matador)
     const legal = legalPlays("oros", hand, card("copas", 7));
-    expect(legal.length).toBe(1);
-    expect(legal[0].id).toBe("e1");
+    expect(legal.length).toBe(2);
   });
 
   it("void in led suit and void in trump: any card is legal", () => {
     const hand = [card("bastos", 4), card("espadas", 5)]; // no oros trump, no copas
     const legal = legalPlays("oros", hand, card("copas", 7));
     expect(legal.length).toBe(2);
+  });
+});
+
+describe("legalPlays - matador leads", () => {
+  it("spadille lead forces any lower trump, including lower matadors", () => {
+    const hand = [card("oros", 5), card("bastos", 1), card("copas", 12)];
+    const legal = legalPlays("oros", hand, card("espadas", 1));
+    expect(legal.map((c) => c.id).sort()).toEqual(["b1", "o5"]);
+  });
+
+  it("manille lead forces only trumps ranked below it", () => {
+    const hand = [card("espadas", 1), card("bastos", 1), card("oros", 5), card("copas", 12)];
+    const legal = legalPlays("oros", hand, card("oros", 7));
+    expect(legal.map((c) => c.id).sort()).toEqual(["b1", "o5"]);
+  });
+
+  it("basto lead does not force higher matadors", () => {
+    const hand = [card("espadas", 1), card("oros", 7), card("oros", 5), card("copas", 12)];
+    const legal = legalPlays("oros", hand, card("bastos", 1));
+    expect(legal.map((c) => c.id)).toEqual(["o5"]);
+  });
+
+  it("a player with only higher matadors against a matador lead may discard freely", () => {
+    const hand = [card("espadas", 1), card("oros", 7), card("copas", 12)];
+    const legal = legalPlays("oros", hand, card("bastos", 1));
+    expect(legal.length).toBe(3);
   });
 });
 

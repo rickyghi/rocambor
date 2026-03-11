@@ -330,24 +330,26 @@ function attachPreRoomMessageHandler(
 
           const conn = room.attach(ws, id, playerId);
 
-          const seats = room.allSeats();
-          const occupied = new Set(
-            room.conns
-              .filter((c) => c !== conn && c.seat !== null && !c.isBot)
-              .map((c) => c.seat!)
-          );
-          const botSeat = room.conns.find(
-            (c) => c.isBot && c.seat !== null && seats.includes(c.seat)
-          );
+          if (room.state.phase === "lobby") {
+            const seats = room.allSeats();
+            const occupied = new Set(
+              room.conns
+                .filter((c) => c !== conn && c.seat !== null && !c.isBot)
+                .map((c) => c.seat!)
+            );
+            const botSeat = room.conns.find(
+              (c) => c.isBot && c.seat !== null && seats.includes(c.seat)
+            );
 
-          if (botSeat) {
-            const seat = botSeat.seat!;
-            room.conns = room.conns.filter((c) => c !== botSeat);
-            room.assignSeat(conn, seat);
-          } else {
-            const free = seats.find((s) => !occupied.has(s));
-            if (free !== undefined) {
-              room.assignSeat(conn, free);
+            if (botSeat) {
+              const seat = botSeat.seat!;
+              room.conns = room.conns.filter((c) => c !== botSeat);
+              room.assignSeat(conn, seat);
+            } else {
+              const free = seats.find((s) => !occupied.has(s));
+              if (free !== undefined) {
+                room.assignSeat(conn, free);
+              }
             }
           }
 

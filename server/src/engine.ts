@@ -72,6 +72,15 @@ export function plainSuitValue(s: Suit, r: Rank): number {
   return map[r] || 0;
 }
 
+function trumpOrderValue(tr: Suit, c: Card): number {
+  if (c.s === "espadas" && c.r === 1) return 100; // spadille
+  if (isManille(tr, c)) return 99;
+  if (c.s === "bastos" && c.r === 1) return 98; // basto ace
+  if (c.s !== tr) return 0;
+  // Remaining trumps follow the suit's native plain order under matadors.
+  return 80 + plainSuitValue(tr, c.r);
+}
+
 // ---- Legal plays ----
 export function legalPlays(
   tr: Suit | null,
@@ -84,21 +93,23 @@ export function legalPlays(
     const follow = hand.filter((c) => c.s === led.s);
     return follow.length ? follow : hand.slice();
   }
-  const ledIsTrump = isTrump(tr, led);
-  if (ledIsTrump) {
+  const ledTrumpValue = trumpOrderValue(tr, led);
+  if (ledTrumpValue > 0) {
     const trumps = hand.filter((c) => isTrump(tr, c));
-    const nonMatadorTrumps = trumps.filter(c => !isMatador(tr, c));
+    if (isMatador(tr, led)) {
+      const lowerTrumps = trumps.filter((c) => trumpOrderValue(tr, c) < ledTrumpValue);
+      return lowerTrumps.length ? lowerTrumps : hand.slice();
+    }
+    const nonMatadorTrumps = trumps.filter((c) => !isMatador(tr, c));
     if (nonMatadorTrumps.length > 0) {
-      return trumps; // Has non-matador trumps: must play a trump (any trump including matadors)
+      return trumps; // A regular trump lead still compels a trump response when available.
     }
     return hand.slice(); // Only matadors or no trumps: can play anything (matador privilege)
   }
   // Matadors always behave as trump, not as plain suit followers.
   const must = hand.filter((c) => c.s === led.s && !isMatador(tr, c));
   if (must.length) return must;
-  // Void in led suit: must play trump if holding any
-  const trumps = hand.filter((c) => isTrump(tr, c));
-  return trumps.length ? trumps : hand.slice();
+  return hand.slice();
 }
 
 // ---- Trick winner ----
@@ -109,12 +120,7 @@ export function trickWinner(
 ): number {
   function trumpVal(c: Card): number {
     if (!tr) return 0;
-    if (c.s === "espadas" && c.r === 1) return 100; // spadille
-    if (isManille(tr, c)) return 99;
-    if (c.s === "bastos" && c.r === 1) return 98; // basto ace
-    if (c.s !== tr) return 0;
-    // Remaining trumps follow the suit's native plain order under matadors.
-    return 80 + plainSuitValue(tr, c.r);
+    return trumpOrderValue(tr, c);
   }
 
   let best = -1,

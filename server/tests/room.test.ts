@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Room, RoomConfig, Conn } from "../src/room";
 import { SeatIndex, Bid, Suit } from "../../shared/types";
 import { WebSocket } from "ws";
@@ -174,6 +174,35 @@ describe("Room - auction", () => {
 
     room.applyBid(s1, "solo_oros");
     expect(room.state.auction.currentBid).toBe("solo_oros");
+  });
+
+  it("skips passed players on later auction turns", () => {
+    const [s0, s1, s2] = room.state.auction.order;
+
+    room.applyBid(s0, "entrada");
+    room.applyBid(s1, "pass");
+    room.applyBid(s2, "volteo");
+
+    expect(room.state.turn).toBe(s0);
+    expect(room.state.auction.passed).toContain(s1);
+  });
+
+  it("rejects a bid from a player who already passed", () => {
+    const [s0, s1, s2] = room.state.auction.order;
+    room.applyBid(s0, "entrada");
+    room.applyBid(s1, "pass");
+    room.applyBid(s2, "volteo");
+
+    room.state.turn = s1;
+    const conn = room.conns.find((c) => c.seat === s1)!;
+    conn.ws = makeFakeWs();
+    room.applyBid(s1, "solo");
+
+    expect(room.state.auction.currentBid).toBe("volteo");
+    const msgs = ((conn.ws as any)?._sent || []).map((s: string) => JSON.parse(s));
+    expect(msgs.some((m: any) => m.type === "ERROR" && m.code === "BIDDER_ALREADY_PASSED")).toBe(
+      true
+    );
   });
 
   it("rejects contrabola unless last active player after all-pass", () => {
@@ -440,6 +469,8 @@ describe("Room - penetro choice", () => {
     }
 
     allPass(room);
+    const restingConn = room.conns.find((c) => c.seat === room.restSeat())!;
+    room.markDisconnected(restingConn);
     (room as any).onTimeout();
 
     expect(room.state.phase).toBe("auction");
@@ -722,6 +753,35 @@ describe("Room - exchange", () => {
 });
 
 describe("Room - play rules", () => {
+  it("emits CARD_PLAYED for each accepted play", () => {
+    const room = makeRoom();
+    const { ws } = addHuman(room, 0);
+    addHuman(room, 1);
+    addHuman(room, 2);
+    (room as any).botMaybeAct = () => {};
+
+    room.state.phase = "play";
+    room.state.ombre = 0 as SeatIndex;
+    room.state.contract = "entrada";
+    room.state.trump = "oros";
+    room.state.turn = 0 as SeatIndex;
+    room.hands[0] = [{ s: "copas", r: 12, id: "c12" }] as any;
+    room.state.handsCount = { 0: 1, 1: 0, 2: 0, 3: 0 };
+
+    room.playCard(0 as SeatIndex, "c12");
+
+    const msgs = (ws as any)._sent.map((s: string) => JSON.parse(s));
+    expect(
+      msgs.some(
+        (m: any) =>
+          m.type === "EVENT" &&
+          m.name === "CARD_PLAYED" &&
+          m.payload?.seat === 0 &&
+          m.payload?.card?.id === "c12"
+      )
+    ).toBe(true);
+  });
+
   it("treats a led matador as trump and enforces trump follow", () => {
     const room = makeRoom();
     addHuman(room, 0);
@@ -834,6 +894,7 @@ describe("Room - implied bola", () => {
 
     room.playCard(1 as SeatIndex, "c12");
     expect(room.state.contract).toBe("bola");
+    expect(room.state.ombre).toBe(1);
   });
 
   it("does not imply bola when first five tricks are not all won by same player", () => {
@@ -929,6 +990,62 @@ describe("Room - handle message routing", () => {
     const msgs = (ws as any)._sent.map((s: string) => JSON.parse(s));
     const pong = msgs.find((m: any) => m.type === "PONG");
     expect(pong).toBeTruthy();
+  });
+});
+
+describe("Room - timers", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("does not set a turn deadline for a connected human in auction, exchange, or play", () => {
+    const room = makeRoom();
+    addHuman(room, 0);
+    room.startGame();
+
+    expect(room.state.turn).toBe(0);
+    expect(room.state.turnDeadline).toBeUndefined();
+
+    room.state.phase = "exchange";
+    room.state.turn = 0 as SeatIndex;
+    (room as any).armTimer();
+    expect(room.state.turnDeadline).toBeUndefined();
+
+    room.state.phase = "play";
+    room.state.turn = 0 as SeatIndex;
+    (room as any).armTimer();
+    expect(room.state.turnDeadline).toBeUndefined();
+  });
+
+  it("sets a turn deadline for bot and disconnected turns", () => {
+    const room = makeRoom();
+    const { conn } = addHuman(room, 0);
+    room.startGame();
+
+    room.state.phase = "play";
+    room.state.turn = 1 as SeatIndex;
+    (room as any).armTimer();
+    expect(typeof room.state.turnDeadline).toBe("number");
+
+    room.markDisconnected(conn);
+    room.state.turn = 0 as SeatIndex;
+    (room as any).armTimer();
+    expect(typeof room.state.turnDeadline).toBe("number");
+  });
+
+  it("cleanup invalidates pending bot actions", () => {
+    vi.useFakeTimers();
+    const room = makeRoom();
+    addHuman(room, 0);
+    room.startGame();
+    room.state.turn = 1 as SeatIndex;
+
+    const spy = vi.spyOn(room as any, "doBotAction");
+    (room as any).botMaybeAct();
+    room.cleanup();
+    vi.runAllTimers();
+
+    expect(spy).not.toHaveBeenCalled();
   });
 });
 

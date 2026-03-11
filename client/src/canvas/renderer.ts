@@ -38,8 +38,14 @@ export class GameRenderer {
   private domPlatesEnabled = false;
   private resolvedTrickOverlay: ResolvedTrickOverlay | null = null;
   private viewportMode: ViewportMode = "desktop";
+  private dprMediaQuery: MediaQueryList | null = null;
+  private lastDeadlineSecond: number | null = null;
   private avatarReadyHandler = () => {
     this.requestRender();
+  };
+  private dprChangeHandler = () => {
+    this.applyDpr();
+    this.watchDpr();
   };
 
   constructor(
@@ -66,11 +72,12 @@ export class GameRenderer {
   }
 
   private watchDpr(): void {
+    if (this.dprMediaQuery) {
+      this.dprMediaQuery.removeEventListener("change", this.dprChangeHandler);
+    }
     const mq = window.matchMedia(`(resolution: ${this.dpr}dppx)`);
-    mq.addEventListener("change", () => {
-      this.applyDpr();
-      this.watchDpr(); // re-register for next change
-    }, { once: true });
+    this.dprMediaQuery = mq;
+    mq.addEventListener("change", this.dprChangeHandler);
   }
 
   requestRender(): void {
@@ -150,8 +157,13 @@ export class GameRenderer {
         this.dirty = true;
       }
 
-      // Force continuous render when countdown is active
-      if (this.state.game?.turnDeadline && this.state.game.turn !== null) {
+      const deadline = this.state.game?.turnDeadline;
+      const deadlineSecond =
+        deadline && this.state.game?.turn !== null
+          ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+          : null;
+      if (deadlineSecond !== this.lastDeadlineSecond) {
+        this.lastDeadlineSecond = deadlineSecond;
         this.dirty = true;
       }
 
@@ -642,6 +654,10 @@ export class GameRenderer {
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
       this.animationId = null;
+    }
+    if (this.dprMediaQuery) {
+      this.dprMediaQuery.removeEventListener("change", this.dprChangeHandler);
+      this.dprMediaQuery = null;
     }
     window.removeEventListener(AVATAR_READY_EVENT, this.avatarReadyHandler);
     this.animations.clear();
