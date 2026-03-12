@@ -1086,7 +1086,7 @@ export class Room {
     const contract = this.state.contract;
     const ombre = this.state.ombre;
     if (!contract || ombre === null) return { min: 0, max: 0 };
-    return exchangeLimitsForSeat(contract, seat, ombre, this.hands[seat].length, this.talon.length);
+    return exchangeLimitsForSeat(contract, seat, ombre, this.hands[seat]?.length ?? 0, this.talon.length);
   }
 
   private autoAdvanceExchangeTurn(startSeat: SeatIndex | null): void {
