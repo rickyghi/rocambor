@@ -1281,8 +1281,9 @@ export class Room {
 
     // Apply score deltas
     for (const [seatStr, delta] of Object.entries(scoreResult.deltas)) {
-      const seat = Number(seatStr) as SeatIndex;
-      this.state.scores[seat] += delta!;
+      const seat = Number(seatStr);
+      if (Number.isNaN(seat) || delta == null) continue;
+      this.state.scores[seat as SeatIndex] += delta;
     }
 
     saveHandResult({

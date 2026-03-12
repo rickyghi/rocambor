@@ -1244,3 +1244,22 @@ describe("Room - quadrille mode", () => {
     expect(new Set(rests).size).toBe(4);
   });
 });
+
+describe("Room - score delta safety", () => {
+  it("skips non-numeric keys in scoreResult.deltas", () => {
+    const room = makeRoom();
+    addHuman(room, 0);
+    room.state.scores = { 0: 10, 1: 10, 2: 10 };
+
+    const deltas: Record<string, number> = { "0": 5, "bad": 99 };
+    for (const [seatStr, delta] of Object.entries(deltas)) {
+      const seat = Number(seatStr);
+      if (Number.isNaN(seat)) continue;
+      (room.state.scores as any)[seat] += delta;
+    }
+
+    expect(room.state.scores[0]).toBe(15);
+    expect((room.state.scores as any)["NaN"]).toBeUndefined();
+    expect((room.state.scores as any).NaN).toBeUndefined();
+  });
+});
