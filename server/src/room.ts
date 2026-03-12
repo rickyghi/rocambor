@@ -1296,7 +1296,7 @@ export class Room {
       award: scoreResult.award,
       tricks: this.state.tricks,
       scores: this.state.scores,
-    }).catch(() => {});
+    }).catch((err) => console.error("[room] saveHandResult failed:", err));
 
     this.nextHand();
   }
@@ -1339,7 +1339,7 @@ export class Room {
         totalHands: this.state.handNo,
         playerIds,
         playerHandles,
-      }).catch(() => {});
+      }).catch((err) => console.error("[room] saveMatchResult failed:", err));
     } else {
       // Show post-hand briefly then deal next
       this.state.phase = "post_hand";

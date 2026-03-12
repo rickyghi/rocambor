@@ -230,7 +230,7 @@ async function startServer(): Promise<void> {
                 );
                 if (conn) {
                   // Consume the reservation only after a successful reconnect
-                  reconnectMgr.clearReservation(resumeId).catch(() => {});
+                  reconnectMgr.clearReservation(resumeId).catch((err) => console.error("[connection] clearReservation failed:", err));
                   connToRoom.set(ws, { conn, roomId: reservation.roomId });
                   setupWsHandlers(ws, conn, room.id);
                   console.log(
