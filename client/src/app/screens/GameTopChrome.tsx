@@ -12,6 +12,8 @@ import {
   useProfile,
   useSettings,
 } from "../hooks";
+import type { GameDomLayerBridge } from "./game-dom-layer-bridge";
+import { useGameDomLayerSnapshot } from "./useGameDomLayerSnapshot";
 
 interface HudPill {
   text: string;
@@ -19,14 +21,6 @@ interface HudPill {
 }
 
 const GAME_LOGO_SRC = "/assets/rocambor/logo-light.png";
-
-function detectMobilePortrait(): boolean {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia("(max-width: 900px)").matches &&
-    window.matchMedia("(orientation: portrait)").matches
-  );
-}
 
 function capSuit(suit: string): string {
   return suit.charAt(0).toUpperCase() + suit.slice(1);
@@ -182,8 +176,10 @@ function buildHudPills(
 
   switch (game.phase) {
     case "auction": {
-      pills.push({ text: compact ? `R: ${game.handNo}` : `Round ${game.handNo}/${game.gameTarget}` });
-      if (!compact) pills.push({ text: "Phase: Auction" });
+      pills.push({
+        text: compact ? `R: ${game.handNo}/${game.gameTarget}` : `Round ${game.handNo}/${game.gameTarget}`,
+      });
+      pills.push({ text: compact ? "Auction" : "Phase: Auction" });
       pills.push({ text: `Target: ${game.gameTarget}` });
       if (!compact) {
         pills.push({
@@ -193,7 +189,7 @@ function buildHudPills(
           className: game.trump ? "trump" : undefined,
         });
       }
-      if (game.turn !== null) {
+      if (!compact && game.turn !== null) {
         const shortTurn = compact ? seatLabelShort(state, game.turn) : turnName;
         pills.push({
           text: compact ? `${shortTurn}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
@@ -213,13 +209,15 @@ function buildHudPills(
       if (game.trump) {
         pills.push({
           text: compact
-            ? `${suitIcon(game.trump)} ${capSuit(game.trump)}`
+            ? `Trump: ${suitIcon(game.trump)} ${capSuit(game.trump)}`
             : `Trump: ${suitIcon(game.trump)} ${capSuit(game.trump)}`,
           className: "trump",
         });
       }
 
-      if (game.contract) {
+      if (compact) {
+        pills.push({ text: "Play Trick" });
+      } else if (game.contract) {
         const contractLabel = contractDisplayLabel(game.contract, game.trump);
         const ombreName =
           game.ombre !== null
@@ -233,7 +231,7 @@ function buildHudPills(
         });
       }
 
-      if (game.turn !== null) {
+      if (!compact && game.turn !== null) {
         const shortTurn = compact ? seatLabelShort(state, game.turn) : turnName;
         pills.push({
           text: compact ? `${shortTurn}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
@@ -245,7 +243,7 @@ function buildHudPills(
 
     case "trump_choice": {
       pills.push({ text: compact ? "Choose Trump" : "Phase: Choose Trump" });
-      if (game.turn !== null) {
+      if (!compact && game.turn !== null) {
         pills.push({
           text: `${turnName} choosing...`,
           className: isMyTurn ? "hud-pill-active" : undefined,
@@ -255,8 +253,8 @@ function buildHudPills(
     }
 
     case "exchange": {
-      if (!compact) pills.push({ text: "Phase: Exchange" });
-      if (game.exchange.current !== null) {
+      pills.push({ text: compact ? "Exchange" : "Phase: Exchange" });
+      if (!compact && game.exchange.current !== null) {
         const exchName =
           game.exchange.current === state.mySeat
             ? "You"
@@ -283,7 +281,7 @@ function buildHudPills(
 
     case "penetro_choice": {
       pills.push({ text: compact ? "Penetro" : "Phase: Penetro Choice" });
-      if (game.turn !== null) {
+      if (!compact && game.turn !== null) {
         pills.push({
           text: `${turnName} deciding...`,
           className: isMyTurn ? "hud-pill-active" : undefined,
@@ -380,13 +378,19 @@ function SettingsIcon(): ReactElement {
   );
 }
 
-export function GameTopChrome({ ctx }: { ctx: AppContext }): ReactElement {
+export function GameTopChrome({
+  ctx,
+  bridge,
+}: {
+  ctx: AppContext;
+  bridge: GameDomLayerBridge;
+}): ReactElement {
   const state = useClientState(ctx.state);
+  const snapshot = useGameDomLayerSnapshot(bridge);
   const profile = useProfile(ctx.profile);
   const settings = useSettings(ctx.settings);
   const { latencyMs } = useConnectionSnapshot(ctx.connection);
   const [now, setNow] = useState(() => Date.now());
-  const [isMobilePortrait, setIsMobilePortrait] = useState(detectMobilePortrait);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -397,20 +401,7 @@ export function GameTopChrome({ ctx }: { ctx: AppContext }): ReactElement {
     };
   }, []);
 
-  useEffect(() => {
-    const refresh = (): void => {
-      setIsMobilePortrait(detectMobilePortrait());
-    };
-
-    refresh();
-    window.addEventListener("resize", refresh);
-    return () => {
-      window.removeEventListener("resize", refresh);
-    };
-  }, []);
-
-  const headerPills = buildHudPills(state, now, false);
-  const mobilePills = isMobilePortrait ? buildHudPills(state, now, true) : [];
+  const headerPills = buildHudPills(state, now, snapshot.isMobilePortrait);
   const soundOn = settings.soundEnabled;
   const avatarSrc = profile.avatar || ctx.profile.getFallbackAvatar();
   const pingLabel = latencyMs === null ? "Ping --" : `Ping ${Math.round(latencyMs)}ms`;
@@ -499,16 +490,6 @@ export function GameTopChrome({ ctx }: { ctx: AppContext }): ReactElement {
           </div>
         </div>
       </header>
-      <div className="game-mobile-summary rc-panel rc-panel-noise" id="game-mobile-summary">
-        {mobilePills.map((pill, index) => (
-          <span
-            key={`mobile-${index}-${pill.text}`}
-            className={`hud-pill${pill.className ? ` ${pill.className}` : ""}`}
-          >
-            {pill.text}
-          </span>
-        ))}
-      </div>
     </>
   );
 }

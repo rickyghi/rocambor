@@ -22,6 +22,14 @@ interface GameDomLayerHandlers {
 
 type SnapshotListener = (snapshot: GameDomLayerSnapshot) => void;
 
+const DEFAULT_SNAPSHOT: GameDomLayerSnapshot = {
+  spriteMode: false,
+  isMobilePortrait: false,
+  pendingPlayCard: null,
+  trickDisplayOverlay: null,
+  invalidShakeNonce: 0,
+};
+
 function cloneOverlay(
   overlay: TrickDisplayOverlaySnapshot | null
 ): TrickDisplayOverlaySnapshot | null {
@@ -34,16 +42,17 @@ function cloneOverlay(
 }
 
 export class GameDomLayerBridge {
-  private snapshot: GameDomLayerSnapshot = {
-    spriteMode: false,
-    isMobilePortrait: false,
-    pendingPlayCard: null,
-    trickDisplayOverlay: null,
-    invalidShakeNonce: 0,
-  };
+  private snapshot: GameDomLayerSnapshot;
 
   private listeners = new Set<SnapshotListener>();
   private handlers: GameDomLayerHandlers | null = null;
+
+  constructor(initialSnapshot: Partial<GameDomLayerSnapshot> = {}) {
+    this.snapshot = {
+      ...DEFAULT_SNAPSHOT,
+      ...initialSnapshot,
+    };
+  }
 
   getSnapshot(): GameDomLayerSnapshot {
     return {
@@ -103,13 +112,7 @@ export class GameDomLayerBridge {
 
   reset(): void {
     this.handlers = null;
-    this.snapshot = {
-      spriteMode: false,
-      isMobilePortrait: false,
-      pendingPlayCard: null,
-      trickDisplayOverlay: null,
-      invalidShakeNonce: 0,
-    };
+    this.snapshot = { ...DEFAULT_SNAPSHOT };
     this.notify();
   }
 

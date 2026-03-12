@@ -532,13 +532,18 @@ function renderExchangeControls({
   const requireExactOne = min === 1 && maxExchange === 1;
   const canConfirm = requireExactOne ? selected === 1 : selected > 0 && selected <= maxExchange;
   const actionCount = 1 + (min > 0 ? 0 : 1) + (canDefer ? 1 : 0);
-  const hintText = requireExactOne ? "Select exactly 1 card" : `Choose up to ${maxExchange} cards`;
+  const hintText = requireExactOne
+    ? `${selected}/1 selected`
+    : selected > 0
+      ? `${selected}/${maxExchange} selected`
+      : `Choose up to ${maxExchange} cards`;
+  const confirmLabel = selected > 0 ? `Trade ${selected}` : "Trade";
 
   return (
     <AuctionPanel
       icon={<CardsIcon />}
       title="Exchange"
-      status={`${hintText} \u00b7 ${selected}/${maxExchange} selected`}
+      status={hintText}
       kind="exchange"
       compact
       showFooter={false}
@@ -554,7 +559,7 @@ function renderExchangeControls({
           <span className="auction-bid-icon">
             <SwapIcon />
           </span>
-          <span className="auction-bid-name">Trade</span>
+          <span className="auction-bid-name">{confirmLabel}</span>
         </button>
         {min > 0 ? null : (
           <button
@@ -734,8 +739,12 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
   if (!content) return null;
 
   return (
-    <div className="game-controls-shell" data-actionable="true">
-      <div className="game-controls-bar rc-panel rc-panel-noise" aria-hidden="false">
+    <div className="game-controls-shell" data-actionable="true" data-phase={game.phase}>
+      <div
+        className="game-controls-bar rc-panel rc-panel-noise"
+        aria-hidden="false"
+        data-phase={game.phase}
+      >
         {content}
       </div>
     </div>

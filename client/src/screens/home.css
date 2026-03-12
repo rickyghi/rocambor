@@ -485,12 +485,21 @@
   }
 
   .home-body {
-    padding: 0 16px 24px;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(24px + env(safe-area-inset-bottom, 0px));
     justify-content: flex-start;
     gap: 16px;
   }
 
-  .home-hero-mobile { display: none; }
+  .home-hero-mobile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 560px;
+    gap: 8px;
+    padding: 12px 4px 2px;
+  }
 
   .home-hero-mobile::before {
     content: "";

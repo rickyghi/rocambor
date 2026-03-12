@@ -6,6 +6,7 @@ import { GameControlsBar } from "./GameControlsBar";
 import { GameFeedbackOverlays } from "./GameFeedbackOverlays";
 import { GameDomLayerBridge } from "./game-dom-layer-bridge";
 import { GameFeedbackBridge } from "./game-feedback-bridge";
+import { detectGameMobilePortrait } from "./game-viewport";
 import { GameHandDock, GameTrickDomLayers } from "./GameDomLayers";
 import {
   GameHeroPlates,
@@ -16,7 +17,9 @@ import { GameTopChrome } from "./GameTopChrome";
 
 export function GameScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const domLayerBridgeRef = useRef(new GameDomLayerBridge());
+  const domLayerBridgeRef = useRef(
+    new GameDomLayerBridge({ isMobilePortrait: detectGameMobilePortrait() })
+  );
   const feedbackBridgeRef = useRef(new GameFeedbackBridge());
 
   useEffect(() => {
@@ -48,8 +51,8 @@ export function GameScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
         <div className="felt-ellipse"></div>
       </div>
       <div className="game-shell">
-        <GameTopChrome ctx={ctx} />
-        <GameOpponentsStrip ctx={ctx} />
+        <GameTopChrome ctx={ctx} bridge={domLayerBridgeRef.current} />
+        <GameOpponentsStrip ctx={ctx} bridge={domLayerBridgeRef.current} />
         <div className="game-stage rc-table-stage">
           <GameFeedbackOverlays bridge={feedbackBridgeRef.current} />
           <div className="game-stage-mid">

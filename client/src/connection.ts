@@ -157,7 +157,7 @@ export class ConnectionManager {
         break;
 
       case "ROOM_JOINED":
-        this.state.setSeat(msg.seat);
+        this.state.setRoomJoin(msg.code, msg.seat);
         break;
 
       case "ROOM_LEFT":

@@ -38,6 +38,16 @@ export class ClientState {
     this.notify();
   }
 
+  setRoomJoin(code: string, seat: SeatIndex | null): void {
+    const normalizedCode = code.trim().toUpperCase();
+    const roomChanged = this.roomCode !== normalizedCode;
+    const seatChanged = this.mySeat !== seat;
+    if (!roomChanged && !seatChanged) return;
+    this.roomCode = normalizedCode;
+    this.mySeat = seat;
+    this.notify();
+  }
+
   setSeat(seat: SeatIndex | null): void {
     if (this.mySeat === seat) return;
     this.mySeat = seat;

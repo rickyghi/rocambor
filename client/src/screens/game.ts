@@ -18,6 +18,7 @@ import {
 } from "../lib/card-sprites";
 import type { Card, S2CMessage, SeatIndex } from "../protocol";
 import { showToast } from "../ui/toast";
+import { detectGameMobilePortrait } from "../app/screens/game-viewport";
 export class GameScreen {
   private ctx!: AppContext;
   private container!: HTMLElement;
@@ -858,12 +859,9 @@ export class GameScreen {
     const wrap = this.container.querySelector(".game-canvas-wrap") as HTMLElement | null;
     if (!wrap || !this.canvas) return;
 
-    const narrow = window.matchMedia("(max-width: 900px)").matches;
-    const portrait = window.matchMedia("(orientation: portrait)").matches;
-    const mobilePortrait = narrow && portrait;
+    const mobilePortrait = detectGameMobilePortrait();
 
     this.domLayerBridge.setIsMobilePortrait(mobilePortrait);
-    this.rootEl.classList.toggle("mobile-portrait-mode", mobilePortrait);
     this.renderer.setViewportMode(mobilePortrait ? "mobile-portrait" : "desktop");
 
     // Fill viewport — no aspect-ratio letterboxing

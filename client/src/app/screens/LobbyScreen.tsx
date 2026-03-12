@@ -23,16 +23,19 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
   const profile = useProfile(ctx.profile);
   const { connected } = useConnectionSnapshot(ctx.connection);
   const game = state.game;
+  const pendingRoomCode = state.roomCode;
 
   useEffect(() => {
     if (!game) {
-      ctx.router.navigate("home");
+      if (!pendingRoomCode) {
+        ctx.router.navigate("home");
+      }
       return;
     }
     if (game.phase !== "lobby") {
       ctx.router.navigate("game");
     }
-  }, [ctx.router, game]);
+  }, [ctx.router, game, pendingRoomCode]);
 
   useEffect(() => {
     const unsubscribes = [
@@ -48,7 +51,55 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
     };
   }, [ctx.connection]);
 
-  if (!game) return null;
+  if (!game) {
+    return (
+      <div className="screen lobby-screen">
+        <button
+          className="lobby-float-leave"
+          data-action="leave"
+          type="button"
+          aria-label="Leave room"
+          onClick={() => {
+            ctx.connection.send({ type: "LEAVE_ROOM" });
+            ctx.state.reset();
+            ctx.router.navigate("home");
+          }}
+        >
+          <span className="lobby-back-arrow">
+            <Icon markup={ICON_ARROW_LEFT} />
+          </span>
+          <span>Leave</span>
+        </button>
+
+        <div className="lobby-body">
+          <div className="lobby-title-stack">
+            <span className={`lobby-session-pill${connected ? "" : " offline"}`}>
+              <span className="lobby-session-dot" aria-hidden="true" />
+              {connected ? "Session Active" : "Reconnecting"}
+            </span>
+            <h1 className="lobby-room-title">Joining your salon</h1>
+            <p className="lobby-room-subtitle">
+              Room {pendingRoomCode || "..."} is being prepared for the first snapshot.
+            </p>
+          </div>
+
+          <div className="lobby-panel lobby-panel-loading">
+            <div className="lobby-loading-shell" role="status" aria-live="polite">
+              <div className="lobby-loading-orb" aria-hidden="true" />
+              <div className="lobby-loading-copy">
+                <span className="lobby-loading-kicker">Preparing Lobby</span>
+                <strong className="lobby-loading-title">Fetching seats and room state</strong>
+                <p className="lobby-loading-text">
+                  You&apos;ll stay here for a moment while the table snapshot arrives from the
+                  server.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const code = state.roomCode || "...";
   const mode = game.mode || "quadrille";

@@ -1,21 +1,14 @@
 import type { CSSProperties, ReactElement } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { spriteClassForCard } from "../../lib/card-sprites";
 import type { Card, SeatIndex } from "../../protocol";
 import type { AppContext } from "../../router";
 import type { ClientState } from "../../state";
 import { useClientState } from "../hooks";
 import type { GameDomLayerBridge, GameDomLayerSnapshot } from "./game-dom-layer-bridge";
+import { useGameDomLayerSnapshot } from "./useGameDomLayerSnapshot";
 
 type VarStyle = CSSProperties & Record<string, string>;
-
-function useGameDomLayerSnapshot(bridge: GameDomLayerBridge): GameDomLayerSnapshot {
-  const [snapshot, setSnapshot] = useState(() => bridge.getSnapshot());
-
-  useEffect(() => bridge.subscribe(setSnapshot), [bridge]);
-
-  return snapshot;
-}
 
 function detectTouchConfirm(): boolean {
   if (typeof window === "undefined") return false;
@@ -84,27 +77,16 @@ function capSuit(suit: string): string {
   return suit.charAt(0).toUpperCase() + suit.slice(1);
 }
 
-function cardLabel(card: Card): string {
-  const rankNames: Record<number, string> = {
-    1: "As",
-    10: "Sota",
-    11: "Caballo",
-    12: "Rey",
-  };
-  const rank = rankNames[card.r] || String(card.r);
-  return `${rank} de ${capSuit(card.s)}`;
-}
-
 function trickSlotStyle(
   position: "self" | "left" | "across" | "right",
   isMobilePortrait: boolean
 ): VarStyle {
   const map = isMobilePortrait
     ? {
-        left: { x: "-104px", y: "18px", r: "-7deg" },
-        across: { x: "0px", y: "-82px", r: "0deg" },
-        right: { x: "104px", y: "18px", r: "7deg" },
-        self: { x: "0px", y: "104px", r: "0deg" },
+        left: { x: "-112px", y: "24px", r: "-7deg" },
+        across: { x: "0px", y: "-88px", r: "0deg" },
+        right: { x: "112px", y: "24px", r: "7deg" },
+        self: { x: "0px", y: "114px", r: "0deg" },
       }
     : {
         left: { x: "-214px", y: "18px", r: "-10deg" },
@@ -157,18 +139,17 @@ function mobileActionState(
 
   if (state.phase === "play" && state.isMyTurn) {
     if (snapshot.pendingPlayCard) {
-      const card = state.hand.find((item) => item.id === snapshot.pendingPlayCard);
       return {
         hidden: false,
         disabled: false,
-        label: `Play ${card ? cardLabel(card) : "Selected Card"}`,
+        label: "Play Card",
         ready: true,
       };
     }
     return {
       hidden: false,
       disabled: true,
-      label: "Tap a Card to Select",
+      label: "Select a Card",
       ready: false,
     };
   }
@@ -181,14 +162,14 @@ function mobileActionState(
       return {
         hidden: false,
         disabled: requireExactOne ? count !== 1 : count < min || count > max,
-        label: `Exchange ${count} Card${count > 1 ? "s" : ""}`,
+        label: `Trade ${count}`,
         ready: true,
       };
     }
     return {
       hidden: false,
       disabled: min > 0,
-      label: requireExactOne ? "Select 1 Card to Exchange" : "Keep All Cards",
+      label: min > 0 ? "Select Cards" : "Keep All",
       ready: false,
     };
   }
@@ -293,6 +274,9 @@ export function GameHandDock({
 
   return (
     <div className="game-hand-dock" id="game-hand-dock" aria-label="Your hand area" hidden={!showHandDock}>
+      <div className="hand-dock-header" aria-hidden="true">
+        <span className="hand-dock-title">Your Hand</span>
+      </div>
       <div
         key={snapshot.invalidShakeNonce}
         ref={handLayerRef}

@@ -1,5 +1,4 @@
 import type { ReactElement } from "react";
-import { useEffect, useState } from "react";
 import {
   buildBotAvatarUrl,
   buildDiceBearUrl,
@@ -9,14 +8,8 @@ import type { SeatIndex } from "../../protocol";
 import type { AppContext } from "../../router";
 import type { ClientState } from "../../state";
 import { useClientState, useProfile } from "../hooks";
-
-function detectMobilePortrait(): boolean {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia("(max-width: 900px)").matches &&
-    window.matchMedia("(orientation: portrait)").matches
-  );
-}
+import type { GameDomLayerBridge } from "./game-dom-layer-bridge";
+import { useGameDomLayerSnapshot } from "./useGameDomLayerSnapshot";
 
 function capSuit(suit: string): string {
   return suit.charAt(0).toUpperCase() + suit.slice(1);
@@ -267,21 +260,15 @@ function HeroPlate({
   );
 }
 
-export function GameOpponentsStrip({ ctx }: { ctx: AppContext }): ReactElement {
+export function GameOpponentsStrip({
+  ctx,
+  bridge,
+}: {
+  ctx: AppContext;
+  bridge: GameDomLayerBridge;
+}): ReactElement {
   const state = useClientState(ctx.state);
-  const [isMobilePortrait, setIsMobilePortrait] = useState(detectMobilePortrait);
-
-  useEffect(() => {
-    const refresh = (): void => {
-      setIsMobilePortrait(detectMobilePortrait());
-    };
-
-    refresh();
-    window.addEventListener("resize", refresh);
-    return () => {
-      window.removeEventListener("resize", refresh);
-    };
-  }, []);
+  const snapshot = useGameDomLayerSnapshot(bridge);
 
   const game = state.game;
 
@@ -292,7 +279,7 @@ export function GameOpponentsStrip({ ctx }: { ctx: AppContext }): ReactElement {
       role="list"
       aria-label="Opponents"
     >
-      {isMobilePortrait && game && state.mySeat !== null
+      {snapshot.isMobilePortrait && game && state.mySeat !== null
         ? (["left", "across", "right"] as const).map((position) => {
             const seat = state.seatAtPosition(position);
             if (seat === null) return null;
