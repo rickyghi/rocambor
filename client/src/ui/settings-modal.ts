@@ -1,6 +1,7 @@
 import { showModal } from "./modal";
 import type { SettingsManager } from "./settings";
 import { showToast } from "./toast";
+import { createTranslator } from "../i18n";
 import {
   getCardSkinDefinition,
   listCardSkins,
@@ -34,6 +35,7 @@ export function openSettingsModal(
   settings: SettingsManager,
   options: SettingsModalOptions = {}
 ): void {
+  const { t } = createTranslator(settings.get("locale"));
   const skins = listCardSkins();
   let selectedSkinId = settings.get("cardSkin");
   if (!skins.some((skin) => skin.id === selectedSkinId)) {
@@ -44,25 +46,24 @@ export function openSettingsModal(
   content.innerHTML = `
     <div class="settings-modal">
       <div class="settings-hero">
-        <span class="settings-hero-kicker">Table Preferences</span>
+        <span class="settings-hero-kicker">${t("settings.tablePreferences")}</span>
         <p class="settings-hero-copy">
-          Tune the salon for this device. Keep motion calm, audio intentional, and pick the deck
-          that reads best at a glance.
+          ${t("settings.tablePreferencesCopy")}
         </p>
       </div>
 
       <div class="settings-modal-grid">
         <section class="settings-panel">
           <div class="settings-section-head">
-            <span class="settings-section-kicker">Gameplay Feel</span>
-            <h3 class="settings-section-title">How the table behaves</h3>
+            <span class="settings-section-kicker">${t("settings.gameplayFeel")}</span>
+            <h3 class="settings-section-title">${t("settings.behaviorTitle")}</h3>
           </div>
 
           <div class="settings-toggle-list">
             <label class="settings-toggle-card" for="set-sound">
               <span class="settings-toggle-copy">
-                <span class="settings-toggle-title">Enable sound</span>
-                <span class="settings-toggle-caption">Card flicks, trick wins, and table feedback.</span>
+                <span class="settings-toggle-title">${t("settings.enableSound")}</span>
+                <span class="settings-toggle-caption">${t("settings.enableSoundCaption")}</span>
               </span>
               <span class="settings-toggle-control">
                 <input type="checkbox" id="set-sound" class="settings-toggle-input" ${settings.get("soundEnabled") ? "checked" : ""} />
@@ -72,8 +73,8 @@ export function openSettingsModal(
 
             <label class="settings-toggle-card" for="set-reduce-motion">
               <span class="settings-toggle-copy">
-                <span class="settings-toggle-title">Reduce motion</span>
-                <span class="settings-toggle-caption">Softens movement for a steadier reading pace.</span>
+                <span class="settings-toggle-title">${t("settings.reduceMotion")}</span>
+                <span class="settings-toggle-caption">${t("settings.reduceMotionCaption")}</span>
               </span>
               <span class="settings-toggle-control">
                 <input type="checkbox" id="set-reduce-motion" class="settings-toggle-input" ${settings.get("reduceMotion") ? "checked" : ""} />
@@ -83,8 +84,8 @@ export function openSettingsModal(
 
             <label class="settings-toggle-card" for="set-espada-obligatoria">
               <span class="settings-toggle-copy">
-                <span class="settings-toggle-title">Espada obligatoria</span>
-                <span class="settings-toggle-caption">Preserves the traditional forced-espada rule set.</span>
+                <span class="settings-toggle-title">${t("settings.espadaObligatoria")}</span>
+                <span class="settings-toggle-caption">${t("settings.espadaCaption")}</span>
               </span>
               <span class="settings-toggle-control">
                 <input type="checkbox" id="set-espada-obligatoria" class="settings-toggle-input" ${settings.get("espadaObligatoria") ? "checked" : ""} />
@@ -96,13 +97,13 @@ export function openSettingsModal(
 
         <section class="settings-panel settings-panel-skins">
           <div class="settings-section-head">
-            <span class="settings-section-kicker">Cards</span>
-            <h3 class="settings-section-title">Choose your deck skin</h3>
+            <span class="settings-section-kicker">${t("settings.cards")}</span>
+            <h3 class="settings-section-title">${t("settings.chooseDeck")}</h3>
           </div>
 
           <div class="settings-skin-showcase">
             <div class="settings-skin-copy">
-              <span class="settings-skin-label">Selected Deck</span>
+              <span class="settings-skin-label">${t("settings.selectedDeck")}</span>
               <strong class="settings-skin-title" id="settings-skin-title"></strong>
               <p class="settings-skin-description" id="settings-skin-description"></p>
               <div class="settings-skin-meta" id="settings-skin-meta"></div>
@@ -182,15 +183,16 @@ export function openSettingsModal(
   selectSkin(selectedSkinId);
 
   showModal({
-    title: "Settings",
+    title: t("settings.title"),
     size: "lg",
     scroll: true,
     modalClassName: "modal-dark settings-modal-dialog",
+    closeAriaLabel: t("common.closeModal"),
     content,
     actions: [
-      { label: "Cancel", className: "btn-secondary", onClick: () => {} },
+      { label: t("common.cancel"), className: "btn-secondary", onClick: () => {} },
       {
-        label: "Save",
+        label: t("common.save"),
         className: "btn-primary",
         onClick: () => {
           const soundEnabled = (content.querySelector("#set-sound") as HTMLInputElement).checked;
@@ -204,7 +206,7 @@ export function openSettingsModal(
           settings.set("espadaObligatoria", espadaObligatoria);
           settings.set("cardSkin", selectedSkinId);
 
-          showToast("Settings applied", "success", 1200);
+          showToast(t("settings.applied"), "success", 1200);
           options.onApplied?.();
         },
       },

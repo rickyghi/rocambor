@@ -12,6 +12,13 @@ import {
   normalizeProfileName,
   validateProfileName,
 } from "../../lib/profile";
+import {
+  createTranslator,
+  formatMemberSince,
+  formatRelativeTime,
+  modeLabel,
+  type Locale,
+} from "../../i18n";
 import { showModal } from "../../ui/modal";
 
 function isNameSeedAvatar(name: string, avatar: string): boolean {
@@ -33,30 +40,6 @@ function escapeText(input: string): string {
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat().format(value);
-}
-
-function formatMemberSince(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Member since the first salon";
-  return `Member since ${new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    year: "numeric",
-  }).format(date)}`;
-}
-
-function formatRelativeTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Just now";
-  const diffMs = Date.now() - date.getTime();
-  const diffHours = Math.max(0, Math.round(diffMs / (1000 * 60 * 60)));
-  if (diffHours < 1) return "Just now";
-  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
-  const diffDays = Math.round(diffHours / 24);
-  if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  }).format(date);
 }
 
 interface RemoteProfileStats {
@@ -95,22 +78,44 @@ function resolveHonorTier(elo: number): HonorTier {
   return HONOR_LADDER[0];
 }
 
-function buildAchievementModel(stats: RemoteProfileStats): Achievement[] {
+function buildAchievementModel(stats: RemoteProfileStats, locale: Locale): Achievement[] {
+  const { t } = createTranslator(locale);
   return [
-    { key: "grandee", label: "The Grandee", unlocked: stats.elo >= 1320 },
-    { key: "matador", label: "Matador Master", unlocked: stats.wins >= 12 },
+    {
+      key: "grandee",
+      label: locale === "es" ? "El Grande" : "The Grandee",
+      unlocked: stats.elo >= 1320,
+    },
+    {
+      key: "matador",
+      label: locale === "es" ? "Maestro Matador" : "Matador Master",
+      unlocked: stats.wins >= 12,
+    },
     {
       key: "royal",
-      label: "Royal Flush",
+      label: locale === "es" ? "Flor Real" : "Royal Flush",
       unlocked: stats.gamesPlayed >= 8 && stats.winRate >= 0.6,
     },
-    { key: "silent", label: "Silent Strategist", unlocked: stats.gamesPlayed >= 20 },
-    { key: "quadrille", label: "Quadrille King", unlocked: stats.gamesPlayed >= 30 },
-    { key: "brave", label: "Brave Bidder", unlocked: stats.gamesPlayed >= 5 },
+    {
+      key: "silent",
+      label: locale === "es" ? "Estratega Silencioso" : "Silent Strategist",
+      unlocked: stats.gamesPlayed >= 20,
+    },
+    {
+      key: "quadrille",
+      label: locale === "es" ? "Rey del Quadrille" : "Quadrille King",
+      unlocked: stats.gamesPlayed >= 30,
+    },
+    {
+      key: "brave",
+      label: locale === "es" ? "Cantor Valiente" : "Brave Bidder",
+      unlocked: stats.gamesPlayed >= 5,
+    },
   ];
 }
 
-function renderAchievementGrid(achievements: Achievement[]): string {
+function renderAchievementGrid(achievements: Achievement[], locale: Locale): string {
+  const { t } = createTranslator(locale);
   return achievements
     .map(
       (achievement) => `
@@ -129,41 +134,48 @@ function renderAchievementGrid(achievements: Achievement[]): string {
                       : "⚡"
           }</span>
           <span class="profile-achievement-label">${escapeText(achievement.label)}</span>
-          ${achievement.unlocked ? "" : '<span class="profile-achievement-lock">Locked</span>'}
+          ${achievement.unlocked ? "" : `<span class="profile-achievement-lock">${escapeText(t("profile.locked"))}</span>`}
         </div>
       `
     )
     .join("");
 }
 
-function renderRecentMatches(): string {
+function renderRecentMatches(locale: Locale): string {
+  const { t } = createTranslator(locale);
   const history = loadProfileMatchHistory();
   if (!history.length) {
-    return '<div class="profile-recent-empty">Your recent salon matches will appear here.</div>';
+    return `<div class="profile-recent-empty">${escapeText(t("profile.noRecentMatches"))}</div>`;
   }
 
   return history
     .slice(0, 5)
     .map((entry) => {
-      const outcomeLabel = entry.outcome === "win" ? "W" : "L";
+      const outcomeLabel = entry.outcome === "win" ? (locale === "es" ? "V" : "W") : (locale === "es" ? "D" : "L");
       const scoreLabel = `${entry.score >= 0 ? "+" : ""}${entry.score}`;
-      const modeLabel = entry.mode === "tresillo" ? "Tresillo" : "Quadrille";
+      const modeLabelText = modeLabel(entry.mode, locale);
       const roleLabel =
-        entry.role === "ombre" ? "Ombre" : entry.role === "resting" ? "Resting" : "Contra";
+        entry.role === "ombre"
+          ? "Ombre"
+          : entry.role === "resting"
+            ? locale === "es"
+              ? "Descansa"
+              : "Resting"
+            : "Contra";
 
       return `
         <div class="profile-match-row ${entry.outcome}">
           <div class="profile-match-outcome">${outcomeLabel}</div>
           <div class="profile-match-copy">
-            <div class="profile-match-title">${modeLabel}</div>
+            <div class="profile-match-title">${modeLabelText}</div>
             <div class="profile-match-meta">
               <span class="profile-match-role">${roleLabel}</span>
-              <span class="profile-match-time">${formatRelativeTime(entry.recordedAt)}</span>
+              <span class="profile-match-time">${formatRelativeTime(entry.recordedAt, locale)}</span>
             </div>
           </div>
           <div class="profile-match-score">
             <span class="profile-match-value">${scoreLabel}</span>
-            <span class="profile-match-caption">Final score</span>
+            <span class="profile-match-caption">${escapeText(t("profile.finalScore"))}</span>
           </div>
         </div>
       `;
@@ -238,12 +250,15 @@ export interface ProfileModalOptions {
   force?: boolean;
   title?: string;
   onSaved?: () => void;
+  locale?: Locale;
 }
 
 export function openProfileModal(
   profile: ProfileManager,
   options: ProfileModalOptions = {}
 ): void {
+  const locale = options.locale || "en";
+  const { t } = createTranslator(locale);
   const current = profile.get();
   let useNameSeed = isNameSeedAvatar(current.name, current.avatar);
   let selectedAvatar = current.avatar || buildSeedAvatar(current.name);
@@ -257,34 +272,34 @@ export function openProfileModal(
       <section class="profile-hero-card">
         <div class="profile-hero-avatar-shell">
           <div class="profile-hero-avatar-ring">
-            <img class="profile-preview-avatar profile-hero-avatar" alt="Selected avatar" />
+            <img class="profile-preview-avatar profile-hero-avatar" alt="${t("profile.selectedAvatar")}" />
           </div>
           <span class="profile-hero-rank-chip">Hidalgo</span>
         </div>
         <div class="profile-preview-name profile-hero-name"></div>
         <div class="profile-member-since">${escapeText(
-          formatMemberSince(profile.getCreatedAt())
+          formatMemberSince(profile.getCreatedAt(), locale)
         )}</div>
         <div class="profile-stat-grid">
           <div class="profile-stat-card">
-            <span class="profile-stat-label">Win Rate</span>
+            <span class="profile-stat-label">${t("profile.winRate")}</span>
             <strong class="profile-stat-value" data-field="winRate">--</strong>
           </div>
           <div class="profile-stat-card">
-            <span class="profile-stat-label">Games</span>
+            <span class="profile-stat-label">${t("profile.games")}</span>
             <strong class="profile-stat-value" data-field="gamesPlayed">--</strong>
           </div>
           <div class="profile-stat-card">
-            <span class="profile-stat-label">Elo</span>
+            <span class="profile-stat-label">${t("profile.elo")}</span>
             <strong class="profile-stat-value" data-field="elo">--</strong>
           </div>
           <div class="profile-stat-card">
-            <span class="profile-stat-label">Ledger</span>
-            <strong class="profile-stat-value" data-field="standing">Unranked</strong>
+            <span class="profile-stat-label">${t("profile.ledger")}</span>
+            <strong class="profile-stat-value" data-field="standing">${t("profile.unranked")}</strong>
           </div>
         </div>
         <div class="profile-progress-row">
-          <span class="profile-progress-label">Progress to Grandee</span>
+          <span class="profile-progress-label">${escapeText(t("profile.progressTo", { tier: "Grandee" }))}</span>
           <span class="profile-progress-value">--</span>
         </div>
         <div class="profile-progress-bar">
@@ -297,17 +312,17 @@ export function openProfileModal(
           <div class="profile-card-head">
             <span class="profile-card-icon">✦</span>
             <div>
-              <div class="profile-card-title">Salon Standing</div>
-              <div class="profile-card-caption">Current account context</div>
+              <div class="profile-card-title">${t("profile.salonStanding")}</div>
+              <div class="profile-card-caption">${t("profile.accountContext")}</div>
             </div>
           </div>
           <div class="profile-meta-grid">
             <div class="profile-meta-item">
-              <span class="profile-meta-label">Last Match</span>
-              <span class="profile-meta-value" data-field="lastPlayed">Waiting for a first game</span>
+              <span class="profile-meta-label">${t("profile.lastMatch")}</span>
+              <span class="profile-meta-value" data-field="lastPlayed">${t("profile.waitingFirstGame")}</span>
             </div>
             <div class="profile-meta-item">
-              <span class="profile-meta-label">Wins</span>
+              <span class="profile-meta-label">${t("profile.wins")}</span>
               <span class="profile-meta-value" data-field="wins">0</span>
             </div>
           </div>
@@ -317,8 +332,8 @@ export function openProfileModal(
           <div class="profile-card-head">
             <span class="profile-card-icon">⌘</span>
             <div>
-              <div class="profile-card-title">Medal Gallery</div>
-              <div class="profile-card-caption">Aristocratic achievements and milestones</div>
+              <div class="profile-card-title">${t("profile.medalGallery")}</div>
+              <div class="profile-card-caption">${t("profile.medalGalleryCaption")}</div>
             </div>
           </div>
           <div class="profile-achievement-grid"></div>
@@ -328,11 +343,11 @@ export function openProfileModal(
           <div class="profile-card-head">
             <span class="profile-card-icon">↺</span>
             <div>
-              <div class="profile-card-title">Recent Matches</div>
-              <div class="profile-card-caption">Your latest salon results on this browser</div>
+              <div class="profile-card-title">${t("profile.recentMatches")}</div>
+              <div class="profile-card-caption">${t("profile.recentMatchesCaption")}</div>
             </div>
           </div>
-          <div class="profile-recent-list">${renderRecentMatches()}</div>
+          <div class="profile-recent-list">${renderRecentMatches(locale)}</div>
         </section>
       </div>
     </div>
@@ -340,22 +355,22 @@ export function openProfileModal(
     <section class="profile-editor">
       <div class="profile-editor-head">
         <div>
-          <div class="profile-card-title">Edit Profile</div>
-          <div class="profile-card-caption">Update your display name and portrait</div>
+          <div class="profile-card-title">${t("profile.editProfile")}</div>
+          <div class="profile-card-caption">${t("profile.editProfileCaption")}</div>
         </div>
       </div>
       <div class="modal-form-group">
-        <label for="profile-name">Display Name</label>
+        <label for="profile-name">${t("profile.displayName")}</label>
         <input id="profile-name" type="text" maxlength="18" autocomplete="nickname" />
       </div>
       <label class="profile-seed-toggle">
         <input id="profile-name-seed" type="checkbox" ${useNameSeed ? "checked" : ""} />
-        Use my name as avatar seed
+        ${t("profile.useNameSeed")}
       </label>
       <div class="profile-avatar-toolbar">
-        <button type="button" class="btn-secondary profile-randomize">Randomize choices</button>
+        <button type="button" class="btn-secondary profile-randomize">${t("profile.randomize")}</button>
       </div>
-      <div class="profile-avatar-grid" role="listbox" aria-label="Avatar choices"></div>
+      <div class="profile-avatar-grid" role="listbox" aria-label="${t("profile.avatarChoices")}"></div>
       <p class="profile-status" aria-live="polite"></p>
     </section>
   `;
@@ -382,7 +397,7 @@ export function openProfileModal(
   nameInput.value = current.name;
 
   const setPreview = (): void => {
-    const normalized = normalizeProfileName(nameInput.value) || "Player";
+    const normalized = normalizeProfileName(nameInput.value) || (locale === "es" ? "Jugador" : "Player");
     const fallback = fallbackAvatarAt(Math.abs(normalized.charCodeAt(0) || 0) % 12);
     const avatar = useNameSeedInput.checked ? buildSeedAvatar(normalized) : selectedAvatar;
     previewName.textContent = normalized;
@@ -397,7 +412,7 @@ export function openProfileModal(
       btn.type = "button";
       btn.className = "profile-avatar-option";
       btn.setAttribute("role", "option");
-      btn.setAttribute("aria-label", `Avatar ${index + 1}`);
+      btn.setAttribute("aria-label", t("profile.avatarOption", { index: index + 1 }));
       btn.setAttribute("aria-selected", String(selectedAvatar === preset.url));
       if (selectedAvatar === preset.url && !useNameSeedInput.checked) {
         btn.classList.add("selected");
@@ -405,12 +420,16 @@ export function openProfileModal(
 
       const img = document.createElement("img");
       img.src = preset.url;
-      img.alt = `Avatar option ${index + 1}`;
+      img.alt = t("profile.avatarOption", { index: index + 1 });
       img.loading = "lazy";
       img.referrerPolicy = "no-referrer";
       img.onerror = () => {
         img.onerror = null;
-        img.src = preset.fallback || buildInitialsAvatarDataUrl(normalizeProfileName(nameInput.value) || "Player");
+        img.src =
+          preset.fallback ||
+          buildInitialsAvatarDataUrl(
+            normalizeProfileName(nameInput.value) || (locale === "es" ? "Jugador" : "Player")
+          );
       };
 
       btn.appendChild(img);
@@ -426,14 +445,18 @@ export function openProfileModal(
 
   nameInput.addEventListener("input", () => {
     if (useNameSeedInput.checked) {
-      selectedAvatar = buildSeedAvatar(normalizeProfileName(nameInput.value) || "Player");
+      selectedAvatar = buildSeedAvatar(
+        normalizeProfileName(nameInput.value) || (locale === "es" ? "Jugador" : "Player")
+      );
     }
     setPreview();
   });
 
   useNameSeedInput.addEventListener("change", () => {
     if (useNameSeedInput.checked) {
-      selectedAvatar = buildSeedAvatar(normalizeProfileName(nameInput.value) || "Player");
+      selectedAvatar = buildSeedAvatar(
+        normalizeProfileName(nameInput.value) || (locale === "es" ? "Jugador" : "Player")
+      );
     }
     renderAvatarGrid();
     setPreview();
@@ -462,33 +485,40 @@ export function openProfileModal(
     winRateField.textContent = `${Math.round(stats.winRate * 1000) / 10}%`;
     gamesField.textContent = formatNumber(stats.gamesPlayed);
     eloField.textContent = formatNumber(stats.elo);
-    standingField.textContent = stats.standing ? `#${stats.standing}` : "Unranked";
+    standingField.textContent = stats.standing ? `#${stats.standing}` : t("profile.unranked");
     winsField.textContent = formatNumber(stats.wins);
-    lastPlayedField.textContent = stats.lastPlayed ? formatRelativeTime(stats.lastPlayed) : "Waiting for a first game";
+    lastPlayedField.textContent = stats.lastPlayed
+      ? formatRelativeTime(stats.lastPlayed, locale)
+      : t("profile.waitingFirstGame");
     rankChip.textContent = tier.label;
-    progressLabel.textContent = tier.nextLabel ? `Progress to ${tier.nextLabel}` : "Crown tier reached";
+    progressLabel.textContent = tier.nextLabel
+      ? t("profile.progressTo", { tier: tier.nextLabel })
+      : t("profile.crownReached");
     progressValue.textContent = tier.nextElo
       ? `${formatNumber(stats.elo)} / ${formatNumber(tier.nextElo)} Elo`
       : `${formatNumber(stats.elo)} Elo`;
     progressFill.style.width = `${Math.round(progressRatio * 100)}%`;
-    achievementGrid.innerHTML = renderAchievementGrid(buildAchievementModel(stats));
+    achievementGrid.innerHTML = renderAchievementGrid(buildAchievementModel(stats, locale), locale);
   });
 
   showModal({
-    title: options.title || "Profile",
+    title: options.title || t("profile.title"),
     content,
     size: "lg",
     modalClassName: "modal-dark profile-modal-dialog",
     dismissible: !options.force,
     scroll: true,
+    closeAriaLabel: t("common.closeModal"),
     actions: [
-      ...(options.force ? [] : [{ label: "Cancel", className: "btn-secondary", onClick: () => {} }]),
+      ...(options.force
+        ? []
+        : [{ label: t("common.cancel"), className: "btn-secondary", onClick: () => {} }]),
       {
-        label: "Save",
+        label: t("common.save"),
         className: "btn-primary",
         onClick: () => {
           const normalized = normalizeProfileName(nameInput.value);
-          const err = validateProfileName(normalized);
+          const err = validateProfileName(normalized, locale);
           if (err) {
             status.textContent = err;
             status.classList.add("error");
@@ -497,7 +527,7 @@ export function openProfileModal(
           }
 
           const avatar = useNameSeedInput.checked ? buildSeedAvatar(normalized) : selectedAvatar;
-          const saveErr = profile.set({ name: normalized, avatar });
+          const saveErr = profile.set({ name: normalized, avatar }, locale);
           if (saveErr) {
             status.textContent = saveErr;
             status.classList.add("error");

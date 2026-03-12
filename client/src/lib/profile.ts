@@ -1,4 +1,5 @@
 import { avatarFromSeed, fallbackAvatarAt } from "./avatars";
+import type { Locale } from "../i18n";
 import {
   PLAYER_AVATAR_LEGACY_KEY,
   PLAYER_AVATAR_KEY,
@@ -24,11 +25,19 @@ export function normalizeProfileName(input: string): string {
   return input.normalize("NFC").trim().replace(/\s+/g, " ").slice(0, 18);
 }
 
-export function validateProfileName(input: string): string | null {
+export function validateProfileName(input: string, locale: Locale = "en"): string | null {
   const value = normalizeProfileName(input);
-  if (!value) return "Name is required.";
-  if (value.length < 1 || value.length > 18) return "Name must be 1-18 characters.";
-  if (!NAME_PATTERN.test(value)) return "Use letters (including accents), numbers, and spaces.";
+  if (!value) return locale === "es" ? "El nombre es obligatorio." : "Name is required.";
+  if (value.length < 1 || value.length > 18) {
+    return locale === "es"
+      ? "El nombre debe tener entre 1 y 18 caracteres."
+      : "Name must be 1-18 characters.";
+  }
+  if (!NAME_PATTERN.test(value)) {
+    return locale === "es"
+      ? "Usa letras (incluyendo acentos), números y espacios."
+      : "Use letters (including accents), numbers, and spaces.";
+  }
   return null;
 }
 
@@ -86,8 +95,8 @@ export class ProfileManager {
     return () => this.listeners.delete(fn);
   }
 
-  setName(input: string): string | null {
-    const err = validateProfileName(input);
+  setName(input: string, locale: Locale = "en"): string | null {
+    const err = validateProfileName(input, locale);
     if (err) return err;
     const name = normalizeProfileName(input);
     this.profile.name = name;
@@ -103,8 +112,8 @@ export class ProfileManager {
     this.notify();
   }
 
-  set(profile: PlayerProfile): string | null {
-    const err = this.setName(profile.name);
+  set(profile: PlayerProfile, locale: Locale = "en"): string | null {
+    const err = this.setName(profile.name, locale);
     if (err) return err;
     this.setAvatar(profile.avatar);
     return null;

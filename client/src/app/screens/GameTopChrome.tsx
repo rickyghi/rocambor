@@ -1,5 +1,13 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
+import {
+  bidDisplayLabel,
+  contractDisplayLabel as localizedContractDisplayLabel,
+  createTranslator,
+  phaseDisplayLabel,
+  positionLabel,
+  suitLabel,
+} from "../../i18n";
 import { openProfileModal } from "../../components/profile/ProfileModal";
 import type { SeatIndex } from "../../protocol";
 import type { AppContext } from "../../router";
@@ -22,10 +30,6 @@ interface HudPill {
 
 const GAME_LOGO_SRC = "/assets/rocambor/logo-light.png";
 
-function capSuit(suit: string): string {
-  return suit.charAt(0).toUpperCase() + suit.slice(1);
-}
-
 function suitIcon(suit: string): string {
   const icons: Record<string, string> = {
     oros: "♦",
@@ -34,63 +38,6 @@ function suitIcon(suit: string): string {
     bastos: "♣",
   };
   return icons[suit] || "";
-}
-
-function bidLabel(value: string): string {
-  const labels: Record<string, string> = {
-    pass: "Pass",
-    entrada: "Entrada",
-    oros: "Entrada Oros",
-    volteo: "Volteo",
-    solo: "Solo",
-    solo_oros: "Solo Oros",
-    contrabola: "Contrabola",
-    bola: "Bola",
-  };
-  return labels[value] || value;
-}
-
-function contractDisplayLabel(contract: string | null, trump: string | null): string {
-  if (!contract) return "";
-  const labels: Record<string, string> = {
-    entrada: "Entrada",
-    volteo: "Volteo",
-    solo: "Solo",
-    oros: "Oros",
-    solo_oros: "Solo Oros",
-    contrabola: "Contrabola",
-    bola: "Bola",
-    penetro: "Penetro",
-  };
-  const base = labels[contract] ?? contract;
-  if (trump && !["oros", "solo_oros", "contrabola", "bola"].includes(contract)) {
-    return `${base} ${capSuit(trump)}`;
-  }
-  return base;
-}
-
-function phaseLabel(phase: string): string {
-  const labels: Record<string, string> = {
-    dealing: "Dealing",
-    auction: "Auction",
-    penetro_choice: "Penetro Choice",
-    trump_choice: "Choose Trump",
-    exchange: "Exchange",
-    play: "Play Trick",
-    post_hand: "Hand Complete",
-    match_end: "Match End",
-  };
-  return labels[phase] || phase;
-}
-
-function capLabel(pos: "left" | "across" | "right" | "self"): string {
-  const map: Record<typeof pos, string> = {
-    self: "You",
-    left: "Left",
-    across: "Across",
-    right: "Right",
-  };
-  return map[pos];
 }
 
 function activeSeatsForRole(state: ClientState): SeatIndex[] {
@@ -109,65 +56,77 @@ function nextActiveSeat(state: ClientState, seat: SeatIndex): SeatIndex {
   return active[(idx + 1) % active.length];
 }
 
-function roleLabelForSeat(state: ClientState, seat: SeatIndex): string {
+function roleLabelForSeat(state: ClientState, seat: SeatIndex, locale: "en" | "es"): string {
   const game = state.game;
-  if (!game) return `Seat ${seat}`;
-  if (game.resting === seat) return "RESTING";
+  if (!game) return locale === "es" ? `Asiento ${seat}` : `Seat ${seat}`;
+  if (game.resting === seat) return createTranslator(locale).t("game.resting").toUpperCase();
   if (game.ombre === null) {
-    return capLabel(state.relativePosition(seat)).toUpperCase();
+    return positionLabel(state.relativePosition(seat), locale).toUpperCase();
   }
-  if (seat === game.ombre) return "JUGADOR";
+  if (seat === game.ombre) return locale === "es" ? "JUGADOR" : "PLAYER";
   const primer = nextActiveSeat(state, game.ombre);
   const segundo = nextActiveSeat(state, primer);
-  if (seat === primer) return "PRIMER CONTR.";
-  if (seat === segundo) return "SEGUNDO CONTR.";
-  return capLabel(state.relativePosition(seat)).toUpperCase();
+  if (seat === primer) return locale === "es" ? "PRIMER CONTR." : "FIRST OPP.";
+  if (seat === segundo) return locale === "es" ? "SEGUNDO CONTR." : "SECOND OPP.";
+  return positionLabel(state.relativePosition(seat), locale).toUpperCase();
 }
 
-function seatLabelForAnnouncements(state: ClientState, seat: number): string {
+function seatLabelForAnnouncements(state: ClientState, seat: number, locale: "en" | "es"): string {
   const game = state.game;
-  if (!game) return `Seat ${seat}`;
-  if (state.mySeat === seat) return "You";
-  const role = roleLabelForSeat(state, seat as SeatIndex);
+  if (!game) return locale === "es" ? `Asiento ${seat}` : `Seat ${seat}`;
+  if (state.mySeat === seat) return locale === "es" ? "Tú" : "You";
   const handle = game.players[seat]?.handle;
+  const playerLabel = locale === "es" ? "Jugador" : "Player";
+  const firstOppLabel = locale === "es" ? "Primer contra" : "First opponent";
+  const secondOppLabel = locale === "es" ? "Segundo contra" : "Second opponent";
+  if (seat === game.ombre) return handle ? `${playerLabel} (${handle})` : playerLabel;
+  if (game.ombre !== null) {
+    const primer = nextActiveSeat(state, game.ombre);
+    const segundo = nextActiveSeat(state, primer);
+    if (seat === primer) return handle ? `${firstOppLabel} (${handle})` : firstOppLabel;
+    if (seat === segundo) return handle ? `${secondOppLabel} (${handle})` : secondOppLabel;
+  }
   if (handle) {
-    if (role.startsWith("PRIMER")) return `Primer Contrincante (${handle})`;
-    if (role.startsWith("SEGUNDO")) return `Segundo Contrincante (${handle})`;
-    if (role === "JUGADOR") return `Jugador (${handle})`;
     return handle;
   }
-  if (role === "JUGADOR") return "Jugador";
-  if (role.startsWith("PRIMER")) return "Primer Contrincante";
-  if (role.startsWith("SEGUNDO")) return "Segundo Contrincante";
-  return `Seat ${seat}`;
+  return locale === "es" ? `Asiento ${seat}` : `Seat ${seat}`;
 }
 
-function seatLabelShort(state: ClientState, seat: number): string {
-  if (state.mySeat === seat) return "You";
+function seatLabelShort(state: ClientState, seat: number, locale: "en" | "es"): string {
+  if (state.mySeat === seat) return locale === "es" ? "Tú" : "You";
   const handle = state.game?.players[seat]?.handle;
   return handle || `P${seat}`;
 }
 
-function turnActorLabelForHud(state: ClientState, turnSeat: number | null): string {
-  if (turnSeat === null) return "Waiting";
-  return seatLabelForAnnouncements(state, turnSeat);
+function turnActorLabelForHud(
+  state: ClientState,
+  turnSeat: number | null,
+  locale: "en" | "es"
+): string {
+  if (turnSeat === null) return createTranslator(locale).t("game.waiting");
+  return seatLabelForAnnouncements(state, turnSeat, locale);
 }
 
-function profileMetaLabel(roomCode: string | null): string {
-  return roomCode ? `Room ${roomCode}` : "Table Player";
+function profileMetaLabel(roomCode: string | null, locale: "en" | "es"): string {
+  const { t } = createTranslator(locale);
+  return roomCode ? t("game.profileMeta", { code: roomCode }) : t("game.profileMetaFallback");
 }
 
 function buildHudPills(
   state: ClientState,
   now: number,
-  compact: boolean
+  compact: boolean,
+  locale: "en" | "es"
 ): HudPill[] {
+  const { t } = createTranslator(locale);
   const game = state.game;
-  if (!game) return [{ text: "Waiting..." }];
+  if (!game) return [{ text: t("game.waiting") }];
 
   const pills: HudPill[] = [];
   const isMyTurn = game.turn === state.mySeat;
-  const turnName = turnActorLabelForHud(state, game.turn);
+  const compactTurnText =
+    game.turn === null ? t("game.waiting") : isMyTurn ? t("common.you") : seatLabelShort(state, game.turn, locale);
+  const turnName = turnActorLabelForHud(state, game.turn, locale);
   const secs =
     typeof game.turnDeadline === "number"
       ? Math.max(0, Math.ceil((game.turnDeadline - now) / 1000))
@@ -176,23 +135,41 @@ function buildHudPills(
 
   switch (game.phase) {
     case "auction": {
-      pills.push({
-        text: compact ? `R: ${game.handNo}/${game.gameTarget}` : `Round ${game.handNo}/${game.gameTarget}`,
-      });
-      pills.push({ text: compact ? "Auction" : "Phase: Auction" });
-      pills.push({ text: `Target: ${game.gameTarget}` });
-      if (!compact) {
-        pills.push({
-          text: game.trump
-            ? `Trump: ${suitIcon(game.trump)} ${capSuit(game.trump)}`
-            : "Trump: Undecided",
-          className: game.trump ? "trump" : undefined,
-        });
+      if (compact) {
+        pills.push({ text: t("game.auction") });
+        if (game.auction.currentBid !== "pass" && game.auction.currentBidder !== null) {
+          pills.push({
+            text: bidDisplayLabel(game.auction.currentBid, locale),
+            className: "hud-pill-contract",
+          });
+        } else {
+          pills.push({
+            text: t("game.roundShort", { hand: game.handNo, target: game.gameTarget }),
+          });
+        }
+        if (game.turn !== null) {
+          pills.push({
+            text: compactTurnText,
+            className: isMyTurn ? "hud-pill-active" : undefined,
+          });
+        }
+        break;
       }
-      if (!compact && game.turn !== null) {
-        const shortTurn = compact ? seatLabelShort(state, game.turn) : turnName;
+
+      pills.push({
+        text: t("game.round", { hand: game.handNo, target: game.gameTarget }),
+      });
+      pills.push({ text: t("game.phaseAuction") });
+      pills.push({ text: t("game.target", { target: game.gameTarget }) });
+      pills.push({
+        text: game.trump
+          ? t("game.trump", { suit: `${suitIcon(game.trump)} ${suitLabel(game.trump, locale)}` })
+          : t("game.trumpUndecided"),
+        className: game.trump ? "trump" : undefined,
+      });
+      if (game.turn !== null) {
         pills.push({
-          text: compact ? `${shortTurn}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
+          text: t("game.turn", { name: turnName, suffix: turnSuffix }),
           className: isMyTurn ? "hud-pill-active" : undefined,
         });
       }
@@ -203,27 +180,41 @@ function buildHudPills(
       const totalTricksWon = Object.values(game.tricks).reduce((sum, value) => sum + value, 0);
       const currentTrick = totalTricksWon + 1;
       pills.push({
-        text: compact ? `Trk ${currentTrick}/9` : `Trick ${currentTrick}/9`,
+        text: compact
+          ? locale === "es"
+            ? `Baza ${currentTrick}/9`
+            : `Trk ${currentTrick}/9`
+          : `${locale === "es" ? "Baza" : "Trick"} ${currentTrick}/9`,
       });
 
       if (game.trump) {
         pills.push({
           text: compact
-            ? `Trump: ${suitIcon(game.trump)} ${capSuit(game.trump)}`
-            : `Trump: ${suitIcon(game.trump)} ${capSuit(game.trump)}`,
+            ? `${suitIcon(game.trump)} ${suitLabel(game.trump, locale)}`
+            : t("game.trump", { suit: `${suitIcon(game.trump)} ${suitLabel(game.trump, locale)}` }),
           className: "trump",
         });
       }
 
       if (compact) {
-        pills.push({ text: "Play Trick" });
+        if (game.turn !== null) {
+          pills.push({
+            text: compactTurnText,
+            className: isMyTurn ? "hud-pill-active" : undefined,
+          });
+        } else if (game.contract) {
+          pills.push({
+            text: localizedContractDisplayLabel(game.contract, game.trump, locale),
+            className: "hud-pill-contract",
+          });
+        }
       } else if (game.contract) {
-        const contractLabel = contractDisplayLabel(game.contract, game.trump);
+        const contractLabel = localizedContractDisplayLabel(game.contract, game.trump, locale);
         const ombreName =
           game.ombre !== null
             ? compact
-              ? seatLabelShort(state, game.ombre)
-              : seatLabelForAnnouncements(state, game.ombre)
+              ? seatLabelShort(state, game.ombre, locale)
+              : seatLabelForAnnouncements(state, game.ombre, locale)
             : "";
         pills.push({
           text: ombreName ? `${ombreName}: ${contractLabel}` : contractLabel,
@@ -232,9 +223,8 @@ function buildHudPills(
       }
 
       if (!compact && game.turn !== null) {
-        const shortTurn = compact ? seatLabelShort(state, game.turn) : turnName;
         pills.push({
-          text: compact ? `${shortTurn}${turnSuffix}` : `Turn: ${turnName}${turnSuffix}`,
+          text: t("game.turn", { name: turnName, suffix: turnSuffix }),
           className: isMyTurn ? "hud-pill-active" : undefined,
         });
       }
@@ -242,10 +232,15 @@ function buildHudPills(
     }
 
     case "trump_choice": {
-      pills.push({ text: compact ? "Choose Trump" : "Phase: Choose Trump" });
-      if (!compact && game.turn !== null) {
+      pills.push({ text: compact ? t("game.chooseTrump") : t("game.phaseChooseTrump") });
+      if (compact && game.turn !== null) {
         pills.push({
-          text: `${turnName} choosing...`,
+          text: compactTurnText,
+          className: isMyTurn ? "hud-pill-active" : undefined,
+        });
+      } else if (!compact && game.turn !== null) {
+        pills.push({
+          text: t("game.deciding", { name: turnName }),
           className: isMyTurn ? "hud-pill-active" : undefined,
         });
       }
@@ -253,26 +248,34 @@ function buildHudPills(
     }
 
     case "exchange": {
-      pills.push({ text: compact ? "Exchange" : "Phase: Exchange" });
-      if (!compact && game.exchange.current !== null) {
+      pills.push({ text: compact ? t("game.exchange") : t("game.phaseExchange") });
+      if (compact && game.exchange.current !== null) {
+        pills.push({
+          text:
+            game.exchange.current === state.mySeat
+              ? t("common.you")
+              : seatLabelShort(state, game.exchange.current, locale),
+          className: game.exchange.current === state.mySeat ? "hud-pill-active" : undefined,
+        });
+      } else if (!compact && game.exchange.current !== null) {
         const exchName =
           game.exchange.current === state.mySeat
-            ? "You"
+            ? t("common.you")
             : compact
-              ? seatLabelShort(state, game.exchange.current)
-              : seatLabelForAnnouncements(state, game.exchange.current);
+              ? seatLabelShort(state, game.exchange.current, locale)
+              : seatLabelForAnnouncements(state, game.exchange.current, locale);
         pills.push({
-          text: compact ? `${exchName} exchanging` : `Exchanging: ${exchName}`,
+          text: compact ? t("game.exchanging", { name: exchName }) : t("game.exchanging", { name: exchName }),
         });
       }
       pills.push({
         text: compact
-          ? `Talon: ${game.exchange.talonSize}`
-          : `Talon: ${game.exchange.talonSize} remaining`,
+          ? t("game.talonShort", { count: game.exchange.talonSize })
+          : t("game.talonRemaining", { count: game.exchange.talonSize }),
       });
-      if (game.contract) {
+      if (!compact && game.contract) {
         pills.push({
-          text: contractDisplayLabel(game.contract, game.trump),
+          text: localizedContractDisplayLabel(game.contract, game.trump, locale),
           className: "hud-pill-contract",
         });
       }
@@ -280,10 +283,15 @@ function buildHudPills(
     }
 
     case "penetro_choice": {
-      pills.push({ text: compact ? "Penetro" : "Phase: Penetro Choice" });
-      if (!compact && game.turn !== null) {
+      pills.push({ text: compact ? t("game.penetro") : t("game.phasePenetro") });
+      if (compact && game.turn !== null) {
         pills.push({
-          text: `${turnName} deciding...`,
+          text: compactTurnText,
+          className: isMyTurn ? "hud-pill-active" : undefined,
+        });
+      } else if (!compact && game.turn !== null) {
+        pills.push({
+          text: t("game.deciding", { name: turnName }),
           className: isMyTurn ? "hud-pill-active" : undefined,
         });
       }
@@ -291,27 +299,39 @@ function buildHudPills(
     }
 
     case "dealing": {
-      pills.push({ text: compact ? `R: ${game.handNo}` : `Round ${game.handNo}/${game.gameTarget}` });
-      pills.push({ text: "Dealing..." });
+      pills.push({
+        text: compact
+          ? t("game.roundShortNoTarget", { hand: game.handNo })
+          : t("game.round", { hand: game.handNo, target: game.gameTarget }),
+      });
+      pills.push({ text: t("game.dealing") });
       break;
     }
 
     case "post_hand":
     case "scoring": {
-      pills.push({ text: compact ? `R: ${game.handNo}` : `Round ${game.handNo}/${game.gameTarget}` });
-      pills.push({ text: "Hand Complete" });
-      pills.push({ text: `Target: ${game.gameTarget}` });
+      pills.push({
+        text: compact
+          ? t("game.roundShortNoTarget", { hand: game.handNo })
+          : t("game.round", { hand: game.handNo, target: game.gameTarget }),
+      });
+      pills.push({ text: t("game.handComplete") });
+      pills.push({ text: t("game.target", { target: game.gameTarget }) });
       break;
     }
 
     case "match_end": {
-      pills.push({ text: "Match Complete" });
+      pills.push({ text: t("game.matchComplete") });
       break;
     }
 
     default: {
-      pills.push({ text: compact ? `R: ${game.handNo}` : `Round ${game.handNo}/${game.gameTarget}` });
-      pills.push({ text: phaseLabel(game.phase) });
+      pills.push({
+        text: compact
+          ? t("game.roundShortNoTarget", { hand: game.handNo })
+          : t("game.round", { hand: game.handNo, target: game.gameTarget }),
+      });
+      pills.push({ text: phaseDisplayLabel(game.phase, locale) });
       break;
     }
   }
@@ -335,6 +355,26 @@ function SoundOnIcon(): ReactElement {
       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
       <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
       <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+    </svg>
+  );
+}
+
+function ExitIcon(): ReactElement {
+  return (
+    <svg
+      className="header-icon"
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   );
 }
@@ -389,6 +429,7 @@ export function GameTopChrome({
   const snapshot = useGameDomLayerSnapshot(bridge);
   const profile = useProfile(ctx.profile);
   const settings = useSettings(ctx.settings);
+  const { t } = createTranslator(settings.locale);
   const { latencyMs } = useConnectionSnapshot(ctx.connection);
   const [now, setNow] = useState(() => Date.now());
 
@@ -401,11 +442,12 @@ export function GameTopChrome({
     };
   }, []);
 
-  const headerPills = buildHudPills(state, now, snapshot.isMobilePortrait);
+  const headerPills = buildHudPills(state, now, snapshot.isMobilePortrait, settings.locale);
   const soundOn = settings.soundEnabled;
   const avatarSrc = profile.avatar || ctx.profile.getFallbackAvatar();
-  const pingLabel = latencyMs === null ? "Ping --" : `Ping ${Math.round(latencyMs)}ms`;
-  const profileMeta = profileMetaLabel(state.roomCode);
+  const pingValue = latencyMs === null ? "--" : `${Math.round(latencyMs)}ms`;
+  const pingLabel = t("game.ping", { value: pingValue });
+  const profileMeta = profileMetaLabel(state.roomCode, settings.locale);
 
   return (
     <>
@@ -414,12 +456,13 @@ export function GameTopChrome({
           <button
             className="btn-ghost game-leave-btn"
             type="button"
-            aria-label="Back to home"
+            aria-label={t("game.backHomeAria")}
             onClick={() => {
               ctx.connection.send({ type: "LEAVE_ROOM" });
             }}
           >
-            ← Back
+            <ExitIcon />
+            <span className="game-leave-btn-label">{t("game.backHome")}</span>
           </button>
           <div className="game-header-brand" aria-hidden="true">
             <img className="game-header-logo-mark" src={GAME_LOGO_SRC} alt="" />
@@ -429,7 +472,7 @@ export function GameTopChrome({
           <button
             className="btn-ghost game-settings-btn"
             type="button"
-            aria-label="Settings"
+            aria-label={t("game.settingsAria")}
             onClick={() => {
               openSettingsModal(ctx.settings);
             }}
@@ -439,7 +482,7 @@ export function GameTopChrome({
           <button
             className="btn-ghost game-sound-btn"
             type="button"
-            aria-label="Toggle sound"
+            aria-label={t("game.soundAria")}
             aria-pressed={soundOn}
             onClick={() => {
               ctx.settings.set(
@@ -457,7 +500,7 @@ export function GameTopChrome({
             className="btn-secondary game-profile-btn"
             type="button"
             onClick={() => {
-              openProfileModal(ctx.profile);
+              openProfileModal(ctx.profile, { locale: settings.locale });
             }}
           >
             <img

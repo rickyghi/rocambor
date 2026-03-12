@@ -1,8 +1,9 @@
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import { bidDisplayLabel, createTranslator, suitLabel, type Locale } from "../../i18n";
 import type { Bid, Suit } from "../../protocol";
 import type { AppContext } from "../../router";
-import { useClientState } from "../hooks";
+import { useClientState, useSettings } from "../hooks";
 
 const AUCTION_QUOTE = "\u201CFortune favors the bold\u201D";
 
@@ -325,49 +326,39 @@ function useActionLock(seq: number | undefined): [boolean, (value: boolean) => v
   return [locked, setLock];
 }
 
-function bidLabel(value: Bid): string {
-  const labels: Record<Bid, string> = {
-    pass: "Pass",
-    entrada: "Entrada",
-    oros: "Entrada Oros",
-    volteo: "Volteo",
-    solo: "Solo",
-    solo_oros: "Solo Oros",
-    bola: "Bola",
-    contrabola: "Contrabola",
-  };
-  return labels[value] || value;
-}
-
 function renderAuctionControls(
+  locale: Locale,
   currentBid: Bid,
   showContrabola: boolean,
   actionLocked: boolean,
   onBid: (bid: Bid) => void
 ): ReactElement {
+  const { t } = createTranslator(locale);
   const bidRank = (bid: Bid): number =>
     ({ entrada: 0, oros: 1, volteo: 2, solo: 3, solo_oros: 4 } as Partial<Record<Bid, number>>)[
       bid
     ] ?? -1;
   const opening = currentBid === "pass";
   const rankedBids: BidChoice[] = [
-    { value: "entrada", label: "Entrada", icon: <StarIcon />, desc: "Open the call" },
-    { value: "oros", label: "Oros", icon: <CoinIcon />, desc: "Call Oros" },
-    { value: "volteo", label: "Volteo", icon: <BoltIcon />, desc: "Flip the talon" },
-    { value: "solo", label: "Solo", icon: <SoloIcon />, desc: "Play alone" },
-    { value: "solo_oros", label: "Solo Oros", icon: <SoloIcon />, desc: "Alone in Oros" },
+    { value: "entrada", label: "Entrada", icon: <StarIcon />, desc: t("game.auction.openCall") },
+    { value: "oros", label: "Oros", icon: <CoinIcon />, desc: t("game.auction.callOros") },
+    { value: "volteo", label: "Volteo", icon: <BoltIcon />, desc: t("game.auction.flipTalon") },
+    { value: "solo", label: "Solo", icon: <SoloIcon />, desc: t("game.auction.playAlone") },
+    { value: "solo_oros", label: "Solo Oros", icon: <SoloIcon />, desc: t("game.auction.aloneOros") },
   ];
   const legal = opening
     ? rankedBids.filter((bid) => ["entrada", "volteo", "solo"].includes(bid.value))
     : rankedBids.filter((bid) => bidRank(bid.value) > bidRank(currentBid));
   const actionCount = legal.length + (showContrabola ? 1 : 0) + 1;
   const statusText =
-    currentBid !== "pass" ? `Beat ${bidLabel(currentBid)} or pass` : "Choose the opening call";
+    currentBid !== "pass"
+      ? t("game.auctionPanelBeatOrPass", { bid: bidDisplayLabel(currentBid, locale) })
+      : t("game.auctionPanelChooseOpening");
 
   return (
     <AuctionPanel
       icon={<GavelIcon />}
-      title="The Auction"
+      title={t("game.auctionPanelTitle")}
       status={statusText}
       kind="auction"
       showFooter={false}
@@ -399,7 +390,7 @@ function renderAuctionControls(
               <DiceIcon />
             </span>
             <span className="auction-bid-name">Contrabola</span>
-            <span className="auction-bid-desc">All-pass special</span>
+            <span className="auction-bid-desc">{t("game.auction.allPassSpecial")}</span>
           </button>
         ) : null}
         <button
@@ -408,27 +399,29 @@ function renderAuctionControls(
           type="button"
           disabled={actionLocked}
           onClick={() => onBid("pass")}
-        >
-          <span className="auction-bid-icon">
-            <CrossIcon />
-          </span>
-          <span className="auction-bid-name">Pass</span>
-          <span className="auction-bid-desc">Yield the call</span>
-        </button>
+          >
+            <span className="auction-bid-icon">
+              <CrossIcon />
+            </span>
+            <span className="auction-bid-name">{bidDisplayLabel("pass", locale)}</span>
+            <span className="auction-bid-desc">{t("game.auction.yieldCall")}</span>
+          </button>
       </div>
     </AuctionPanel>
   );
 }
 
 function renderPenetroControls(
+  locale: Locale,
   actionLocked: boolean,
   onDecision: (accept: boolean) => void
 ): ReactElement {
+  const { t } = createTranslator(locale);
   return (
     <AuctionPanel
       icon={<GavelIcon />}
-      title="Penetro"
-      status="No winning call. Let the resting seat join?"
+      title={t("game.penetro")}
+      status={t("game.penetroPrompt")}
       kind="penetro"
       showFooter={false}
     >
@@ -443,8 +436,8 @@ function renderPenetroControls(
           <span className="auction-bid-icon">
             <CrossIcon />
           </span>
-          <span className="auction-bid-name">Decline</span>
-          <span className="auction-bid-desc">Redeal hand</span>
+          <span className="auction-bid-name">{t("game.penetro.decline")}</span>
+          <span className="auction-bid-desc">{t("game.penetro.redeal")}</span>
         </button>
         <button
           className="auction-bid bid-btn penetro-btn"
@@ -456,8 +449,8 @@ function renderPenetroControls(
           <span className="auction-bid-icon">
             <SwordIcon size={16} className="" />
           </span>
-          <span className="auction-bid-name">Play Penetro</span>
-          <span className="auction-bid-desc">Resting player enters</span>
+          <span className="auction-bid-name">{t("game.penetro.play")}</span>
+          <span className="auction-bid-desc">{t("game.penetro.enter")}</span>
         </button>
       </div>
     </AuctionPanel>
@@ -465,23 +458,25 @@ function renderPenetroControls(
 }
 
 function renderTrumpControls(
+  locale: Locale,
   contract: string | null,
   actionLocked: boolean,
   onChooseTrump: (suit: Suit) => void
 ): ReactElement {
+  const { t } = createTranslator(locale);
   const orosOnly = contract === "oros" || contract === "solo_oros";
   const suits: Array<{ value: Suit; label: string; symbol: string; color: string }> = [
-    { value: "oros", label: "Oros", symbol: "\u2666", color: "#C8A651" },
-    { value: "copas", label: "Copas", symbol: "\u2665", color: "#B02E2E" },
-    { value: "espadas", label: "Espadas", symbol: "\u2660", color: "#0D0D0D" },
-    { value: "bastos", label: "Bastos", symbol: "\u2663", color: "#2A4D41" },
+    { value: "oros", label: suitLabel("oros", locale), symbol: "\u2666", color: "#C8A651" },
+    { value: "copas", label: suitLabel("copas", locale), symbol: "\u2665", color: "#B02E2E" },
+    { value: "espadas", label: suitLabel("espadas", locale), symbol: "\u2660", color: "#0D0D0D" },
+    { value: "bastos", label: suitLabel("bastos", locale), symbol: "\u2663", color: "#2A4D41" },
   ];
 
   return (
     <AuctionPanel
       icon={<SwordIcon />}
-      title="Choose Trump"
-      status="Name the suit for this hand."
+      title={t("game.chooseTrump")}
+      status={t("game.trumpPrompt")}
       kind="trump"
       showFooter={false}
     >
@@ -508,6 +503,7 @@ function renderTrumpControls(
 }
 
 function renderExchangeControls({
+  locale,
   selected,
   min,
   max,
@@ -518,6 +514,7 @@ function renderExchangeControls({
   onSkip,
   onDefer,
 }: {
+  locale: Locale;
   selected: number;
   min: number;
   max: number;
@@ -528,21 +525,23 @@ function renderExchangeControls({
   onSkip: () => void;
   onDefer: () => void;
 }): ReactElement {
+  const { t } = createTranslator(locale);
   const maxExchange = Math.min(max, handSize);
   const requireExactOne = min === 1 && maxExchange === 1;
   const canConfirm = requireExactOne ? selected === 1 : selected > 0 && selected <= maxExchange;
   const actionCount = 1 + (min > 0 ? 0 : 1) + (canDefer ? 1 : 0);
   const hintText = requireExactOne
-    ? `${selected}/1 selected`
+    ? t("game.exchange.selectedSingle", { selected })
     : selected > 0
-      ? `${selected}/${maxExchange} selected`
-      : `Choose up to ${maxExchange} cards`;
-  const confirmLabel = selected > 0 ? `Trade ${selected}` : "Trade";
+      ? t("game.exchange.selectedMany", { selected, max: maxExchange })
+      : t("game.exchange.chooseUpTo", { count: maxExchange });
+  const confirmLabel =
+    selected > 0 ? `${t("game.exchange.trade")} ${selected}` : t("game.exchange.trade");
 
   return (
     <AuctionPanel
       icon={<CardsIcon />}
-      title="Exchange"
+      title={t("game.exchange")}
       status={hintText}
       kind="exchange"
       compact
@@ -572,7 +571,7 @@ function renderExchangeControls({
             <span className="auction-bid-icon">
               <CrossIcon />
             </span>
-            <span className="auction-bid-name">Keep All</span>
+            <span className="auction-bid-name">{t("game.keepAll")}</span>
           </button>
         )}
         {canDefer ? (
@@ -586,7 +585,7 @@ function renderExchangeControls({
           <span className="auction-bid-icon">
             <ClockIcon />
           </span>
-          <span className="auction-bid-name">Defer</span>
+          <span className="auction-bid-name">{t("game.exchange.defer")}</span>
         </button>
         ) : null}
       </div>
@@ -594,11 +593,16 @@ function renderExchangeControls({
   );
 }
 
-function renderPlayControls(actionLocked: boolean, onCloseHand: () => void): ReactElement {
+function renderPlayControls(
+  locale: Locale,
+  actionLocked: boolean,
+  onCloseHand: () => void
+): ReactElement {
+  const { t } = createTranslator(locale);
   return (
     <div className="control-group">
-      <span className="control-label">Five Consecutive Tricks</span>
-      <span className="controls-hint">Close hand now, or continue playing to imply Bola.</span>
+      <span className="control-label">{t("game.closeHandTitle")}</span>
+      <span className="controls-hint">{t("game.closeHandHint")}</span>
       <button
         className="exchange-btn secondary"
         data-action="close-hand"
@@ -606,16 +610,21 @@ function renderPlayControls(actionLocked: boolean, onCloseHand: () => void): Rea
         disabled={actionLocked}
         onClick={onCloseHand}
       >
-        Close Hand
+        {t("common.closeHand")}
       </button>
     </div>
   );
 }
 
-function renderMatchEndControls(actionLocked: boolean, onRematch: () => void): ReactElement {
+function renderMatchEndControls(
+  locale: Locale,
+  actionLocked: boolean,
+  onRematch: () => void
+): ReactElement {
+  const { t } = createTranslator(locale);
   return (
     <div className="control-group">
-      <span className="control-label">Match Complete!</span>
+      <span className="control-label">{t("game.matchComplete")}!</span>
       <button
         className="rematch-btn primary"
         data-action="rematch"
@@ -623,13 +632,18 @@ function renderMatchEndControls(actionLocked: boolean, onRematch: () => void): R
         disabled={actionLocked}
         onClick={onRematch}
       >
-        Play Again
+        {t("common.playAgain")}
       </button>
     </div>
   );
 }
 
-function renderLobbyControls(actionLocked: boolean, onStart: () => void): ReactElement {
+function renderLobbyControls(
+  locale: Locale,
+  actionLocked: boolean,
+  onStart: () => void
+): ReactElement {
+  const { t } = createTranslator(locale);
   return (
     <div className="control-group">
       <button
@@ -639,7 +653,7 @@ function renderLobbyControls(actionLocked: boolean, onStart: () => void): ReactE
         disabled={actionLocked}
         onClick={onStart}
       >
-        Start Game
+        {t("common.startGame")}
       </button>
     </div>
   );
@@ -647,6 +661,7 @@ function renderLobbyControls(actionLocked: boolean, onStart: () => void): ReactE
 
 export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | null {
   const state = useClientState(ctx.state);
+  const settings = useSettings(ctx.settings);
   const game = state.game;
   const [actionLocked, setActionLocked] = useActionLock(game?.seq);
 
@@ -667,19 +682,19 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
         game.auction.passed.length === game.auction.order.length - 1;
       const showContrabola = isLast && allOthersPassed;
 
-      return renderAuctionControls(game.auction.currentBid, showContrabola, actionLocked, (bid) => {
+      return renderAuctionControls(settings.locale, game.auction.currentBid, showContrabola, actionLocked, (bid) => {
         lockAndSend({ type: "BID", value: bid });
       });
     }
 
     if (game.phase === "penetro_choice" && state.isMyTurn) {
-      return renderPenetroControls(actionLocked, (accept) => {
+      return renderPenetroControls(settings.locale, actionLocked, (accept) => {
         lockAndSend({ type: "PENETRO_DECISION", accept });
       });
     }
 
     if (game.phase === "trump_choice" && state.isMyTurn) {
-      return renderTrumpControls(game.contract, actionLocked, (suit) => {
+      return renderTrumpControls(settings.locale, game.contract, actionLocked, (suit) => {
         lockAndSend({ type: "CHOOSE_TRUMP", suit });
       });
     }
@@ -687,6 +702,7 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
     if (game.phase === "exchange" && state.canExchangeNow) {
       const { min, max } = state.getExchangeLimits();
       return renderExchangeControls({
+        locale: settings.locale,
         selected: state.selectedCards.size,
         min,
         max,
@@ -715,19 +731,19 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
     }
 
     if (game.phase === "play" && state.isMyTurn && state.canCloseHandNow) {
-      return renderPlayControls(actionLocked, () => {
+      return renderPlayControls(settings.locale, actionLocked, () => {
         lockAndSend({ type: "CLOSE_HAND" });
       });
     }
 
     if (game.phase === "match_end") {
-      return renderMatchEndControls(actionLocked, () => {
+      return renderMatchEndControls(settings.locale, actionLocked, () => {
         lockAndSend({ type: "REMATCH" });
       });
     }
 
     if (game.phase === "lobby") {
-      return renderLobbyControls(actionLocked, () => {
+      return renderLobbyControls(settings.locale, actionLocked, () => {
         lockAndSend({ type: "START_GAME" });
       });
     }

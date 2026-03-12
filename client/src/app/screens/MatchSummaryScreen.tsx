@@ -1,24 +1,20 @@
 import type { ReactElement } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createTranslator, formatPlacement, modeLabel } from "../../i18n";
 import type { SeatIndex } from "../../protocol";
 import type { AppContext } from "../../router";
 import { recordProfileMatch } from "../../lib/profile-history";
-import { useClientState } from "../hooks";
+import { useClientState, useSettings } from "../hooks";
 import "../../screens/match-summary.css";
 
-function seatLabel(ctx: AppContext, seat: SeatIndex | null): string {
+function seatLabel(ctx: AppContext, seat: SeatIndex | null, locale: "en" | "es"): string {
   if (seat === null) return "...";
-  if (seat === ctx.state.mySeat) return "You";
+  if (seat === ctx.state.mySeat) return locale === "es" ? "Tú" : "You";
   const player = ctx.state.game?.players[seat];
-  return player?.handle || `Seat ${seat}`;
+  return player?.handle || `${locale === "es" ? "Asiento" : "Seat"} ${seat}`;
 }
 
-function buildConfettiPieces(): Array<{
-  color: string;
-  left: number;
-  delay: number;
-  size: number;
-}> {
+function buildConfettiPieces(): Array<{ color: string; left: number; delay: number; size: number }> {
   const particles: Array<{ color: string; left: number; delay: number; size: number }> = [];
   const colors = ["#C8A651", "#B02E2E", "#2A4D41", "#F8F6F0", "#C8A651", "#B02E2E"];
 
@@ -33,20 +29,12 @@ function buildConfettiPieces(): Array<{
 
   return particles;
 }
-
-function formatPlacement(place: number): string {
-  const remainder = place % 10;
-  const teen = place % 100;
-  if (teen >= 11 && teen <= 13) return `${place}th`;
-  if (remainder === 1) return `${place}st`;
-  if (remainder === 2) return `${place}nd`;
-  if (remainder === 3) return `${place}rd`;
-  return `${place}th`;
-}
-
 export function MatchSummaryScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
   const state = useClientState(ctx.state);
+  const settings = useSettings(ctx.settings);
   const game = state.game;
+  const locale = settings.locale;
+  const { t } = createTranslator(locale);
   const [hasVoted, setHasVoted] = useState(false);
   const [voteCount, setVoteCount] = useState<number | null>(null);
   const [voteRequired, setVoteRequired] = useState<number | null>(null);
@@ -133,17 +121,17 @@ export function MatchSummaryScreen({ ctx }: { ctx: AppContext }): ReactElement |
 
   const rematchLabel =
     hasVoted && voteCount !== null && voteRequired !== null
-      ? `Play Again (${voteCount}/${voteRequired})`
+      ? `${t("common.playAgain")} (${voteCount}/${voteRequired})`
       : hasVoted
-        ? "Voted - waiting..."
+        ? t("match.playAgainWaiting")
         : voteCount !== null && voteRequired !== null
-          ? `Play Again (${voteCount}/${voteRequired})`
-          : "Play Again";
+          ? `${t("common.playAgain")} (${voteCount}/${voteRequired})`
+          : t("common.playAgain");
   const rematchCopy = hasVoted
-    ? "Your rematch vote is locked in. The room will restart once the table agrees."
+    ? t("match.rematchLocked")
     : voteCount !== null && voteRequired !== null
-      ? `${voteCount} of ${voteRequired} players are ready for another round.`
-      : "Stay with this table for an instant rematch or leave the room.";
+      ? t("match.rematchProgress", { count: voteCount, required: voteRequired })
+      : t("match.rematchIdle");
 
   return (
     <div className="screen match-summary-screen">
@@ -166,12 +154,16 @@ export function MatchSummaryScreen({ ctx }: { ctx: AppContext }): ReactElement |
           </div>
 
           <div className="match-summary-header">
-            <span className="match-kicker">{isMyWin ? "Rocambor Crown" : "Final Table"}</span>
-            <h1 className="match-title">{isMyWin ? "Victory!" : "Match Complete"}</h1>
+            <span className="match-kicker">{isMyWin ? t("match.kickerWin") : t("match.kickerLoss")}</span>
+            <h1 className="match-title">{isMyWin ? t("match.victory") : t("match.complete")}</h1>
             <p className="match-subtitle">
               {winner
-                ? `${seatLabel(ctx, winner.seat)} finished on top. First to ${game.gameTarget} points.`
-                : `Target: ${game.gameTarget} points`}
+                ? locale === "es"
+                  ? `${seatLabel(ctx, winner.seat, locale)} terminó en cabeza. El primero en llegar a ${game.gameTarget} puntos.`
+                  : `${seatLabel(ctx, winner.seat, locale)} finished on top. First to ${game.gameTarget} points.`
+                : locale === "es"
+                  ? `Meta: ${game.gameTarget} puntos`
+                  : `Target: ${game.gameTarget} points`}
             </p>
           </div>
 
@@ -180,11 +172,11 @@ export function MatchSummaryScreen({ ctx }: { ctx: AppContext }): ReactElement |
               🏆
             </span>
             <div className="winner-copy">
-              <span className="winner-label">Winner</span>
-              <span className="winner-name">{winner ? seatLabel(ctx, winner.seat) : "Nobody"}</span>
+              <span className="winner-label">{t("match.winner")}</span>
+              <span className="winner-name">{winner ? seatLabel(ctx, winner.seat, locale) : locale === "es" ? "Nadie" : "Nobody"}</span>
             </div>
             <div className="winner-score-block">
-              <span className="winner-score-label">Final Score</span>
+              <span className="winner-score-label">{t("match.finalScore")}</span>
               <span className="winner-score">
                 {winner ? winner.score : 0}
                 <small>pts</small>
@@ -194,7 +186,7 @@ export function MatchSummaryScreen({ ctx }: { ctx: AppContext }): ReactElement |
 
           <div className="match-summary-body">
             <section className="match-summary-panel">
-              <h2 className="match-section-heading">Final Standings</h2>
+              <h2 className="match-section-heading">{t("match.finalStandings")}</h2>
               <div className="leaderboard">
                 {entries.map((entry, index) => (
                   <div
@@ -205,11 +197,11 @@ export function MatchSummaryScreen({ ctx }: { ctx: AppContext }): ReactElement |
                   >
                     <span className="lb-rank">#{index + 1}</span>
                     <div className="lb-player">
-                      <span className="lb-name">{seatLabel(ctx, entry.seat)}</span>
+                      <span className="lb-name">{seatLabel(ctx, entry.seat, locale)}</span>
                       <div className="lb-tags">
-                        {index === 0 ? <span className="lb-chip lb-chip-winner">Winner</span> : null}
+                        {index === 0 ? <span className="lb-chip lb-chip-winner">{t("match.winnerBadge")}</span> : null}
                         {entry.seat === state.mySeat ? (
-                          <span className="lb-chip lb-chip-self">You</span>
+                          <span className="lb-chip lb-chip-self">{t("common.you")}</span>
                         ) : null}
                       </div>
                     </div>
@@ -224,33 +216,31 @@ export function MatchSummaryScreen({ ctx }: { ctx: AppContext }): ReactElement |
 
             <div className="match-summary-side">
               <section className="match-summary-panel">
-                <h2 className="match-section-heading">Match Stats</h2>
+                <h2 className="match-section-heading">{t("match.matchStats")}</h2>
                 <div className="match-stats">
                   <div className="stat">
-                    <span className="stat-label">Target</span>
+                    <span className="stat-label">{t("match.target")}</span>
                     <span className="stat-value">{game.gameTarget} pts</span>
                   </div>
                   <div className="stat">
-                    <span className="stat-label">Hands Played</span>
+                    <span className="stat-label">{t("match.handsPlayed")}</span>
                     <span className="stat-value">{game.handNo}</span>
                   </div>
                   <div className="stat">
-                    <span className="stat-label">Mode</span>
-                    <span className="stat-value">
-                      {game.mode === "tresillo" ? "Tresillo" : "Quadrille"}
-                    </span>
+                    <span className="stat-label">{t("match.mode")}</span>
+                    <span className="stat-value">{modeLabel(game.mode, locale)}</span>
                   </div>
                   {myPlacement >= 0 ? (
                     <div className="stat">
-                      <span className="stat-label">Your Finish</span>
-                      <span className="stat-value">{formatPlacement(myPlacement + 1)}</span>
+                      <span className="stat-label">{t("match.yourFinish")}</span>
+                      <span className="stat-value">{formatPlacement(myPlacement + 1, locale)}</span>
                     </div>
                   ) : null}
                 </div>
               </section>
 
               <section className="match-summary-panel">
-                <h2 className="match-section-heading">Next Table</h2>
+                <h2 className="match-section-heading">{t("match.nextTable")}</h2>
                 <p className="match-rematch-copy">{rematchCopy}</p>
               </section>
             </div>
@@ -278,7 +268,7 @@ export function MatchSummaryScreen({ ctx }: { ctx: AppContext }): ReactElement |
                 ctx.router.navigate("home");
               }}
             >
-              Leave Room
+              {t("match.leaveRoom")}
             </button>
           </div>
         </div>

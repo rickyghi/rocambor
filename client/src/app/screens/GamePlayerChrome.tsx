@@ -1,5 +1,11 @@
 import type { ReactElement } from "react";
 import {
+  bidDisplayLabel,
+  contractDisplayLabel as localizedContractDisplayLabel,
+  createTranslator,
+  positionLabel,
+} from "../../i18n";
+import {
   buildBotAvatarUrl,
   buildDiceBearUrl,
   fallbackAvatarAt,
@@ -7,56 +13,9 @@ import {
 import type { SeatIndex } from "../../protocol";
 import type { AppContext } from "../../router";
 import type { ClientState } from "../../state";
-import { useClientState, useProfile } from "../hooks";
+import { useClientState, useProfile, useSettings } from "../hooks";
 import type { GameDomLayerBridge } from "./game-dom-layer-bridge";
 import { useGameDomLayerSnapshot } from "./useGameDomLayerSnapshot";
-
-function capSuit(suit: string): string {
-  return suit.charAt(0).toUpperCase() + suit.slice(1);
-}
-
-function bidLabel(value: string): string {
-  const labels: Record<string, string> = {
-    pass: "Pass",
-    entrada: "Entrada",
-    oros: "Entrada Oros",
-    volteo: "Volteo",
-    solo: "Solo",
-    solo_oros: "Solo Oros",
-    contrabola: "Contrabola",
-    bola: "Bola",
-  };
-  return labels[value] || value;
-}
-
-function contractDisplayLabel(contract: string | null, trump: string | null): string {
-  if (!contract) return "";
-  const labels: Record<string, string> = {
-    entrada: "Entrada",
-    volteo: "Volteo",
-    solo: "Solo",
-    oros: "Oros",
-    solo_oros: "Solo Oros",
-    contrabola: "Contrabola",
-    bola: "Bola",
-    penetro: "Penetro",
-  };
-  const base = labels[contract] ?? contract;
-  if (trump && !["oros", "solo_oros", "contrabola", "bola"].includes(contract)) {
-    return `${base} ${capSuit(trump)}`;
-  }
-  return base;
-}
-
-function capLabel(pos: "left" | "across" | "right" | "self"): string {
-  const map: Record<typeof pos, string> = {
-    self: "You",
-    left: "Left",
-    across: "Across",
-    right: "Right",
-  };
-  return map[pos];
-}
 
 function activeSeatsForRole(state: ClientState): SeatIndex[] {
   const game = state.game;
@@ -76,36 +35,37 @@ function nextActiveSeat(state: ClientState, seat: SeatIndex): SeatIndex {
 
 type PlatePosition = "self" | "left" | "across" | "right";
 
-function tablePositionLabel(position: PlatePosition): string {
-  if (position === "self") return "You";
-  return capLabel(position);
+function tablePositionLabel(position: PlatePosition, locale: "en" | "es"): string {
+  return positionLabel(position, locale);
 }
 
-function roleSummaryLabel(state: ClientState, seat: SeatIndex): string {
+function roleSummaryLabel(state: ClientState, seat: SeatIndex, locale: "en" | "es"): string {
   const game = state.game;
   if (!game) return "";
-  if (game.resting === seat) return "Resting";
+  const { t } = createTranslator(locale);
+  if (game.resting === seat) return t("game.resting");
 
   if (game.phase === "auction") {
-    if (game.auction.passed.includes(seat)) return "Passed";
+    if (game.auction.passed.includes(seat)) return t("game.passed");
     if (game.auction.currentBidder === seat && game.auction.currentBid !== "pass") {
-      return bidLabel(game.auction.currentBid);
+      return bidDisplayLabel(game.auction.currentBid, locale);
     }
-    return "Waiting";
+    return t("game.waiting");
   }
 
   if (seat === game.ombre) {
-    const contract = contractDisplayLabel(game.contract, game.trump);
-    return contract ? `Jugador · ${contract}` : "Jugador";
+    const contract = localizedContractDisplayLabel(game.contract, game.trump, locale);
+    const playerLabel = locale === "es" ? "Jugador" : "Player";
+    return contract ? `${playerLabel} · ${contract}` : playerLabel;
   }
 
   if (game.ombre === null) return "";
 
   const primer = nextActiveSeat(state, game.ombre);
   const segundo = nextActiveSeat(state, primer);
-  if (seat === primer) return "Primer Contra";
-  if (seat === segundo) return "Segundo Contra";
-  return "Contra";
+  if (seat === primer) return locale === "es" ? "Primer contra" : "First opponent";
+  if (seat === segundo) return locale === "es" ? "Segundo contra" : "Second opponent";
+  return locale === "es" ? "Contra" : "Opponent";
 }
 
 function trickDots(tricksWon: number): ReactElement[] {
@@ -125,7 +85,8 @@ function heroAvatarForSeat(
   state: ClientState,
   profileName: string,
   profileAvatar: string,
-  position: PlatePosition
+  position: PlatePosition,
+  locale: "en" | "es"
 ): { src: string; fallback: string } {
   const seat = state.seatAtPosition(position);
   if (seat === null) {
@@ -145,7 +106,7 @@ function heroAvatarForSeat(
 
   const game = state.game;
   const player = game?.players[seat];
-  const name = player?.handle || `Seat ${seat}`;
+  const name = player?.handle || `${locale === "es" ? "Asiento" : "Seat"} ${seat}`;
   const fallback = fallbackAvatarAt(seat);
   return {
     src: player?.isBot
@@ -161,12 +122,14 @@ function HeroPlate({
   profileName,
   profileAvatar,
   position,
+  locale,
 }: {
   ctx: AppContext;
   state: ClientState;
   profileName: string;
   profileAvatar: string;
   position: PlatePosition;
+  locale: "en" | "es";
 }): ReactElement | null {
   const game = state.game;
   if (!game) return null;
@@ -176,23 +139,25 @@ function HeroPlate({
 
   const player = game.players[seat];
   const isSelf = position === "self";
-  const name = isSelf ? profileName : player?.handle || `Seat ${seat}`;
+  const { t } = createTranslator(locale);
+  const name = isSelf ? profileName : player?.handle || `${locale === "es" ? "Asiento" : "Seat"} ${seat}`;
   const { src, fallback } = heroAvatarForSeat(
     ctx,
     state,
     profileName,
     profileAvatar,
-    position
+    position,
+    locale
   );
   const active = game.turn === seat ? " active-turn" : "";
   const resting = game.resting === seat ? " resting" : "";
   const disconnected = player && !player.connected ? " disconnected" : "";
   const tricks = game.tricks[seat] || 0;
   const sideClass = isSelf ? "" : " hero-side";
-  const positionTag = tablePositionLabel(position).toUpperCase();
-  const roleText = roleSummaryLabel(state, seat);
+  const positionTag = tablePositionLabel(position, locale).toUpperCase();
+  const roleText = roleSummaryLabel(state, seat, locale);
   const turnFlash = game.turn === seat;
-  const ariaText = `${name}, ${positionTag.toLowerCase()}, ${roleText || "at table"}, tricks ${tricks}`;
+  const ariaText = `${name}, ${positionTag.toLowerCase()}, ${roleText || (locale === "es" ? "en la mesa" : "at table")}, ${t("game.tricksWon", { count: tricks })}`;
 
   if (isSelf) {
     return (
@@ -219,9 +184,9 @@ function HeroPlate({
             <span className="hero-name">{name}</span>
             {roleText ? <span className="hero-role-line">{roleText}</span> : null}
           </div>
-          {turnFlash ? <span className="hero-turn-flash">YOUR TURN</span> : null}
+          {turnFlash ? <span className="hero-turn-flash">{t("game.yourTurn")}</span> : null}
         </div>
-        <div className="hero-trick-dots" aria-label={`Tricks won: ${tricks}`}>
+        <div className="hero-trick-dots" aria-label={t("game.tricksWon", { count: tricks })}>
           {trickDots(tricks)}
         </div>
       </section>
@@ -253,7 +218,7 @@ function HeroPlate({
           {roleText ? <span className="hero-role-line">{roleText}</span> : null}
         </div>
       </div>
-      <div className="hero-trick-dots" aria-label={`Tricks won: ${tricks}`}>
+      <div className="hero-trick-dots" aria-label={t("game.tricksWon", { count: tricks })}>
         {trickDots(tricks)}
       </div>
     </section>
@@ -268,7 +233,10 @@ export function GameOpponentsStrip({
   bridge: GameDomLayerBridge;
 }): ReactElement {
   const state = useClientState(ctx.state);
+  const settings = useSettings(ctx.settings);
   const snapshot = useGameDomLayerSnapshot(bridge);
+  const locale = settings.locale;
+  const { t } = createTranslator(locale);
 
   const game = state.game;
 
@@ -277,14 +245,14 @@ export function GameOpponentsStrip({
       className="game-opponents-strip rc-panel rc-panel-noise"
       id="game-opponents-strip"
       role="list"
-      aria-label="Opponents"
+      aria-label={t("game.opponents")}
     >
       {snapshot.isMobilePortrait && game && state.mySeat !== null
         ? (["left", "across", "right"] as const).map((position) => {
             const seat = state.seatAtPosition(position);
             if (seat === null) return null;
             const player = game.players[seat];
-            const name = player?.handle || `Seat ${seat}`;
+            const name = player?.handle || `${locale === "es" ? "Asiento" : "Seat"} ${seat}`;
             const score = game.scores[seat] || 0;
             const tricks = game.tricks[seat] || 0;
             const cards = game.handsCount[seat] || 0;
@@ -303,13 +271,15 @@ export function GameOpponentsStrip({
               game.phase !== "auction"
                 ? null
                 : game.auction.passed.includes(seat)
-                  ? { text: "PASSED", className: "passed" }
+                  ? { text: t("game.passed").toUpperCase(), className: "passed" }
                   : game.auction.currentBidder === seat && game.auction.currentBid !== "pass"
-                    ? { text: bidLabel(game.auction.currentBid), className: "active" }
+                    ? { text: bidDisplayLabel(game.auction.currentBid, locale), className: "active" }
                     : null;
             const ombreContractTag =
-              isOmbre && game.contract ? contractDisplayLabel(game.contract, game.trump) : null;
-            const aria = `${position} ${name}, score ${score}, tricks ${tricks}, cards ${cards}`;
+              isOmbre && game.contract
+                ? localizedContractDisplayLabel(game.contract, game.trump, locale)
+                : null;
+            const aria = `${positionLabel(position, locale)}, ${name}, ${locale === "es" ? "puntuación" : "score"} ${score}, ${locale === "es" ? "bazas" : "tricks"} ${tricks}, ${locale === "es" ? "cartas" : "cards"} ${cards}`;
 
             return (
               <div
@@ -329,7 +299,11 @@ export function GameOpponentsStrip({
                     }}
                   />
                   {isOmbre ? (
-                    <span className="mob-opp-crown" aria-label="Ombre" title="Ombre">
+                    <span
+                      className="mob-opp-crown"
+                      aria-label={locale === "es" ? "Jugador" : "Player"}
+                      title={locale === "es" ? "Jugador" : "Player"}
+                    >
                       &#9830;
                     </span>
                   ) : null}
@@ -341,14 +315,14 @@ export function GameOpponentsStrip({
                 {ombreContractTag ? (
                   <span className="mob-ombre-tag">{ombreContractTag}</span>
                 ) : null}
-                <div className="mob-opp-card-lines" aria-label={`Cards: ${cards}`}>
+                <div className="mob-opp-card-lines" aria-label={`${locale === "es" ? "Cartas" : "Cards"}: ${cards}`}>
                   {Array.from({ length: Math.min(cards, 9) }, (_, idx) => (
                     <span key={idx} className="mob-card-line"></span>
                   ))}
                 </div>
                 <div className="mobile-opponent-stats">
                   <span className="mob-stat">Pts: {score}</span>
-                  <span className="mob-stat">Trk: {tricks}</span>
+                  <span className="mob-stat">{locale === "es" ? "Bazas" : "Tricks"}: {tricks}</span>
                 </div>
               </div>
             );
@@ -361,6 +335,7 @@ export function GameOpponentsStrip({
 export function GameHeroPlates({ ctx }: { ctx: AppContext }): ReactElement {
   const state = useClientState(ctx.state);
   const profile = useProfile(ctx.profile);
+  const settings = useSettings(ctx.settings);
 
   return (
     <div className="hero-plates-layer" id="hero-plates-layer" aria-hidden="true">
@@ -373,6 +348,7 @@ export function GameHeroPlates({ ctx }: { ctx: AppContext }): ReactElement {
               profileName={profile.name}
               profileAvatar={profile.avatar}
               position={position}
+              locale={settings.locale}
             />
           ))
         : null}
@@ -383,6 +359,7 @@ export function GameHeroPlates({ ctx }: { ctx: AppContext }): ReactElement {
 export function GameSelfHeroPlate({ ctx }: { ctx: AppContext }): ReactElement {
   const state = useClientState(ctx.state);
   const profile = useProfile(ctx.profile);
+  const settings = useSettings(ctx.settings);
 
   return (
     <div className="hero-self-slot" id="hero-self-slot" aria-hidden="true">
@@ -393,6 +370,7 @@ export function GameSelfHeroPlate({ ctx }: { ctx: AppContext }): ReactElement {
           profileName={profile.name}
           profileAvatar={profile.avatar}
           position="self"
+          locale={settings.locale}
         />
       ) : null}
     </div>

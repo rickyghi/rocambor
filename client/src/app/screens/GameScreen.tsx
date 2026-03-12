@@ -18,7 +18,10 @@ import { GameTopChrome } from "./GameTopChrome";
 export function GameScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const domLayerBridgeRef = useRef(
-    new GameDomLayerBridge({ isMobilePortrait: detectGameMobilePortrait() })
+    new GameDomLayerBridge({
+      spriteMode: true,
+      isMobilePortrait: detectGameMobilePortrait(),
+    })
   );
   const feedbackBridgeRef = useRef(new GameFeedbackBridge());
 
@@ -42,7 +45,7 @@ export function GameScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
   if (!ctx.state.game) return null;
 
   return (
-    <div ref={hostRef} className="screen game-screen felt-shell">
+    <div ref={hostRef} className="screen game-screen felt-shell sprite-mode">
       <div className="felt-background" aria-hidden="true">
         <div className="felt-base"></div>
         <div className="felt-texture"></div>
@@ -54,7 +57,7 @@ export function GameScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
         <GameTopChrome ctx={ctx} bridge={domLayerBridgeRef.current} />
         <GameOpponentsStrip ctx={ctx} bridge={domLayerBridgeRef.current} />
         <div className="game-stage rc-table-stage">
-          <GameFeedbackOverlays bridge={feedbackBridgeRef.current} />
+          <GameFeedbackOverlays bridge={feedbackBridgeRef.current} ctx={ctx} />
           <div className="game-stage-mid">
             <div className="game-canvas-wrap">
               <canvas id="game-canvas"></canvas>

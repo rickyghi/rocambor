@@ -204,6 +204,30 @@
   height: 22px;
   flex-shrink: 0;
 }
+.game-leave-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: rgba(248, 246, 240, 0.82);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  transition: color var(--dur-fast), background var(--dur-fast), border-color var(--dur-fast);
+}
+.game-leave-btn:hover,
+.game-leave-btn:focus-visible {
+  color: rgba(248, 246, 240, 0.98);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(200, 166, 81, 0.22);
+}
+.game-leave-btn-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .game-sound-btn,
 .game-settings-btn {
   min-width: 44px;
@@ -1126,6 +1150,15 @@
 
 .game-screen .hand-row::-webkit-scrollbar {
   display: none;
+}
+
+.hand-row.dragging {
+  cursor: grabbing;
+  scroll-snap-type: none;
+}
+
+.hand-row.dragging .hand-card-wrap {
+  pointer-events: none;
 }
 
 /* Play phase: taller hand row for larger cards covering lower third */
@@ -2248,11 +2281,25 @@
     overflow: hidden;
   }
 
+  .game-header-left,
+  .game-header-right {
+    gap: 6px;
+  }
+
   .game-header-brand {
     display: none;
   }
 
   .game-leave-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  .game-leave-btn-label {
     display: none;
   }
 
@@ -2281,14 +2328,15 @@
 
   .hud-pill {
     font-size: 10px;
-    min-height: 26px;
-    padding: 3px 9px;
+    min-height: 28px;
+    padding: 4px 10px;
     white-space: nowrap;
-    flex-shrink: 1;
-    min-width: 0;
-    max-width: 160px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex-shrink: 0;
+    min-width: max-content;
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    letter-spacing: 0.1em;
   }
 
   .hud-pill + .hud-pill::before {
@@ -2621,7 +2669,9 @@
     width: min(95vw, 390px);
     min-height: 236px;
     gap: 4px;
-    background: radial-gradient(ellipse at center, rgba(248, 246, 240, 0.1), rgba(248, 246, 240, 0.02) 42%, rgba(0, 0, 0, 0) 76%);
+    border: none;
+    background: none;
+    box-shadow: none;
   }
 
   .trick-card-wrap {
@@ -2726,6 +2776,18 @@
     padding-top: 8px;
   }
 
+  .phase-play .game-stage-bottom {
+    padding-top: 10px;
+  }
+
+  .phase-play .game-stage-bottom::before {
+    height: 244px;
+  }
+
+  .phase-play .trick-overlay-inner {
+    transform: translateY(-28px);
+  }
+
   .hand-dock-header {
     display: flex;
     align-items: center;
@@ -2742,8 +2804,7 @@
     text-transform: none;
   }
 
-  .hand-dock-header::after {
-    content: "Swipe";
+  .hand-dock-hint {
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -2768,6 +2829,7 @@
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-x: contain;
     touch-action: pan-x;
+    user-select: none;
     mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
     -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
   }
@@ -2790,8 +2852,8 @@
   }
 
   .hand-card-wrap .roc-card {
-    transform: scale(1.125); /* 108/96 */
-    transform-origin: top left;
+    transform: translate(-50%, -50%) scale(1.125); /* 108/96 */
+    transform-origin: center center;
   }
 
   /* CRITICAL: must repeat ALL base .phase-play properties to win specificity */
@@ -2803,14 +2865,18 @@
     overflow: visible;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: scale(1.25); /* 120/96 */
-    transform-origin: top left;
+    transform: translate(-50%, -50%) scale(1.25); /* 120/96 */
+    transform-origin: center center;
   }
 
   .phase-play .hand-row {
     gap: 12px;
-    padding: 10px 16px 8px;
-    min-height: 180px;
+    padding: 4px 16px 8px;
+    min-height: 192px;
+  }
+
+  .phase-play .game-hand-dock {
+    margin-top: -42px;
   }
 
   .hand-card-wrap:hover:not(:disabled),
@@ -3061,7 +3127,7 @@
   .hud-pill {
     min-height: 27px;
     padding: 3px 10px;
-    max-width: 168px;
+    max-width: none;
   }
 
   .game-opponents-strip {
@@ -3160,7 +3226,7 @@
   }
 
   .hand-card-wrap .roc-card {
-    transform: scale(1.167); /* 112/96 */
+    transform: translate(-50%, -50%) scale(1.167); /* 112/96 */
   }
 
   .phase-play .hand-row {
@@ -3174,7 +3240,7 @@
   }
 
   .phase-play .hand-card-wrap .roc-card {
-    transform: scale(1.292); /* 124/96 */
+    transform: translate(-50%, -50%) scale(1.292); /* 124/96 */
   }
 
   .hand-action-btn {
@@ -3239,6 +3305,7 @@
     font-size: 10px;
     min-height: 24px;
     padding: 2px 8px;
+    max-width: none;
   }
 
   .hud-pill-icon {
@@ -3296,7 +3363,7 @@
     margin-left: 0;
   }
   .hand-card-wrap .roc-card {
-    transform: scale(1.021); /* 98/96 */
+    transform: translate(-50%, -50%) scale(1.021); /* 98/96 */
   }
 
   .phase-play .hand-card-wrap {
@@ -3307,7 +3374,7 @@
     overflow: visible;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: scale(1.146); /* 110/96 */
+    transform: translate(-50%, -50%) scale(1.146); /* 110/96 */
   }
 
   .auction-panel-exchange .auction-panel-status {
@@ -3395,7 +3462,7 @@
     font-size: 11px;
   }
   .hand-card-wrap .roc-card {
-    transform: scale(0.938); /* 90/96 */
+    transform: translate(-50%, -50%) scale(0.938); /* 90/96 */
   }
 
   .phase-play .hand-card-wrap {
@@ -3406,7 +3473,7 @@
     overflow: visible;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: scale(1.063); /* 102/96 */
+    transform: translate(-50%, -50%) scale(1.063); /* 102/96 */
   }
 
   .hand-action-btn {

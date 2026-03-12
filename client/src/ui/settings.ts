@@ -1,6 +1,8 @@
 import type { TableTheme } from "../styles/design-tokens";
+import type { Locale } from "../i18n";
 
 export interface Settings {
+  locale: Locale;
   soundEnabled: boolean;
   espadaObligatoria: boolean;
   soundVolume: number;
@@ -15,6 +17,7 @@ const STORAGE_KEY = "rocambor_settings";
 const DEFAULT_CARD_SKIN = "clasica";
 
 const DEFAULTS: Settings = {
+  locale: "en",
   soundEnabled: true,
   espadaObligatoria: true,
   soundVolume: 0.7,
@@ -60,6 +63,9 @@ export class SettingsManager {
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<Settings>;
         const merged = { ...DEFAULTS, ...parsed };
+        if (merged.locale !== "en" && merged.locale !== "es") {
+          merged.locale = DEFAULTS.locale;
+        }
         if (typeof merged.cardSkin !== "string" || !merged.cardSkin.trim()) {
           merged.cardSkin = DEFAULTS.cardSkin;
         } else if (merged.cardSkin === "rocambor") {

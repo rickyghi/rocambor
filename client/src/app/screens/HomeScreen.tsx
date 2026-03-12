@@ -1,12 +1,13 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
+import { createTranslator, modeLabel, type Locale } from "../../i18n";
 import type { AppContext } from "../../router";
 import type { Mode } from "../../protocol";
 import { showModal } from "../../ui/modal";
 import { showToast } from "../../ui/toast";
 import { openSettingsModal } from "../../ui/settings-modal";
 import { openProfileModal } from "../../components/profile/ProfileModal";
-import { useConnectionSnapshot, useProfile } from "../hooks";
+import { useConnectionSnapshot, useProfile, useSettings } from "../hooks";
 import "../../screens/home.css";
 
 const ICON_SETTINGS = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
@@ -19,34 +20,36 @@ function Icon({ markup }: { markup: string }): ReactElement {
 }
 
 function openCreateRoomModal(ctx: AppContext, selectedMode: Mode): void {
+  const { t } = createTranslator(ctx.settings.get("locale"));
   const content = document.createElement("div");
   content.innerHTML = `
     <div class="modal-form-group">
-      <label class="room-name-label" style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:rgba(248,246,240,0.6);margin-bottom:4px;display:block;">Room Name (optional)</label>
-      <input type="text" class="room-name-input" id="create-room-name" placeholder="e.g. La Mesa de Oro" maxlength="30" />
+      <label class="room-name-label" style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:rgba(248,246,240,0.6);margin-bottom:4px;display:block;">${t("home.roomNameOptional")}</label>
+      <input type="text" class="room-name-input" id="create-room-name" placeholder="${t("home.roomNamePlaceholder")}" maxlength="30" />
     </div>
     <div class="modal-form-group">
-      <label for="create-mode">Mode</label>
+      <label for="create-mode">${t("common.mode")}</label>
       <select id="create-mode">
-        <option value="tresillo" ${selectedMode === "tresillo" ? "selected" : ""}>Tresillo (3 players)</option>
-        <option value="quadrille" ${selectedMode === "quadrille" ? "selected" : ""}>Quadrille (4 players)</option>
+        <option value="tresillo" ${selectedMode === "tresillo" ? "selected" : ""}>${modeLabel("tresillo", ctx.settings.get("locale"), true)}</option>
+        <option value="quadrille" ${selectedMode === "quadrille" ? "selected" : ""}>${modeLabel("quadrille", ctx.settings.get("locale"), true)}</option>
       </select>
     </div>
     <div class="modal-form-group">
-      <label for="create-target">Points to win</label>
+      <label for="create-target">${t("home.pointsToWin")}</label>
       <input id="create-target" type="number" value="12" min="6" max="30" />
     </div>
   `;
 
   showModal({
-    title: "Create Room",
+    title: t("home.createRoomTitle"),
     size: "sm",
     modalClassName: "modal-dark",
+    closeAriaLabel: t("common.closeModal"),
     content,
     actions: [
-      { label: "Cancel", className: "btn-secondary", onClick: () => {} },
+      { label: t("common.cancel"), className: "btn-secondary", onClick: () => {} },
       {
-        label: "Create",
+        label: t("common.create"),
         className: "btn-primary",
         onClick: () => {
           const mode = (content.querySelector("#create-mode") as HTMLSelectElement).value as Mode;
@@ -72,30 +75,32 @@ function openCreateRoomModal(ctx: AppContext, selectedMode: Mode): void {
 }
 
 function openJoinRoomModal(ctx: AppContext): void {
+  const { t } = createTranslator(ctx.settings.get("locale"));
   const content = document.createElement("div");
   content.innerHTML = `
     <div class="modal-form-group">
-      <label for="join-code">Room Code</label>
+      <label for="join-code">${t("home.roomCode")}</label>
       <input id="join-code" type="text" maxlength="6" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:4px;text-align:center;" />
     </div>
   `;
 
   showModal({
-    title: "Join by Code",
+    title: t("home.joinByCodeTitle"),
     size: "sm",
     modalClassName: "modal-dark",
+    closeAriaLabel: t("common.closeModal"),
     content,
     actions: [
-      { label: "Cancel", className: "btn-secondary", onClick: () => {} },
+      { label: t("common.cancel"), className: "btn-secondary", onClick: () => {} },
       {
-        label: "Join",
+        label: t("common.join"),
         className: "btn-primary",
         onClick: () => {
           const code = (content.querySelector("#join-code") as HTMLInputElement).value
             .trim()
             .toUpperCase();
           if (code.length < 4) {
-            showToast("Enter a valid room code", "error");
+            showToast(t("home.validRoomCode"), "error");
             return false;
           }
           ctx.connection.send({ type: "JOIN_ROOM", code });
@@ -111,10 +116,12 @@ function openJoinRoomModal(ctx: AppContext): void {
 
 export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
   const profile = useProfile(ctx.profile);
+  const settings = useSettings(ctx.settings);
   const { connected } = useConnectionSnapshot(ctx.connection);
   const [selectedMode, setSelectedMode] = useState<Mode>("tresillo");
   const [inQueue, setInQueue] = useState(false);
   const [queuePosition, setQueuePosition] = useState(0);
+  const { t } = createTranslator(settings.locale);
 
   useEffect(() => {
     if (!ctx.connection.connected) {
@@ -150,7 +157,8 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
     const timer = window.setTimeout(() => {
       openProfileModal(ctx.profile, {
         force: true,
-        title: "Choose Name & Avatar",
+        title: t("home.chooseNameAvatar"),
+        locale: settings.locale,
       });
     }, 120);
 
@@ -161,14 +169,17 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
 
   const firstName = profile.name.split(" ")[0] || "Player";
   const fallbackAvatar = ctx.profile.getFallbackAvatar();
+  const setLocale = (locale: Locale): void => {
+    ctx.settings.set("locale", locale);
+  };
 
   return (
     <div className="screen home-screen">
       <div className="home-body">
         <div className="home-hero-mobile">
-          <div className="home-hero-tag">The Salon is Waiting</div>
-          <h1 className="home-hero-title">Bienvenido, {firstName}</h1>
-          <p className="home-hero-subtitle">Select your table and claim your glory.</p>
+          <div className="home-hero-tag">{t("home.heroTag")}</div>
+          <h1 className="home-hero-title">{t("home.welcome", { name: firstName })}</h1>
+          <p className="home-hero-subtitle">{t("home.heroSubtitle")}</p>
         </div>
 
         <div className="home-panel">
@@ -186,22 +197,44 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
             <h1 className="home-panel-logo-fallback">ROCAMBOR</h1>
           </div>
 
+          <div className="home-locale-row">
+            <span className="home-locale-label">{t("common.language")}</span>
+            <div className="home-locale-group" role="group" aria-label={t("common.language")}>
+              <button
+                className={`home-locale-btn${settings.locale === "en" ? " active" : ""}`}
+                type="button"
+                aria-pressed={settings.locale === "en"}
+                onClick={() => setLocale("en")}
+              >
+                {t("common.english")}
+              </button>
+              <button
+                className={`home-locale-btn${settings.locale === "es" ? " active" : ""}`}
+                type="button"
+                aria-pressed={settings.locale === "es"}
+                onClick={() => setLocale("es")}
+              >
+                {t("common.spanish")}
+              </button>
+            </div>
+          </div>
+
           <div className="home-mode-section">
-            <span className="home-mode-label">SELECT GAME VARIATION</span>
-            <div className="home-modes" role="group" aria-label="Game mode">
+            <span className="home-mode-label">{t("home.selectVariation")}</span>
+            <div className="home-modes" role="group" aria-label={t("common.mode")}>
               <button
                 className={`home-mode-btn ${selectedMode === "tresillo" ? "active" : ""}`}
                 type="button"
                 onClick={() => setSelectedMode("tresillo")}
               >
-                Tresillo (3P)
+                {modeLabel("tresillo", settings.locale, true)}
               </button>
               <button
                 className={`home-mode-btn ${selectedMode === "quadrille" ? "active" : ""}`}
                 type="button"
                 onClick={() => setSelectedMode("quadrille")}
               >
-                Quadrille (4P)
+                {modeLabel("quadrille", settings.locale, true)}
               </button>
             </div>
           </div>
@@ -212,8 +245,8 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 <div className="home-queue-spinner" aria-hidden="true" />
                 <div className="home-queue-label">
                   {queuePosition
-                    ? `Searching for match (position ${queuePosition})`
-                    : "Searching for match..."}
+                    ? t("home.queueSearchingPosition", { position: queuePosition })
+                    : t("home.queueSearching")}
                 </div>
                 <button
                   className="home-queue-cancel"
@@ -223,7 +256,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                     setInQueue(false);
                   }}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
               </div>
             ) : (
@@ -238,8 +271,8 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                     <Icon markup={ICON_PLUS} />
                   </span>
                   <div className="home-action-text">
-                    <span className="home-action-title">Create Room</span>
-                    <span className="home-action-subtitle">The Ombre&apos;s Salon</span>
+                    <span className="home-action-title">{t("home.createRoom")}</span>
+                    <span className="home-action-subtitle">{t("home.createRoomSubtitle")}</span>
                   </div>
                 </button>
                 <button
@@ -256,8 +289,8 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                     <Icon markup={ICON_PLAY} />
                   </span>
                   <div className="home-action-text">
-                    <span className="home-action-title">Quick Play</span>
-                    <span className="home-action-subtitle">Instant Match</span>
+                    <span className="home-action-title">{t("home.quickPlay")}</span>
+                    <span className="home-action-subtitle">{t("home.quickPlaySubtitle")}</span>
                   </div>
                 </button>
                 <button
@@ -270,12 +303,12 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                     <Icon markup={ICON_KEY} />
                   </span>
                   <div className="home-action-text">
-                    <span className="home-action-title">Join by Code</span>
-                    <span className="home-action-subtitle">Private Invitation</span>
+                    <span className="home-action-title">{t("home.joinByCode")}</span>
+                    <span className="home-action-subtitle">{t("home.joinByCodeSubtitle")}</span>
                   </div>
                 </button>
                 {!connected ? (
-                  <p className="home-connection-hint">Connect to the server to start a match.</p>
+                  <p className="home-connection-hint">{t("home.connectHint")}</p>
                 ) : null}
               </>
             )}
@@ -287,17 +320,17 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
             <button
               className="home-bottom-btn home-bottom-btn--settings home-settings-btn"
               type="button"
-              aria-label="Settings"
+              aria-label={t("common.settings")}
               onClick={() => openSettingsModal(ctx.settings)}
             >
               <Icon markup={ICON_SETTINGS} />
-              <span className="home-bottom-btn-label">Settings</span>
+              <span className="home-bottom-btn-label">{t("common.settings")}</span>
             </button>
             <button
               className="home-bottom-btn home-bottom-btn--profile home-profile-btn"
               type="button"
-              aria-label="Player profile"
-              onClick={() => openProfileModal(ctx.profile)}
+              aria-label={t("common.profile")}
+              onClick={() => openProfileModal(ctx.profile, { locale: settings.locale })}
             >
               <img
                 className="home-bottom-avatar"
@@ -309,15 +342,13 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 }}
               />
               <span className="home-bottom-btn-copy">
-                <span className="home-bottom-btn-label">Profile</span>
+                <span className="home-bottom-btn-label">{t("common.profile")}</span>
                 <span className="home-bottom-btn-value">{profile.name}</span>
               </span>
             </button>
           </div>
 
-          <p className="home-quote">
-            &quot;The game of Ombre is a game of wit, fortune, and Spanish pride.&quot;
-          </p>
+          <p className="home-quote">{t("home.quote")}</p>
 
           <div className="home-panel-status" aria-live="polite">
             <span
@@ -325,7 +356,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
               aria-hidden="true"
             />
             <span className="home-panel-status-text">
-              {connected ? "Connected to the salon server" : "Disconnected from the salon server"}
+              {connected ? t("home.connected") : t("home.disconnected")}
             </span>
           </div>
         </div>

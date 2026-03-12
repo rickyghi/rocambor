@@ -1,10 +1,11 @@
 import type { ReactElement } from "react";
 import { useEffect } from "react";
+import { createTranslator, emptySeatWord, modeLabel, seatWord } from "../../i18n";
 import type { AppContext } from "../../router";
 import type { SeatIndex } from "../../protocol";
 import { showToast } from "../../ui/toast";
 import { buildBotAvatarUrl, buildDiceBearUrl, fallbackAvatarAt } from "../../lib/avatars";
-import { useClientState, useConnectionSnapshot, useProfile } from "../hooks";
+import { useClientState, useConnectionSnapshot, useProfile, useSettings } from "../hooks";
 import "../../screens/lobby.css";
 
 const OPEN_SEAT_AVATAR = "/assets/rocambor/open-seat-avatar.svg";
@@ -21,9 +22,12 @@ function Icon({ markup }: { markup: string }): ReactElement {
 export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
   const state = useClientState(ctx.state);
   const profile = useProfile(ctx.profile);
+  const settings = useSettings(ctx.settings);
   const { connected } = useConnectionSnapshot(ctx.connection);
   const game = state.game;
   const pendingRoomCode = state.roomCode;
+  const locale = settings.locale;
+  const { t } = createTranslator(locale);
 
   useEffect(() => {
     if (!game) {
@@ -41,7 +45,7 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
     const unsubscribes = [
       ctx.connection.on("EVENT", (msg: any) => {
         if (msg.name === "SEATED") {
-          showToast(`${msg.payload.handle} joined`, "info");
+          showToast(t("lobby.joinedToast", { name: msg.payload.handle }), "info");
         }
       }),
     ];
@@ -49,7 +53,7 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
     return () => {
       unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
-  }, [ctx.connection]);
+  }, [ctx.connection, locale]);
 
   if (!game) {
     return (
@@ -58,7 +62,7 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
           className="lobby-float-leave"
           data-action="leave"
           type="button"
-          aria-label="Leave room"
+          aria-label={t("common.leave")}
           onClick={() => {
             ctx.connection.send({ type: "LEAVE_ROOM" });
             ctx.state.reset();
@@ -68,18 +72,18 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
           <span className="lobby-back-arrow">
             <Icon markup={ICON_ARROW_LEFT} />
           </span>
-          <span>Leave</span>
+          <span>{t("common.leave")}</span>
         </button>
 
         <div className="lobby-body">
           <div className="lobby-title-stack">
             <span className={`lobby-session-pill${connected ? "" : " offline"}`}>
               <span className="lobby-session-dot" aria-hidden="true" />
-              {connected ? "Session Active" : "Reconnecting"}
+              {connected ? t("lobby.sessionActive") : t("lobby.reconnecting")}
             </span>
-            <h1 className="lobby-room-title">Joining your salon</h1>
+            <h1 className="lobby-room-title">{t("lobby.joiningSalon")}</h1>
             <p className="lobby-room-subtitle">
-              Room {pendingRoomCode || "..."} is being prepared for the first snapshot.
+              {t("lobby.roomPreparing", { code: pendingRoomCode || "..." })}
             </p>
           </div>
 
@@ -87,12 +91,9 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
             <div className="lobby-loading-shell" role="status" aria-live="polite">
               <div className="lobby-loading-orb" aria-hidden="true" />
               <div className="lobby-loading-copy">
-                <span className="lobby-loading-kicker">Preparing Lobby</span>
-                <strong className="lobby-loading-title">Fetching seats and room state</strong>
-                <p className="lobby-loading-text">
-                  You&apos;ll stay here for a moment while the table snapshot arrives from the
-                  server.
-                </p>
+                <span className="lobby-loading-kicker">{t("lobby.preparing")}</span>
+                <strong className="lobby-loading-title">{t("lobby.fetching")}</strong>
+                <p className="lobby-loading-text">{t("lobby.waitSnapshot")}</p>
               </div>
             </div>
           </div>
@@ -103,13 +104,13 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
 
   const code = state.roomCode || "...";
   const mode = game.mode || "quadrille";
-  const modeLabel = mode === "tresillo" ? "Tresillo (3P)" : "Quadrille (4P)";
+  const modeLabelText = modeLabel(mode, locale, true);
   const mySeat = state.mySeat;
   const hostSeat = game.hostSeat ?? null;
   const isHost = mySeat !== null && (hostSeat === null || hostSeat === mySeat);
   const totalSeats = mode === "tresillo" ? 3 : 4;
   const gameTarget = game.gameTarget || 12;
-  const roomName = game.roomName?.trim() || "The Salon Lobby";
+  const roomName = game.roomName?.trim() || (locale === "es" ? "Salón privado" : "The Salon Lobby");
 
   let filledSeats = 0;
   for (let i = 0; i < totalSeats; i++) {
@@ -122,16 +123,19 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
 
   const startArea = isHost ? (
     <div className="lobby-start-area" id="lobby-start-area">
-      <span className="lobby-start-kicker">Host Controls</span>
+      <span className="lobby-start-kicker">{t("lobby.hostControls")}</span>
       <span className="lobby-start-hint">
         {hasOpenSeats
-          ? `Start now and ${emptyCount} open seat${emptyCount !== 1 ? "s" : ""} will be filled with bots.`
-          : "All active seats are claimed and ready for the opening hand."}
+          ? t("lobby.startNowBots", { count: emptyCount, seatWord: seatWord(emptyCount, locale) })
+          : t("lobby.allActiveSeatsClaimed")}
       </span>
       {hasOpenSeats ? (
         <span className="lobby-bot-hint">
-          <Icon markup={ICON_BOT} /> {emptyCount} empty seat{emptyCount !== 1 ? "s" : ""} will
-          be filled with bots
+          <Icon markup={ICON_BOT} />{" "}
+          {t("lobby.emptySeatsBots", {
+            count: emptyCount,
+            seatWord: emptySeatWord(emptyCount, locale),
+          })}
         </span>
       ) : null}
       <button
@@ -143,19 +147,21 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
           ctx.connection.send({ type: "START_GAME" });
         }}
       >
-        Start Game
+        {t("common.startGame")}
       </button>
       {!canStart ? (
         <span className="lobby-start-hint lobby-waiting-pulse">
-          Awaiting players<span className="lobby-waiting-dots" />
+          {t("lobby.awaitingPlayers")}
+          <span className="lobby-waiting-dots" />
         </span>
       ) : null}
     </div>
   ) : mySeat !== null ? (
     <div className="lobby-start-area">
-      <span className="lobby-start-kicker">Match Status</span>
+      <span className="lobby-start-kicker">{t("lobby.matchStatus")}</span>
       <span className="lobby-start-hint lobby-waiting-pulse">
-        Waiting for host to start<span className="lobby-waiting-dots" />
+        {t("lobby.waitingForHost")}
+        <span className="lobby-waiting-dots" />
       </span>
     </div>
   ) : null;
@@ -166,7 +172,7 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
         className="lobby-float-leave"
         data-action="leave"
         type="button"
-        aria-label="Leave room"
+        aria-label={t("common.leave")}
         onClick={() => {
           ctx.connection.send({ type: "LEAVE_ROOM" });
           ctx.state.reset();
@@ -176,18 +182,20 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
         <span className="lobby-back-arrow">
           <Icon markup={ICON_ARROW_LEFT} />
         </span>
-        <span>Leave</span>
+        <span>{t("common.leave")}</span>
       </button>
 
       <div className="lobby-body">
         <div className="lobby-title-stack">
           <span className={`lobby-session-pill${connected ? "" : " offline"}`}>
             <span className="lobby-session-dot" aria-hidden="true" />
-            {connected ? "Session Active" : "Reconnecting"}
+            {connected ? t("lobby.sessionActive") : t("lobby.reconnecting")}
           </span>
           <h1 className="lobby-room-title">{roomName}</h1>
           <p className="lobby-room-subtitle">
-            {modeLabel} private table · room {code} · {filledSeats}/{totalSeats} seated
+            {locale === "es"
+              ? `Mesa privada de ${modeLabelText} · sala ${code} · ${filledSeats}/${totalSeats} sentados`
+              : `${modeLabelText} private table · room ${code} · ${filledSeats}/${totalSeats} seated`}
           </p>
         </div>
 
@@ -198,7 +206,7 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
                 <Icon markup={ICON_USERS} />
               </span>
               <div className="lobby-code-text">
-                <span className="lobby-code-label">Private Room Code</span>
+                <span className="lobby-code-label">{t("lobby.privateRoomCode")}</span>
                 <span className="lobby-code-value">{code}</span>
               </div>
             </div>
@@ -207,17 +215,17 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
                 className="lobby-copy-btn"
                 data-action="copy"
                 type="button"
-                aria-label="Copy room code"
+                aria-label={t("common.copyCode")}
                 onClick={() => {
                   if (!state.roomCode) return;
                   navigator.clipboard.writeText(state.roomCode).then(
-                    () => showToast("Code copied!", "success", 1200),
-                    () => showToast("Failed to copy", "error")
+                    () => showToast(t("lobby.codeCopied"), "success", 1200),
+                    () => showToast(t("lobby.copyFailed"), "error")
                   );
                 }}
               >
                 <Icon markup={ICON_COPY} />
-                <span>Copy Code</span>
+                <span>{t("common.copyCode")}</span>
               </button>
             </div>
           </div>
@@ -225,16 +233,17 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
           <div className="lobby-panel-body">
             <div className="lobby-meta-row">
               <span className="lobby-player-count">
-                <strong>{filledSeats}</strong>/{totalSeats} seated
+                <strong>{filledSeats}</strong>/{totalSeats}{" "}
+                {locale === "es" ? "sentados" : "seated"}
               </span>
               <span className="lobby-config-dot" aria-hidden="true" />
               <span className="lobby-config-item">
-                <span className="lobby-config-key">Mode</span>
-                <strong>{modeLabel}</strong>
+                <span className="lobby-config-key">{t("common.mode")}</span>
+                <strong>{modeLabelText}</strong>
               </span>
               <span className="lobby-config-dot" aria-hidden="true" />
               <span className="lobby-config-item">
-                <span className="lobby-config-key">Target</span>
+                <span className="lobby-config-key">{t("common.target")}</span>
                 <strong>{gameTarget} pts</strong>
               </span>
             </div>
@@ -242,23 +251,23 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
             <div
               className={`lobby-seats${mode === "tresillo" ? " tresillo" : ""}`}
               role="list"
-              aria-label="Player seats"
+              aria-label={locale === "es" ? "Asientos de jugadores" : "Player seats"}
             >
               {Array.from({ length: totalSeats }, (_, seatIndex) => {
                 const seat = seatIndex as SeatIndex;
                 const player = game.players[seat];
                 const isMine = mySeat === seat;
                 const isHostSeat = hostSeat === seat || (hostSeat === null && isMine);
-                const safeName = isMine ? profile.name : player?.handle || `Seat ${seat + 1}`;
+                const safeName = isMine ? profile.name : player?.handle || t("lobby.seat", { seat: seat + 1 });
 
                 let statusClass = "open";
                 let avatar = OPEN_SEAT_AVATAR;
                 let openAvatarClass = " open-seat-avatar";
                 let badge: ReactElement | null = (
-                  <span className="lobby-seat-badge badge-open">Open</span>
+                  <span className="lobby-seat-badge badge-open">{t("common.open")}</span>
                 );
-                let seatLabel = `Seat ${seat + 1}`;
-                let seatMeta = "Invite a friend or start with a bot.";
+                let seatLabel = t("lobby.seat", { seat: seat + 1 });
+                let seatMeta = t("lobby.openSeatMeta");
 
                 if (player) {
                   openAvatarClass = "";
@@ -266,17 +275,18 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
                   if (isMine) {
                     statusClass = "you";
                     avatar = profile.avatar;
-                    seatLabel = isHostSeat ? "Host Seat" : "Your Seat";
-                    seatMeta = "You are seated and ready for the first hand.";
+                    seatLabel = isHostSeat ? t("lobby.hostSeat") : t("lobby.yourSeat");
+                    seatMeta = t("lobby.seatedReady");
                     badge = isHostSeat ? (
                       <span className="lobby-seat-badge badge-host">
                         <span className="lobby-crown-icon">
                           <Icon markup={ICON_CROWN} />
                         </span>
-                        {" "}Host
+                        {" "}
+                        {t("common.host")}
                       </span>
                     ) : (
-                      <span className="lobby-seat-badge badge-you">You</span>
+                      <span className="lobby-seat-badge badge-you">{t("common.you")}</span>
                     );
                   } else if (player.isBot) {
                     statusClass = "bot";
@@ -285,35 +295,37 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
                       seat,
                       game.roomCode || state.roomCode
                     );
-                    seatMeta = "This chair will be played by a bot.";
+                    seatMeta = t("lobby.botSeatMeta");
                     badge = (
                       <span className="lobby-seat-badge badge-bot">
                         <span className="lobby-bot-icon">
                           <Icon markup={ICON_BOT} />
                         </span>
-                        {" "}Bot
+                        {" "}
+                        {t("common.bot")}
                       </span>
                     );
                   } else if (!player.connected) {
                     statusClass = "offline";
                     avatar = buildDiceBearUrl(player.handle || `seat-${seat}`, "identicon");
-                    seatLabel = isHostSeat ? "Host Seat" : `Seat ${seat + 1}`;
-                    seatMeta = "Connection lost. The seat is being held for reconnection.";
-                    badge = <span className="lobby-seat-badge badge-offline">Offline</span>;
+                    seatLabel = isHostSeat ? t("lobby.hostSeat") : t("lobby.seat", { seat: seat + 1 });
+                    seatMeta = t("lobby.reconnectSeatMeta");
+                    badge = <span className="lobby-seat-badge badge-offline">{t("common.offline")}</span>;
                   } else {
                     statusClass = "ready";
                     avatar = buildDiceBearUrl(player.handle || `seat-${seat}`, "identicon");
-                    seatLabel = isHostSeat ? "Host Seat" : `Seat ${seat + 1}`;
-                    seatMeta = "Claimed and ready for the salon.";
+                    seatLabel = isHostSeat ? t("lobby.hostSeat") : t("lobby.seat", { seat: seat + 1 });
+                    seatMeta = t("lobby.claimedReady");
                     badge = isHostSeat ? (
                       <span className="lobby-seat-badge badge-host">
                         <span className="lobby-crown-icon">
                           <Icon markup={ICON_CROWN} />
                         </span>
-                        {" "}Host
+                        {" "}
+                        {t("common.host")}
                       </span>
                     ) : (
-                      <span className="lobby-seat-badge badge-ready">Ready</span>
+                      <span className="lobby-seat-badge badge-ready">{t("common.ready")}</span>
                     );
                   }
                 }
@@ -322,7 +334,7 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
                   <article
                     key={seat}
                     className={`lobby-seat ${statusClass}`}
-                    aria-label={statusClass === "open" ? `Open seat ${seat + 1}` : safeName}
+                    aria-label={statusClass === "open" ? t("lobby.openSeat", { seat: seat + 1 }) : safeName}
                   >
                     <div className="lobby-seat-shell">
                       <div className="lobby-seat-avatar-wrap">
@@ -346,7 +358,7 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
                       <div className="lobby-seat-info">
                         <span className="lobby-seat-label">{seatLabel}</span>
                         <div className="lobby-seat-name">
-                          {statusClass === "open" ? `Open Seat ${seat + 1}` : safeName}
+                          {statusClass === "open" ? t("lobby.openSeat", { seat: seat + 1 }) : safeName}
                         </div>
                         <div className="lobby-seat-meta">{seatMeta}</div>
                       </div>
@@ -361,7 +373,7 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
                               ctx.connection.send({ type: "TAKE_SEAT", seat });
                             }}
                           >
-                            Sit Here
+                            {t("lobby.sitHere")}
                           </button>
                         ) : null}
                       </div>
@@ -375,19 +387,19 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
 
             <div className="lobby-lower">
               <div className="lobby-config-panel">
-                <h2 className="lobby-config-title">Match Configuration</h2>
+                <h2 className="lobby-config-title">{t("lobby.matchConfiguration")}</h2>
                 <div className="lobby-config-grid">
                   <span className="lobby-config-item">
-                    <span className="lobby-config-key">Mode</span>
-                    <strong>{modeLabel}</strong>
+                    <span className="lobby-config-key">{t("common.mode")}</span>
+                    <strong>{modeLabelText}</strong>
                   </span>
                   <span className="lobby-config-item">
-                    <span className="lobby-config-key">Target</span>
-                    <strong>{gameTarget} points</strong>
+                    <span className="lobby-config-key">{t("common.target")}</span>
+                    <strong>{locale === "es" ? `${gameTarget} puntos` : `${gameTarget} points`}</strong>
                   </span>
                   <span className="lobby-config-item">
-                    <span className="lobby-config-key">Deck</span>
-                    <strong>Spanish 40</strong>
+                    <span className="lobby-config-key">{t("common.deck")}</span>
+                    <strong>{locale === "es" ? "Española 40" : "Spanish 40"}</strong>
                   </span>
                 </div>
               </div>
@@ -399,23 +411,23 @@ export function LobbyScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
 
         <div className="lobby-support-grid">
           <article className="lobby-support-card">
-            <span className="lobby-support-kicker">Invitation</span>
+            <span className="lobby-support-kicker">{t("lobby.invitation")}</span>
             <p className="lobby-support-copy">
-              Share room code {code} to bring friends straight into this salon.
+              {t("lobby.shareCode", { code })}
             </p>
           </article>
           <article className="lobby-support-card">
-            <span className="lobby-support-kicker">Seats</span>
+            <span className="lobby-support-kicker">{t("lobby.seats")}</span>
             <p className="lobby-support-copy">
               {hasOpenSeats
-                ? `${emptyCount} seat${emptyCount !== 1 ? "s remain" : " remains"} open and can be bot-filled when the game starts.`
-                : "Every active seat is claimed and ready for the first deal."}
+                ? t("lobby.activeSeatsOpen", { count: emptyCount, seatWord: seatWord(emptyCount, locale) })
+                : t("lobby.activeSeatsClaimed")}
             </p>
           </article>
           <article className="lobby-support-card">
-            <span className="lobby-support-kicker">Format</span>
+            <span className="lobby-support-kicker">{t("lobby.format")}</span>
             <p className="lobby-support-copy">
-              {modeLabel} to {gameTarget} points with the Spanish 40-card deck.
+              {t("lobby.withDeck", { mode: modeLabelText, target: gameTarget })}
             </p>
           </article>
         </div>

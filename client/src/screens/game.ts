@@ -16,6 +16,15 @@ import {
   detectSpritesheetSupport,
   ensureSpritesheetCss,
 } from "../lib/card-sprites";
+import {
+  bidDisplayLabel,
+  cardDisplayLabel,
+  createTranslator,
+  phaseDisplayLabel,
+  positionLabel,
+  suitLabel,
+  type Locale,
+} from "../i18n";
 import type { Card, S2CMessage, SeatIndex } from "../protocol";
 import { showToast } from "../ui/toast";
 import { detectGameMobilePortrait } from "../app/screens/game-viewport";
@@ -28,7 +37,7 @@ export class GameScreen {
   private feedbackBridge!: GameFeedbackBridge;
   private renderer!: GameRenderer;
   private unsubscribes: Array<() => void> = [];
-  private spriteMode = false;
+  private spriteMode = true;
 
   private prevPhase: string | null = null;
   private prevTurn: number | null = null;
@@ -89,7 +98,9 @@ export class GameScreen {
       ctx.settings,
       ctx.profile
     );
+    ensureSpritesheetCss();
     this.renderer.setDomPlatesEnabled(true);
+    this.renderer.setCanvasCardLayers({ hand: false, table: false });
     this.domLayerBridge.setHandlers({
       onCardInteraction: (cardId, tapToConfirm) => {
         this.handleCardInteraction(cardId, tapToConfirm);
@@ -116,6 +127,7 @@ export class GameScreen {
     this.lastObservedHandKey = this.handSignature();
     this.lastObservedPhase = ctx.state.game?.phase ?? "";
 
+    this.syncCardPresentationMode();
     this.syncPhaseClass();
     this.domLayerBridge.setPendingPlayCard(this.pendingPlayCard);
     this.domLayerBridge.setTrickDisplayOverlay(this.trickDisplayOverlay);
@@ -216,7 +228,6 @@ export class GameScreen {
     this.syncCardPresentationMode();
 
     if (supported) {
-      ensureSpritesheetCss();
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       this.renderer.setCanvasCardLayers({ hand: false, table: false });
       return;
@@ -312,7 +323,9 @@ export class GameScreen {
       const { min, max } = state.getExchangeLimits();
       if (selected.length < min || selected.length > max) {
         this.showInvalidAction(
-          min === 1 && max === 1 ? "Select exactly 1 card to exchange." : "Select a valid exchange."
+          min === 1 && max === 1
+            ? this.t("game.invalid.exactOne")
+            : this.t("game.invalid.validExchange")
         );
         return;
       }
@@ -334,7 +347,7 @@ export class GameScreen {
     if (!game) return;
 
     if (state.phase === "exchange" && !state.canExchangeNow) {
-      this.showInvalidAction("Wait for your exchange turn.");
+      this.showInvalidAction(this.t("game.invalid.waitExchange"));
       return;
     }
 
@@ -351,13 +364,13 @@ export class GameScreen {
     if (state.phase !== "play") return;
 
     if (!state.isMyTurn) {
-      this.showInvalidAction("Wait for your turn.");
+      this.showInvalidAction(this.t("game.invalid.waitTurn"));
       return;
     }
 
     const legalIds = game.legalIds;
     if (legalIds && !legalIds.includes(cardId)) {
-      this.showInvalidAction("Illegal card: follow suit if possible.");
+      this.showInvalidAction(this.t("game.invalid.followSuit"));
       return;
     }
 
@@ -440,16 +453,16 @@ export class GameScreen {
         break;
       case "auction":
         if (this.ctx.state.isMyTurn) {
-          this.showAuctionAnnouncement("Your turn to bid", 1500);
+          this.showAuctionAnnouncement(this.t("game.phaseBanner.yourTurnChooseBid"), 1500);
         }
         break;
       case "penetro_choice":
         if (this.ctx.state.isMyTurn) {
-          showToast("Choose whether to play Penetro", "info", 1800);
+          showToast(this.t("game.choosePenetro"), "info", 1800);
         }
         break;
       case "trump_choice":
-        if (this.ctx.state.isMyTurn) showToast("Choose trump suit", "info", 1800);
+        if (this.ctx.state.isMyTurn) showToast(this.t("game.chooseTrumpToast"), "info", 1800);
         break;
       case "exchange":
         this.ctx.state.clearSelection();
@@ -470,15 +483,26 @@ export class GameScreen {
         this.ctx.sounds.trickWin();
         const winner = payload.winner as number;
         const rel = this.ctx.state.relativePosition(winner as any);
-        const label = rel === "self" ? "You" : this.ctx.state.game?.players[winner]?.handle || rel;
+        const label = this.seatLabelForAnnouncements(winner);
         const reason = this.trickWinReason(payload);
-        this.pushArenaToast(`${label} wins trick${reason ? ` (${reason})` : ""}`, 1900);
+        const trickToast =
+          this.locale() === "es"
+            ? `${label} gana la baza${reason ? ` (${reason})` : ""}`
+            : `${label} wins the trick${reason ? ` (${reason})` : ""}`;
+        this.pushArenaToast(trickToast, 1900);
         const trickCards = Array.isArray(payload.cards) ? (payload.cards as Card[]) : [];
         const trickPlayOrder = Array.isArray(payload.playOrder) ? (payload.playOrder as number[]) : [];
         const winIdx = trickPlayOrder.indexOf(winner);
         const winnerCard = winIdx >= 0 ? trickCards[winIdx] : null;
-        const winnerLabel = rel === "self" ? "You win" : `${label} wins`;
-        const cardDesc = winnerCard ? ` with ${this.cardLabel(winnerCard)}` : "";
+        const winnerLabel =
+          rel === "self"
+            ? this.t("game.resultBanner.youWin")
+            : this.t("game.resultBanner.otherWins", { name: label });
+        const cardDesc = winnerCard
+          ? this.locale() === "es"
+            ? ` con ${this.cardLabel(winnerCard)}`
+            : ` with ${this.cardLabel(winnerCard)}`
+          : "";
         this.showTrickResultBanner(`${winnerLabel}${cardDesc}!`);
         this.applyTrickOverlayFromEvent(payload);
         const anchors = this.renderer.getAnimationAnchors();
@@ -492,11 +516,16 @@ export class GameScreen {
         const value = String(payload.value || "pass");
         const actor = this.seatLabelForAnnouncements(seat);
         if (value === "pass") {
-          this.showAuctionAnnouncement(`${actor} passes`, 1400);
-          this.pushArenaToast(`${actor} passes`);
+          const passText = this.t("game.announce.pass", { actor });
+          this.showAuctionAnnouncement(passText, 1400);
+          this.pushArenaToast(passText);
         } else {
-          this.showAuctionAnnouncement(`${actor} bids ${this.bidLabel(value)}`, 1700);
-          this.pushArenaToast(`${actor} bids ${this.bidLabel(value)}`);
+          const bidText = this.t("game.announce.bid", {
+            actor,
+            bid: this.bidLabel(value),
+          });
+          this.showAuctionAnnouncement(bidText, 1700);
+          this.pushArenaToast(bidText);
         }
         this.updatePhaseBanner(
           String(payload.currentBid || "pass"),
@@ -511,8 +540,11 @@ export class GameScreen {
         const seat = Number(payload.ombre);
         const bid = String(payload.bid || "");
         const actor = this.seatLabelForAnnouncements(seat);
-        this.showAuctionAnnouncement(`${actor} wins auction with ${this.bidLabel(bid)}`, 2600);
-        this.pushArenaToast(`${actor} wins with ${this.bidLabel(bid)}`);
+        this.showAuctionAnnouncement(
+          this.t("game.announce.auctionWin", { actor, bid: this.bidLabel(bid) }),
+          2600
+        );
+        this.pushArenaToast(this.t("game.announce.winWith", { actor, bid: this.bidLabel(bid) }));
         this.updatePhaseBanner(bid, seat);
         break;
       }
@@ -525,7 +557,10 @@ export class GameScreen {
         }
         if (seat !== undefined && card) {
           this.pushArenaToast(
-            `${this.seatLabelForAnnouncements(seat)} played ${this.cardLabel(card)}`,
+            this.t("game.announce.cardPlayed", {
+              actor: this.seatLabelForAnnouncements(seat),
+              card: this.cardLabel(card),
+            }),
             1300
           );
         }
@@ -554,12 +589,21 @@ export class GameScreen {
         const award = Array.isArray(payload.award) ? (payload.award as number[]) : [];
         const mySeat = this.ctx.state.mySeat;
         if (mySeat !== null && award.includes(mySeat) && points > 0) {
-          this.pushArenaToast(`Round result: +${points} point${points === 1 ? "" : "s"}`, 2200);
+          this.pushArenaToast(
+            this.t("game.announce.roundResultSelf", {
+              points,
+              pointWord: this.locale() === "es" ? (points === 1 ? "punto" : "puntos") : points === 1 ? "point" : "points",
+            }),
+            2200
+          );
         } else if (award.length && points > 0) {
           const names = award.map((seat) => this.seatLabelForAnnouncements(seat)).join(", ");
-          this.pushArenaToast(`Round result: ${names} +${points}`, 2200);
+          this.pushArenaToast(
+            this.t("game.announce.roundResultOthers", { names, points }),
+            2200
+          );
         } else {
-          this.pushArenaToast("Round complete", 1700);
+          this.pushArenaToast(this.t("game.announce.roundComplete"), 1700);
         }
         break;
       }
@@ -567,7 +611,7 @@ export class GameScreen {
       case "TRUMP_SET": {
         const suit = String(payload.suit || "");
         if (suit) {
-          this.pushArenaToast(`Trump set to ${this.capSuit(suit)}`);
+          this.pushArenaToast(this.t("game.announce.trumpSet", { suit: this.capSuit(suit) }));
         }
         break;
       }
@@ -645,39 +689,56 @@ export class GameScreen {
     let sub = "";
     if (game.phase === "auction") {
       if (bid === "pass" || bidder === null) {
-        sub = game.turn === this.ctx.state.mySeat ? "Your turn: choose a bid" : "No leading bid yet";
+        sub =
+          game.turn === this.ctx.state.mySeat
+            ? this.t("game.phaseBanner.yourTurnChooseBid")
+            : this.t("game.phaseBanner.auctionLeadNone");
       } else {
-        const leader = `Leading bid: ${this.bidLabel(bid)} by ${this.seatLabelForAnnouncements(bidder)}`;
-        sub = game.turn === this.ctx.state.mySeat ? `Your turn: choose a bid · ${leader}` : leader;
+        const leader = this.t("game.phaseBanner.leadingBid", {
+          bid: this.bidLabel(bid),
+          name: this.seatLabelForAnnouncements(bidder),
+        });
+        sub =
+          game.turn === this.ctx.state.mySeat
+            ? this.t("game.phaseBanner.yourTurnChooseBidWithLeader", { leader })
+            : leader;
       }
     } else if (game.phase === "trump_choice") {
-      sub = game.turn === this.ctx.state.mySeat
-        ? "Your turn: choose trump"
-        : game.turn !== null
-          ? `Waiting for ${this.seatLabelForAnnouncements(game.turn)} to choose trump`
-          : "Waiting for trump selection";
+      sub =
+        game.turn === this.ctx.state.mySeat
+          ? this.t("game.phaseBanner.yourTurnChooseTrump")
+          : game.turn !== null
+            ? this.t("game.phaseBanner.waitChooseTrump", {
+                name: this.seatLabelForAnnouncements(game.turn),
+              })
+            : this.t("game.phaseBanner.waitTrump");
     } else if (game.phase === "exchange") {
-      sub = this.ctx.state.canExchangeNow
-        ? "Select cards to exchange"
-        : game.exchange.current !== null
-          ? `Waiting for ${this.seatLabelForAnnouncements(game.exchange.current)} to exchange`
-          : "Preparing exchange";
+      sub =
+        this.ctx.state.canExchangeNow
+          ? this.t("game.phaseBanner.selectExchange")
+          : game.exchange.current !== null
+            ? this.t("game.phaseBanner.waitExchange", {
+                name: this.seatLabelForAnnouncements(game.exchange.current),
+              })
+            : this.t("game.phaseBanner.preparingExchange");
     } else if (game.phase === "penetro_choice") {
-      sub = "Resting player decides Penetro";
+      sub = this.t("game.phaseBanner.penetroDecision");
     } else if (game.phase === "play") {
       if (game.turn === null) {
-        sub = "Waiting for lead";
+        sub = this.t("game.phaseBanner.waitLead");
       } else if (game.turn === this.ctx.state.mySeat) {
-        sub = "Your turn: play a legal card";
+        sub = this.t("game.phaseBanner.yourTurnPlay");
       } else {
-        sub = `Waiting for ${this.seatLabelForAnnouncements(game.turn)} to play`;
+        sub = this.t("game.phaseBanner.waitPlay", {
+          name: this.seatLabelForAnnouncements(game.turn),
+        });
       }
     } else if (game.phase === "dealing") {
-      sub = "Dealing cards";
+      sub = this.t("game.phaseBanner.dealing");
     } else if (game.phase === "post_hand") {
-      sub = "Hand complete";
+      sub = this.t("game.phaseBanner.handComplete");
     } else if (game.phase === "match_end") {
-      sub = "Match complete";
+      sub = this.t("game.phaseBanner.matchComplete");
     }
 
     this.feedbackBridge.setPhaseBanner({ main, sub, yourTurn });
@@ -709,31 +770,37 @@ export class GameScreen {
     return this.ctx.state.hand.map((card) => card.id).join("|");
   }
 
+  private locale(): Locale {
+    return this.ctx.settings.get("locale");
+  }
+
+  private t(key: string, params?: Record<string, string | number>): string {
+    return createTranslator(this.locale()).t(key, params);
+  }
+
   private seatLabelForAnnouncements(seat: number): string {
-    if (this.ctx.state.mySeat === seat) return "You";
-    const role = this.roleLabelForSeat(seat as SeatIndex);
+    const locale = this.locale();
+    if (this.ctx.state.mySeat === seat) return locale === "es" ? "Tú" : "You";
     const handle = this.ctx.state.game?.players[seat]?.handle;
+    const game = this.ctx.state.game;
+    const playerLabel = locale === "es" ? "Jugador" : "Player";
+    const firstOppLabel = locale === "es" ? "Primer contra" : "First opponent";
+    const secondOppLabel = locale === "es" ? "Segundo contra" : "Second opponent";
+    if (game?.ombre === seat) return handle ? `${playerLabel} (${handle})` : playerLabel;
+    if (game?.ombre !== null && game?.ombre !== undefined) {
+      const primer = this.nextActiveSeat(game.ombre);
+      const segundo = this.nextActiveSeat(primer);
+      if (seat === primer) return handle ? `${firstOppLabel} (${handle})` : firstOppLabel;
+      if (seat === segundo) return handle ? `${secondOppLabel} (${handle})` : secondOppLabel;
+    }
     if (handle) {
-      if (role.startsWith("PRIMER")) return `Primer Contrincante (${handle})`;
-      if (role.startsWith("SEGUNDO")) return `Segundo Contrincante (${handle})`;
-      if (role === "JUGADOR") return `Jugador (${handle})`;
       return handle;
     }
-    if (role === "JUGADOR") return "Jugador";
-    if (role.startsWith("PRIMER")) return "Primer Contrincante";
-    if (role.startsWith("SEGUNDO")) return "Segundo Contrincante";
-    return `Seat ${seat}`;
+    return locale === "es" ? `Asiento ${seat}` : `Seat ${seat}`;
   }
 
   private cardLabel(card: Card): string {
-    const rankNames: Record<number, string> = {
-      1: "As",
-      10: "Sota",
-      11: "Caballo",
-      12: "Rey",
-    };
-    const rank = rankNames[card.r] || String(card.r);
-    return `${rank} de ${this.capSuit(card.s)}`;
+    return cardDisplayLabel(card, this.locale());
   }
 
   private trickWinReason(payload: Record<string, unknown>): string {
@@ -748,57 +815,31 @@ export class GameScreen {
     const trump = this.ctx.state.game?.trump;
 
     if (trump && winning.s === trump && lead.s !== trump) {
-      return "trump advantage";
+      return this.t("game.trickReason.trump");
     }
     if (winning.s === lead.s) {
-      return `highest ${this.capSuit(lead.s)}`;
+      return this.t("game.trickReason.highestSuit", { suit: this.capSuit(lead.s) });
     }
     if (trump && winning.s === trump) {
-      return "trump advantage";
+      return this.t("game.trickReason.trump");
     }
-    return "highest card";
+    return this.t("game.trickReason.highestCard");
   }
 
   private bidLabel(value: string): string {
-    const labels: Record<string, string> = {
-      pass: "Pass",
-      entrada: "Entrada",
-      oros: "Entrada Oros",
-      volteo: "Volteo",
-      solo: "Solo",
-      solo_oros: "Solo Oros",
-      contrabola: "Contrabola",
-      bola: "Bola",
-    };
-    return labels[value] || value;
+    return bidDisplayLabel(value, this.locale());
   }
 
   private phaseLabel(phase: string): string {
-    const labels: Record<string, string> = {
-      dealing: "Dealing",
-      auction: "Auction",
-      penetro_choice: "Penetro Choice",
-      trump_choice: "Choose Trump",
-      exchange: "Exchange",
-      play: "Play Trick",
-      post_hand: "Hand Complete",
-      match_end: "Match End",
-    };
-    return labels[phase] || phase;
+    return phaseDisplayLabel(phase, this.locale());
   }
 
   private capSuit(suit: string): string {
-    return suit.charAt(0).toUpperCase() + suit.slice(1);
+    return suitLabel(suit, this.locale());
   }
 
   private capLabel(pos: "left" | "across" | "right" | "self"): string {
-    const map: Record<typeof pos, string> = {
-      self: "You",
-      left: "Left",
-      across: "Across",
-      right: "Right",
-    };
-    return map[pos];
+    return positionLabel(pos, this.locale());
   }
 
   private activeSeatsForRole(): SeatIndex[] {
@@ -817,16 +858,17 @@ export class GameScreen {
 
   private roleLabelForSeat(seat: SeatIndex): string {
     const game = this.ctx.state.game;
-    if (!game) return `Seat ${seat}`;
-    if (game.resting === seat) return "RESTING";
+    const locale = this.locale();
+    if (!game) return locale === "es" ? `Asiento ${seat}` : `Seat ${seat}`;
+    if (game.resting === seat) return this.t("game.resting").toUpperCase();
     if (game.ombre === null) {
       return this.capLabel(this.ctx.state.relativePosition(seat)).toUpperCase();
     }
-    if (seat === game.ombre) return "JUGADOR";
+    if (seat === game.ombre) return locale === "es" ? "JUGADOR" : "PLAYER";
     const primer = this.nextActiveSeat(game.ombre);
     const segundo = this.nextActiveSeat(primer);
-    if (seat === primer) return "PRIMER CONTR.";
-    if (seat === segundo) return "SEGUNDO CONTR.";
+    if (seat === primer) return locale === "es" ? "PRIMER CONTR." : "FIRST OPP.";
+    if (seat === segundo) return locale === "es" ? "SEGUNDO CONTR." : "SECOND OPP.";
     return this.capLabel(this.ctx.state.relativePosition(seat)).toUpperCase();
   }
 
@@ -889,6 +931,12 @@ export class GameScreen {
     this.spriteMode = false;
     this.renderer.setCanvasCardLayers({ hand: true, table: true });
     this.syncCardPresentationMode();
-    showToast("Using fallback card renderer.", "info", 1200);
+    showToast(
+      this.locale() === "es"
+        ? "Usando el renderizador alternativo de cartas."
+        : "Using fallback card renderer.",
+      "info",
+      1200
+    );
   }
 }

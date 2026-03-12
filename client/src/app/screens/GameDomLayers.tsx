@@ -1,10 +1,11 @@
 import type { CSSProperties, ReactElement } from "react";
 import { useEffect, useRef } from "react";
+import { createTranslator, positionLabel } from "../../i18n";
 import { spriteClassForCard } from "../../lib/card-sprites";
 import type { Card, SeatIndex } from "../../protocol";
 import type { AppContext } from "../../router";
 import type { ClientState } from "../../state";
-import { useClientState } from "../hooks";
+import { useClientState, useSettings } from "../hooks";
 import type { GameDomLayerBridge, GameDomLayerSnapshot } from "./game-dom-layer-bridge";
 import { useGameDomLayerSnapshot } from "./useGameDomLayerSnapshot";
 
@@ -13,16 +14,6 @@ type VarStyle = CSSProperties & Record<string, string>;
 function detectTouchConfirm(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(hover: none)").matches;
-}
-
-function capLabel(pos: "left" | "across" | "right" | "self"): string {
-  const map: Record<typeof pos, string> = {
-    self: "You",
-    left: "Left",
-    across: "Across",
-    right: "Right",
-  };
-  return map[pos];
 }
 
 function activeSeatsForRole(state: ClientState): SeatIndex[] {
@@ -41,40 +32,24 @@ function nextActiveSeat(state: ClientState, seat: SeatIndex): SeatIndex {
   return active[(idx + 1) % active.length];
 }
 
-function roleLabelForSeat(state: ClientState, seat: SeatIndex): string {
-  const game = state.game;
-  if (!game) return `Seat ${seat}`;
-  if (game.resting === seat) return "RESTING";
-  if (game.ombre === null) {
-    return capLabel(state.relativePosition(seat)).toUpperCase();
-  }
-  if (seat === game.ombre) return "JUGADOR";
-  const primer = nextActiveSeat(state, game.ombre);
-  const segundo = nextActiveSeat(state, primer);
-  if (seat === primer) return "PRIMER CONTR.";
-  if (seat === segundo) return "SEGUNDO CONTR.";
-  return capLabel(state.relativePosition(seat)).toUpperCase();
-}
-
-function trickActorLabel(state: ClientState, seat: number | undefined): string {
+function trickActorLabel(state: ClientState, seat: number | undefined, locale: "en" | "es"): string {
   if (seat === undefined) return "";
   const rel = state.relativePosition(seat as SeatIndex);
-  if (rel === "self") return "YOU";
-  const role = roleLabelForSeat(state, seat as SeatIndex);
-  const relLabel =
-    role === "JUGADOR"
-      ? "JUGADOR"
-      : role.startsWith("PRIMER")
-        ? "PRIMER"
-        : role.startsWith("SEGUNDO")
-          ? "SEGUNDO"
-          : rel.toUpperCase();
+  if (rel === "self") return locale === "es" ? "TÚ" : "YOU";
+  const game = state.game;
+  let relLabel = positionLabel(rel, locale).toUpperCase();
+  if (game?.ombre !== null && game?.ombre !== undefined) {
+    if (seat === game.ombre) {
+      relLabel = locale === "es" ? "JUGADOR" : "PLAYER";
+    } else {
+      const primer = nextActiveSeat(state, game.ombre);
+      const segundo = nextActiveSeat(state, primer);
+      if (seat === primer) relLabel = locale === "es" ? "PRIMER" : "FIRST";
+      else if (seat === segundo) relLabel = locale === "es" ? "SEGUNDO" : "SECOND";
+    }
+  }
   const handle = state.game?.players[seat]?.handle;
   return handle ? `${relLabel} · ${handle}` : relLabel;
-}
-
-function capSuit(suit: string): string {
-  return suit.charAt(0).toUpperCase() + suit.slice(1);
 }
 
 function trickSlotStyle(
@@ -126,15 +101,17 @@ interface MobileActionState {
 
 function mobileActionState(
   state: ClientState,
-  snapshot: GameDomLayerSnapshot
+  snapshot: GameDomLayerSnapshot,
+  locale: "en" | "es"
 ): MobileActionState {
+  const { t } = createTranslator(locale);
   if (!snapshot.isMobilePortrait) {
-    return { hidden: true, disabled: true, label: "Select a Card", ready: false };
+    return { hidden: true, disabled: true, label: t("game.selectCard"), ready: false };
   }
 
   const game = state.game;
   if (!game) {
-    return { hidden: true, disabled: true, label: "Select a Card", ready: false };
+    return { hidden: true, disabled: true, label: t("game.selectCard"), ready: false };
   }
 
   if (state.phase === "play" && state.isMyTurn) {
@@ -142,14 +119,14 @@ function mobileActionState(
       return {
         hidden: false,
         disabled: false,
-        label: "Play Card",
+        label: t("game.playCard"),
         ready: true,
       };
     }
     return {
-      hidden: false,
+      hidden: true,
       disabled: true,
-      label: "Select a Card",
+      label: t("game.selectCard"),
       ready: false,
     };
   }
@@ -162,19 +139,19 @@ function mobileActionState(
       return {
         hidden: false,
         disabled: requireExactOne ? count !== 1 : count < min || count > max,
-        label: `Trade ${count}`,
+        label: `${t("game.exchange.trade")} ${count}`,
         ready: true,
       };
     }
     return {
-      hidden: false,
+      hidden: min > 0,
       disabled: min > 0,
-      label: min > 0 ? "Select Cards" : "Keep All",
+      label: min > 0 ? t("game.selectCards") : t("game.keepAll"),
       ready: false,
     };
   }
 
-  return { hidden: true, disabled: true, label: "Select a Card", ready: false };
+  return { hidden: true, disabled: true, label: t("game.selectCard"), ready: false };
 }
 
 export function GameTrickDomLayers({
@@ -185,7 +162,9 @@ export function GameTrickDomLayers({
   bridge: GameDomLayerBridge;
 }): ReactElement {
   const state = useClientState(ctx.state);
+  const settings = useSettings(ctx.settings);
   const snapshot = useGameDomLayerSnapshot(bridge);
+  const { t } = createTranslator(settings.locale);
   const game = state.game;
   const trickCards = game?.table.length
     ? game.table
@@ -211,10 +190,10 @@ export function GameTrickDomLayers({
                 className={`trick-card-wrap${isWinner ? " winner" : ""}`}
                 style={trickSlotStyle(rel, snapshot.isMobilePortrait)}
               >
-                {isWinner ? <div className="trick-winner-badge">WINNER</div> : null}
+                {isWinner ? <div className="trick-winner-badge">{t("game.winner")}</div> : null}
                 <div className={spriteClassForCard(card)}></div>
                 {seat !== undefined ? (
-                  <div className="trick-card-label">{trickActorLabel(state, seat)}</div>
+                  <div className="trick-card-label">{trickActorLabel(state, seat, settings.locale)}</div>
                 ) : null}
               </div>
             );
@@ -233,16 +212,25 @@ export function GameHandDock({
   bridge: GameDomLayerBridge;
 }): ReactElement {
   const state = useClientState(ctx.state);
+  const settings = useSettings(ctx.settings);
   const snapshot = useGameDomLayerSnapshot(bridge);
   const handLayerRef = useRef<HTMLDivElement | null>(null);
+  const dragSuppressUntilRef = useRef(0);
+  const dragStateRef = useRef({
+    pointerId: null as number | null,
+    startX: 0,
+    startScrollLeft: 0,
+    dragging: false,
+  });
   const touchConfirm = detectTouchConfirm();
   const handSignature = state.hand.map((card) => card.id).join("|");
-  const action = mobileActionState(state, snapshot);
+  const { t } = createTranslator(settings.locale);
+  const action = mobileActionState(state, snapshot, settings.locale);
 
   useEffect(() => {
     if (!snapshot.spriteMode || state.hand.length === 0) return;
 
-    const frameId = window.requestAnimationFrame(() => {
+    const timeoutId = window.setTimeout(() => {
       const nodes = handLayerRef.current?.querySelectorAll<HTMLElement>(".roc-card") ?? [];
       if (!nodes.length) {
         bridge.reportSpriteRenderFailure();
@@ -261,21 +249,95 @@ export function GameHandDock({
       if (!renderable) {
         bridge.reportSpriteRenderFailure();
       }
-    });
+    }, 140);
 
     return () => {
-      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
     };
   }, [bridge, handSignature, snapshot.spriteMode, snapshot.isMobilePortrait, state.hand.length]);
+
+  useEffect(() => {
+    const row = handLayerRef.current;
+    if (!row || !snapshot.isMobilePortrait) return;
+
+    const drag = dragStateRef.current;
+
+    const finishDrag = (pointerId: number): void => {
+      if (drag.pointerId !== pointerId) return;
+      if (drag.dragging) {
+        dragSuppressUntilRef.current = Date.now() + 220;
+      }
+      drag.pointerId = null;
+      drag.dragging = false;
+      row.classList.remove("dragging");
+      try {
+        if (row.hasPointerCapture(pointerId)) {
+          row.releasePointerCapture(pointerId);
+        }
+      } catch {
+        // Some browsers can reject pointer capture release after a cancel.
+      }
+    };
+
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (row.scrollWidth <= row.clientWidth + 4) return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      drag.pointerId = event.pointerId;
+      drag.startX = event.clientX;
+      drag.startScrollLeft = row.scrollLeft;
+      drag.dragging = false;
+      try {
+        row.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture is a progressive enhancement for smoother drag scrolling.
+      }
+    };
+
+    const handlePointerMove = (event: PointerEvent): void => {
+      if (drag.pointerId !== event.pointerId) return;
+      const delta = event.clientX - drag.startX;
+      if (!drag.dragging && Math.abs(delta) > 6) {
+        drag.dragging = true;
+        row.classList.add("dragging");
+      }
+      if (!drag.dragging) return;
+      row.scrollLeft = drag.startScrollLeft - delta;
+      event.preventDefault();
+    };
+
+    const handlePointerUp = (event: PointerEvent): void => {
+      finishDrag(event.pointerId);
+    };
+
+    const handlePointerCancel = (event: PointerEvent): void => {
+      finishDrag(event.pointerId);
+    };
+
+    row.addEventListener("pointerdown", handlePointerDown);
+    row.addEventListener("pointermove", handlePointerMove);
+    row.addEventListener("pointerup", handlePointerUp);
+    row.addEventListener("pointercancel", handlePointerCancel);
+
+    return () => {
+      row.removeEventListener("pointerdown", handlePointerDown);
+      row.removeEventListener("pointermove", handlePointerMove);
+      row.removeEventListener("pointerup", handlePointerUp);
+      row.removeEventListener("pointercancel", handlePointerCancel);
+      row.classList.remove("dragging");
+      drag.pointerId = null;
+      drag.dragging = false;
+    };
+  }, [snapshot.isMobilePortrait, handSignature]);
 
   const game = state.game;
   const legalIds = game?.legalIds || [];
   const showHandDock = snapshot.spriteMode && state.hand.length > 0;
 
   return (
-    <div className="game-hand-dock" id="game-hand-dock" aria-label="Your hand area" hidden={!showHandDock}>
+    <div className="game-hand-dock" id="game-hand-dock" aria-label={t("game.yourHandArea")} hidden={!showHandDock}>
       <div className="hand-dock-header" aria-hidden="true">
-        <span className="hand-dock-title">Your Hand</span>
+        <span className="hand-dock-title">{t("game.yourHand")}</span>
+        <span className="hand-dock-hint">{t("game.swipe")}</span>
       </div>
       <div
         key={snapshot.invalidShakeNonce}
@@ -283,7 +345,7 @@ export function GameHandDock({
         className={`hand-row${snapshot.invalidShakeNonce > 0 ? " invalid-shake" : ""}`}
         id="hand-layer"
         role="listbox"
-        aria-label="Your hand"
+        aria-label={t("game.yourHandAria")}
       >
         {state.hand.map((card, index) => {
           const selected = state.selectedCards.has(card.id);
@@ -303,6 +365,7 @@ export function GameHandDock({
               style={handFanStyle(index, state.hand.length, snapshot.isMobilePortrait)}
               disabled={illegal}
               onClick={() => {
+                if (Date.now() < dragSuppressUntilRef.current) return;
                 bridge.interactWithCard(card.id, touchConfirm);
               }}
             >

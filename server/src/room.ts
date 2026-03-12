@@ -271,14 +271,28 @@ export class Room {
   }
 
   detach(conn: Conn): void {
-    if (conn.seat !== null) {
-      console.log(`[room] Player ${conn.handle} (seat ${conn.seat}) left room ${this.id}`);
+    const leavingSeat = conn.seat;
+    const replaceWithBot =
+      leavingSeat !== null &&
+      !conn.isBot &&
+      !conn.isSpectator &&
+      this.state.phase !== "lobby";
+
+    if (leavingSeat !== null) {
+      console.log(`[room] Player ${conn.handle} (seat ${leavingSeat}) left room ${this.id}`);
       conn.connected = false;
-      this.event("PLAYER_LEFT", { seat: conn.seat, handle: conn.handle });
+      this.event("PLAYER_LEFT", { seat: leavingSeat, handle: conn.handle });
     }
     this.conns = this.conns.filter((c) => c !== conn);
+
+    if (replaceWithBot) {
+      const bot = this.makeBot();
+      this.conns.push(bot);
+      this.assignSeat(bot, leavingSeat);
+    }
+
     // Transfer host if the leaving player was host
-    if (conn.seat !== null && conn.seat === this.hostSeat) {
+    if (leavingSeat !== null && leavingSeat === this.hostSeat) {
       const nextHuman = this.conns.find(
         (c) => !c.isBot && !c.isSpectator && c.seat !== null && c.connected
       );
@@ -1457,6 +1471,9 @@ export class Room {
           this.detach(conn);
           this.send(conn, { type: "ROOM_LEFT" });
           this.broadcastState();
+          if (this.state.phase !== "lobby") {
+            this.botMaybeAct();
+          }
           return;
         }
       }

@@ -85,6 +85,33 @@ describe("Room - host handoff", () => {
     room.handle(h1.conn, { type: "START_GAME" });
     expect(room.state.phase).toBe("auction");
   });
+
+  it("replaces a leaving in-game player with a bot", () => {
+    vi.useFakeTimers();
+    try {
+      const room = makeRoom();
+      const human = addHuman(room);
+
+      room.handle(human.conn, { type: "TAKE_SEAT", seat: 0 as SeatIndex });
+      room.startGame();
+
+      expect(room.state.phase).not.toBe("lobby");
+      expect(room.conns.find((c) => c.seat === 0)?.isBot).toBe(false);
+
+      room.handle(human.conn, { type: "LEAVE_ROOM" });
+
+      expect(room.conns.includes(human.conn)).toBe(false);
+      expect(room.conns.filter((c) => c.seat === 0)).toHaveLength(1);
+      expect(room.conns.find((c) => c.seat === 0)?.isBot).toBe(true);
+      expect(room.state.players[0]?.isBot).toBe(true);
+
+      const sent = (human.ws as any)._sent.map((entry: string) => JSON.parse(entry));
+      expect(sent.some((msg: any) => msg.type === "ROOM_LEFT")).toBe(true);
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("Room - auction", () => {

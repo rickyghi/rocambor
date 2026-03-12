@@ -1,5 +1,8 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
+import { createTranslator } from "../../i18n";
+import type { AppContext } from "../../router";
+import { useSettings } from "../hooks";
 import type {
   ArenaToastSnapshot,
   GameFeedbackBridge,
@@ -72,22 +75,40 @@ function resolveCallout(snapshot: GameFeedbackSnapshot): {
 
 export function GameFeedbackOverlays({
   bridge,
+  ctx,
 }: {
   bridge: GameFeedbackBridge;
+  ctx: AppContext;
 }): ReactElement {
+  const settings = useSettings(ctx.settings);
+  const { t } = createTranslator(settings.locale);
   const snapshot = useGameFeedbackSnapshot(bridge);
   const callout = resolveCallout(snapshot);
+  const localizedCallout =
+    callout === null
+      ? null
+      : {
+          ...callout,
+          kicker:
+            callout.tone === "result"
+              ? t("game.kicker.trickResult")
+              : callout.tone === "your-turn"
+                ? t("game.kicker.yourTurn")
+                : callout.kicker === "Update"
+                  ? t("game.kicker.update")
+                  : callout.kicker,
+        };
 
   return (
     <div
-      className={`game-callout-hud${callout ? "" : " hidden"}${
-        callout ? ` ${callout.tone}` : ""
-      }${callout?.exiting ? " exit" : ""}`}
+      className={`game-callout-hud${localizedCallout ? "" : " hidden"}${
+        localizedCallout ? ` ${localizedCallout.tone}` : ""
+      }${localizedCallout?.exiting ? " exit" : ""}`}
       aria-live="polite"
-      hidden={!callout}
+      hidden={!localizedCallout}
     >
-      <div className="game-callout-kicker">{callout?.kicker ?? ""}</div>
-      <div className="game-callout-text">{callout?.text ?? ""}</div>
+      <div className="game-callout-kicker">{localizedCallout?.kicker ?? ""}</div>
+      <div className="game-callout-text">{localizedCallout?.text ?? ""}</div>
     </div>
   );
 }

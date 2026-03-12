@@ -5,11 +5,13 @@ import "./../styles/components.css";
 import "./../styles/global.css";
 import { SoundManager } from "../audio/sounds";
 import { ConnectionManager } from "../connection";
+import { detectSpritesheetSupport, ensureSpritesheetCss } from "../lib/card-sprites";
 import { ProfileManager } from "../lib/profile";
 import type { AppContext, RouterHandle, ScreenName } from "../router";
 import { SCREEN_NAMES } from "../router";
 import { ClientState } from "../state";
 import { SettingsManager } from "../ui/settings";
+import { createTranslator } from "../i18n";
 import { useConnectionSnapshot, useSettings } from "./hooks";
 import { GameScreen } from "./screens/GameScreen";
 import { LeaderboardScreen } from "./screens/LeaderboardScreen";
@@ -42,6 +44,7 @@ export function App(): ReactElement {
   const routeRef = useRef(route);
   const connectionSnapshot = useConnectionSnapshot(connection);
   const settingsSnapshot = useSettings(settings);
+  const { t } = createTranslator(settingsSnapshot.locale);
 
   useEffect(() => {
     routeRef.current = route;
@@ -63,11 +66,17 @@ export function App(): ReactElement {
       "reduced-motion",
       settingsSnapshot.reduceMotion
     );
-  }, [settingsSnapshot.reduceMotion]);
+    document.documentElement.lang = settingsSnapshot.locale;
+  }, [settingsSnapshot.locale, settingsSnapshot.reduceMotion]);
 
   useEffect(() => {
     connection.connect();
   }, [connection]);
+
+  useEffect(() => {
+    ensureSpritesheetCss();
+    void detectSpritesheetSupport();
+  }, []);
 
   const navigate = useCallback((name: ScreenName): void => {
     const targetHash = `#${name}`;
@@ -124,7 +133,7 @@ export function App(): ReactElement {
           color: "#fff",
         }}
       >
-        Connection lost - reconnecting...
+        {t("app.connectionLost")}
       </div>
 
       {route === "home" ? <HomeScreen ctx={ctx} /> : null}

@@ -721,6 +721,12 @@ textarea {
   background: linear-gradient(180deg, #e8cf84 0%, #d0af5a 55%, #b89842 100%);
 }
 
+.modal.modal-dark.profile-modal-dialog .actions {
+  border-top: 1px solid rgba(200, 166, 81, 0.14);
+  background:
+    linear-gradient(180deg, rgba(15, 18, 15, 0.02) 0%, rgba(15, 18, 15, 0.92) 28%, rgba(15, 18, 15, 0.98) 100%);
+}
+
 .modal.settings-modal-dialog {
   width: min(980px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
@@ -1500,6 +1506,11 @@ textarea {
     border-top: 1px solid rgba(13, 13, 13, 0.08);
     background: var(--ivory);
     z-index: 3;
+  }
+
+  .modal.modal-dark.profile-modal-dialog .actions {
+    border-top: 1px solid rgba(200, 166, 81, 0.14);
+    background: rgba(15, 18, 15, 0.96);
   }
 
   .modal.profile-modal-dialog .actions button {
