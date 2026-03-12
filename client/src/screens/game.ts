@@ -364,12 +364,14 @@ export class GameScreen {
     if (state.phase !== "play") return;
 
     if (!state.isMyTurn) {
+      this.setPendingPlayCard(null);
       this.showInvalidAction(this.t("game.invalid.waitTurn"));
       return;
     }
 
     const legalIds = game.legalIds;
     if (legalIds && !legalIds.includes(cardId)) {
+      this.setPendingPlayCard(null);
       this.showInvalidAction(this.t("game.invalid.followSuit"));
       return;
     }
