@@ -24,7 +24,10 @@ const preRoomHandlers = new WeakMap<WebSocket, (raw: Buffer | string) => void>()
 
 // ---- HTTP Server ----
 const httpServer = http.createServer((req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  const origin = process.env.NODE_ENV === "production"
+    ? "https://rocambor.app"
+    : "*";
+  res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
