@@ -89,7 +89,11 @@ export class GameScreen {
       console.error("[game] Missing required DOM nodes for game screen");
       return;
     }
-    const canvasCtx = this.canvas.getContext("2d")!;
+    const canvasCtx = this.canvas.getContext("2d");
+    if (!canvasCtx) {
+      console.error("[game] Failed to get canvas 2D context");
+      return;
+    }
 
     this.renderer = new GameRenderer(
       this.canvas,
