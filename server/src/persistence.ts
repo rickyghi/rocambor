@@ -168,54 +168,62 @@ export async function saveMatchResult(data: {
     );
     if (!tableCheck.rows[0].exists) return;
 
-    // Fetch current DB Elos for more accurate calculation
-    const dbEloMap = new Map<string, number>();
-    for (const pid of data.playerIds.filter(Boolean) as string[]) {
-      const res = await db.query("SELECT elo FROM players WHERE id = $1", [pid]);
-      dbEloMap.set(pid, res.rows[0]?.elo ?? 1200);
-    }
+    await db.query("BEGIN");
+    try {
+      // Fetch current DB Elos for more accurate calculation
+      const dbEloMap = new Map<string, number>();
+      for (const pid of data.playerIds.filter(Boolean) as string[]) {
+        const res = await db.query("SELECT elo FROM players WHERE id = $1", [pid]);
+        dbEloMap.set(pid, res.rows[0]?.elo ?? 1200);
+      }
 
-    // Recompute Elos from DB values
-    const dbNewElos = new Map<string, number>();
-    for (let i = 0; i < data.playerIds.length; i++) {
-      const pid = data.playerIds[i];
-      if (!pid) continue;
-      const myElo = dbEloMap.get(pid) ?? 1200;
-      const isWinner = i === data.winner;
-      const opps = data.playerIds
-        .filter((_, j) => j !== i && data.playerIds[j] !== null)
-        .map((opId) => dbEloMap.get(opId!) ?? 1200);
-      const avgOpp =
-        opps.length > 0
-          ? opps.reduce((a, b) => a + b, 0) / opps.length
-          : 1200;
-      dbNewElos.set(pid, computeElo(myElo, avgOpp, isWinner ? 1.0 : 0.0));
-    }
+      // Recompute Elos from DB values
+      const dbNewElos = new Map<string, number>();
+      for (let i = 0; i < data.playerIds.length; i++) {
+        const pid = data.playerIds[i];
+        if (!pid) continue;
+        const myElo = dbEloMap.get(pid) ?? 1200;
+        const isWinner = i === data.winner;
+        const opps = data.playerIds
+          .filter((_, j) => j !== i && data.playerIds[j] !== null)
+          .map((opId) => dbEloMap.get(opId!) ?? 1200);
+        const avgOpp =
+          opps.length > 0
+            ? opps.reduce((a, b) => a + b, 0) / opps.length
+            : 1200;
+        dbNewElos.set(pid, computeElo(myElo, avgOpp, isWinner ? 1.0 : 0.0));
+      }
 
-    for (let i = 0; i < data.playerIds.length; i++) {
-      const pid = data.playerIds[i];
-      if (!pid) continue; // skip bots
+      for (let i = 0; i < data.playerIds.length; i++) {
+        const pid = data.playerIds[i];
+        if (!pid) continue; // skip bots
 
-      const handle = data.playerHandles[i] || `Player ${String(pid).slice(0, 8)}`;
-      const isWinner = i === data.winner;
-      await ensurePlayerRecord(pid, handle);
+        const handle = data.playerHandles[i] || `Player ${String(pid).slice(0, 8)}`;
+        const isWinner = i === data.winner;
+        await ensurePlayerRecord(pid, handle);
 
-      await db.query(
-        `INSERT INTO match_players (room_id, player_id, seat, final_score, is_winner)
-         VALUES ($1, $2::uuid, $3, $4, $5)`,
-        [data.roomId, pid, i, data.finalScores[i] || 0, isWinner]
-      );
+        await db.query(
+          `INSERT INTO match_players (room_id, player_id, seat, final_score, is_winner)
+           VALUES ($1, $2::uuid, $3, $4, $5)`,
+          [data.roomId, pid, i, data.finalScores[i] || 0, isWinner]
+        );
 
-      // Update player stats + Elo
-      await db.query(
-        `UPDATE players SET
-           games_played = COALESCE(games_played, 0) + 1,
-           wins = COALESCE(wins, 0) + $2,
-           elo = $3,
-           last_played = NOW()
-         WHERE id = $1`,
-        [pid, isWinner ? 1 : 0, dbNewElos.get(pid) ?? 1200]
-      );
+        // Update player stats + Elo
+        await db.query(
+          `UPDATE players SET
+             games_played = COALESCE(games_played, 0) + 1,
+             wins = COALESCE(wins, 0) + $2,
+             elo = $3,
+             last_played = NOW()
+           WHERE id = $1`,
+          [pid, isWinner ? 1 : 0, dbNewElos.get(pid) ?? 1200]
+        );
+      }
+
+      await db.query("COMMIT");
+    } catch (txErr) {
+      await db.query("ROLLBACK").catch(() => {});
+      throw txErr;
     }
   } catch (e) {
     console.error("[persistence] saveMatchResult failed:", e);
