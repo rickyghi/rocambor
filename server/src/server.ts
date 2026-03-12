@@ -226,7 +226,7 @@ async function startServer(): Promise<void> {
                   resumeId,
                   ws,
                   reservation.seat,
-                  reservation.playerId || playerId
+                  reservation.playerId ?? playerId
                 );
                 if (conn) {
                   // Consume the reservation only after a successful reconnect
