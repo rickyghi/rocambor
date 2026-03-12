@@ -819,6 +819,42 @@ describe("Room - play rules", () => {
     expect(illegal).toBeTruthy();
   });
 
+  it("allows any card when the player is void in the led suit", () => {
+    const room = makeRoom();
+    addHuman(room, 0);
+    const s1 = addHuman(room, 1);
+    addHuman(room, 2);
+    (room as any).botMaybeAct = () => {};
+
+    room.state.phase = "play";
+    room.state.ombre = 0 as SeatIndex;
+    room.state.contract = "entrada";
+    room.state.trump = "oros";
+    room.state.turn = 0 as SeatIndex;
+    room.table = [];
+    room.playOrder = [];
+    room.hands[0] = [{ s: "copas", r: 12, id: "c12" }] as any;
+    room.hands[1] = [
+      { s: "oros", r: 5, id: "o5" },
+      { s: "espadas", r: 3, id: "e3" },
+    ] as any;
+    room.hands[2] = [{ s: "bastos", r: 12, id: "b12" }] as any;
+    room.state.handsCount = { 0: 1, 1: 2, 2: 1, 3: 0 };
+
+    room.playCard(0 as SeatIndex, "c12");
+
+    const msgs = s1.ws._sent.map((s: string) => JSON.parse(s));
+    const lastState = msgs.filter((m: any) => m.type === "STATE").at(-1);
+    expect(lastState?.state.legalIds?.sort()).toEqual(["e3", "o5"]);
+
+    room.playCard(1 as SeatIndex, "e3");
+
+    expect(room.state.table.map((card) => card.id)).toEqual(["c12", "e3"]);
+    expect(room.hands[1].map((card) => card.id)).toEqual(["o5"]);
+    const illegal = msgs.find((m: any) => m.type === "ERROR" && m.code === "ILLEGAL_PLAY");
+    expect(illegal).toBeFalsy();
+  });
+
   it("in bola (no trump), black-suit rank order is respected", () => {
     const room = makeRoom();
     addHuman(room, 0);
@@ -854,6 +890,47 @@ describe("Room - play rules", () => {
 
     expect(room.state.tricks[2]).toBe(1);
     expect(room.state.turn).toBe(2);
+  });
+
+  it("allows a free discard when the player is void in the led suit", () => {
+    const room = makeRoom();
+    addHuman(room, 0);
+    const s1 = addHuman(room, 1);
+    addHuman(room, 2);
+    (room as any).botMaybeAct = () => {};
+
+    room.state.phase = "play";
+    room.state.ombre = 0 as SeatIndex;
+    room.state.contract = "entrada";
+    room.state.trump = "oros";
+    room.state.turn = 0 as SeatIndex;
+    room.state.tricks = { 0: 0, 1: 0, 2: 0, 3: 0 };
+    room.table = [];
+    room.playOrder = [];
+    room.hands[0] = [{ s: "copas", r: 12, id: "c12" }] as any;
+    room.hands[1] = [
+      { s: "oros", r: 5, id: "o5" },
+      { s: "espadas", r: 3, id: "e3" },
+    ] as any;
+    room.hands[2] = [{ s: "bastos", r: 4, id: "b4" }] as any;
+    room.state.handsCount = { 0: 1, 1: 2, 2: 1, 3: 0 };
+
+    (s1.ws as any)._sent.length = 0;
+
+    room.playCard(0 as SeatIndex, "c12");
+
+    const msgs = s1.ws._sent.map((s: string) => JSON.parse(s));
+    const stateMsgs = msgs.filter((m: any) => m.type === "STATE");
+    const stateMsg = stateMsgs[stateMsgs.length - 1];
+    expect(stateMsg?.state?.turn).toBe(1);
+    expect(stateMsg?.state?.legalIds?.sort()).toEqual(["e3", "o5"]);
+
+    room.playCard(1 as SeatIndex, "e3");
+
+    expect(room.state.table.map((card: any) => card.id)).toEqual(["c12", "e3"]);
+    const allMsgs = s1.ws._sent.map((s: string) => JSON.parse(s));
+    const illegal = allMsgs.find((m: any) => m.type === "ERROR" && m.code === "ILLEGAL_PLAY");
+    expect(illegal).toBeFalsy();
   });
 });
 
@@ -1017,6 +1094,22 @@ describe("Room - timers", () => {
     expect(room.state.turnDeadline).toBeUndefined();
   });
 
+  it("does not leak a stale turn deadline to connected humans during turn handoff", () => {
+    const room = makeRoom();
+    const { ws } = addHuman(room, 0);
+    room.startGame();
+
+    room.state.phase = "auction";
+    room.state.turn = 0 as SeatIndex;
+    room.state.turnDeadline = Date.now() + 10_000;
+    room.broadcastState();
+
+    const msgs = ws._sent.map((s: string) => JSON.parse(s));
+    const lastState = msgs.filter((m: any) => m.type === "STATE").at(-1);
+    expect(lastState?.state.turn).toBe(0);
+    expect(lastState?.state.turnDeadline).toBeUndefined();
+  });
+
   it("sets a turn deadline for bot and disconnected turns", () => {
     const room = makeRoom();
     const { conn } = addHuman(room, 0);
@@ -1031,6 +1124,36 @@ describe("Room - timers", () => {
     room.state.turn = 0 as SeatIndex;
     (room as any).armTimer();
     expect(typeof room.state.turnDeadline).toBe("number");
+  });
+
+  it("does not leak a stale deadline into state messages when turn passes to a connected human", () => {
+    const room = makeRoom();
+    addHuman(room, 0);
+    const s1 = addHuman(room, 1);
+    addHuman(room, 2);
+    (room as any).botMaybeAct = () => {};
+
+    room.state.phase = "play";
+    room.state.ombre = 0 as SeatIndex;
+    room.state.contract = "entrada";
+    room.state.trump = "oros";
+    room.state.turn = 0 as SeatIndex;
+    room.state.turnDeadline = Date.now() + 25_000;
+    room.hands[0] = [{ s: "copas", r: 12, id: "c12" }] as any;
+    room.hands[1] = [{ s: "copas", r: 11, id: "c11" }] as any;
+    room.hands[2] = [{ s: "copas", r: 10, id: "c10" }] as any;
+    room.state.handsCount = { 0: 1, 1: 1, 2: 1, 3: 0 };
+
+    (s1.ws as any)._sent.length = 0;
+
+    room.playCard(0 as SeatIndex, "c12");
+
+    const msgs = s1.ws._sent
+      .map((s: string) => JSON.parse(s))
+      .filter((m: any) => m.type === "STATE" && m.state?.turn === 1);
+
+    expect(msgs.length).toBeGreaterThan(0);
+    expect(msgs.every((m: any) => m.state.turnDeadline === undefined)).toBe(true);
   });
 
   it("cleanup invalidates pending bot actions", () => {

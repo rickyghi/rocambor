@@ -228,11 +228,12 @@ export async function getPlayerStats(
   gamesPlayed: number;
   wins: number;
   elo: number;
+  lastPlayed: string | null;
 } | null> {
   if (!db) return null;
   try {
     const result = await db.query(
-      "SELECT games_played, wins, elo FROM players WHERE id = $1",
+      "SELECT games_played, wins, elo, last_played FROM players WHERE id = $1",
       [playerId]
     );
     if (result.rows.length === 0) return null;
@@ -241,6 +242,7 @@ export async function getPlayerStats(
       gamesPlayed: row.games_played || 0,
       wins: row.wins || 0,
       elo: row.elo || 1200,
+      lastPlayed: row.last_played ? String(row.last_played) : null,
     };
   } catch (e) {
     console.error("[persistence] getPlayerStats failed:", e);

@@ -11,7 +11,17 @@ export class ClientState {
   private listeners = new Set<StateListener>();
 
   update(gameState: GameState, hand: Card[] | null): void {
-    this.game = gameState;
+    const turnPlayer =
+      gameState.turn !== null ? gameState.players[gameState.turn] : undefined;
+    const shouldHideTurnDeadline =
+      typeof gameState.turnDeadline === "number" &&
+      turnPlayer !== undefined &&
+      !turnPlayer.isBot &&
+      turnPlayer.connected;
+
+    this.game = shouldHideTurnDeadline
+      ? { ...gameState, turnDeadline: undefined }
+      : gameState;
     this.hand = hand ?? [];
     if (this.selectedCards.size > 0) {
       const validIds = new Set(this.hand.map((card) => card.id));
@@ -19,7 +29,7 @@ export class ClientState {
         if (!validIds.has(cardId)) this.selectedCards.delete(cardId);
       });
     }
-    this.roomCode = gameState.roomCode;
+    this.roomCode = this.game.roomCode;
 
     // Detect my seat from players info
     if (this.mySeat === null && hand && hand.length > 0) {

@@ -125,17 +125,16 @@ lobby -> dealing -> auction -> trump_choice -> exchange -> play
 
 ### Screen Lifecycle
 
-Each screen implements the `Screen` interface:
+The client now mounts a single React app at `#app`. Hash routing still drives the high-level screen name, but route composition is React-owned and `router.navigate(name)` just updates the active hash-backed screen:
 
-```typescript
-interface Screen {
-  mount(container: HTMLElement, ctx: AppContext): void;
-  unmount(): void;
-  update?(): void;
-}
-```
+- `home`
+- `lobby`
+- `game`
+- `post-hand`
+- `match-summary`
+- `leaderboard`
 
-Screens are registered with the Router and switched via `router.navigate(name)`.
+The game route keeps the current canvas renderer and controller, but that controller now attaches into a React-rendered shell instead of creating screen markup imperatively.
 
 ### Canvas Rendering Pipeline
 

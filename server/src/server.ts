@@ -9,7 +9,7 @@ import { ReconnectManager } from "./reconnect";
 import { Lobby } from "./lobby";
 import { C2SMessageSchema } from "./protocol";
 import { Conn } from "./room";
-import { getLeaderboard } from "./persistence";
+import { getLeaderboard, getPlayerStats } from "./persistence";
 import { Mode, SeatIndex, S2CMessage } from "../../shared/types";
 
 const port = Number(process.env.PORT || 8080);
@@ -118,6 +118,41 @@ function handleApi(
         console.error("[api] leaderboard error:", error);
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Failed to load leaderboard" }));
+      });
+    return;
+  }
+
+  // GET /api/players/:playerId/stats
+  const playerStatsMatch = url.pathname.match(
+    /^\/api\/players\/([0-9a-fA-F-]{36})\/stats$/
+  );
+  if (playerStatsMatch && req.method === "GET") {
+    getPlayerStats(playerStatsMatch[1])
+      .then((stats) => {
+        const safeStats = stats ?? {
+          gamesPlayed: 0,
+          wins: 0,
+          elo: 1200,
+          lastPlayed: null,
+        };
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            playerId: playerStatsMatch[1],
+            gamesPlayed: safeStats.gamesPlayed,
+            wins: safeStats.wins,
+            winRate: safeStats.gamesPlayed > 0 ? safeStats.wins / safeStats.gamesPlayed : 0,
+            elo: safeStats.elo,
+            lastPlayed: safeStats.lastPlayed,
+            generatedAt: new Date().toISOString(),
+          })
+        );
+      })
+      .catch((error) => {
+        console.error("[api] player stats error:", error);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to load player stats" }));
       });
     return;
   }
@@ -295,7 +330,8 @@ function attachPreRoomMessageHandler(
             msg.mode,
             id,
             msg.target,
-            msg.rules
+            msg.rules,
+            msg.roomName
           );
           const conn = room.attach(ws, id, playerId);
 

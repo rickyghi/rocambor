@@ -2,6 +2,7 @@ import { avatarFromSeed, fallbackAvatarAt } from "./avatars";
 import {
   PLAYER_AVATAR_LEGACY_KEY,
   PLAYER_AVATAR_KEY,
+  PROFILE_CREATED_AT_KEY,
   PLAYER_NAME_LEGACY_KEY,
   PLAYER_NAME_KEY,
   PROFILE_COMPLETE_KEY,
@@ -58,18 +59,26 @@ function loadAvatar(name: string): string {
 
 export class ProfileManager {
   private profile: PlayerProfile;
+  private createdAt: string;
   private listeners = new Set<ProfileListener>();
 
   constructor() {
     const name = loadName();
     const avatar = loadAvatar(name);
+    const createdAt = readStorageAny([PROFILE_CREATED_AT_KEY]) || new Date().toISOString();
     this.profile = { name, avatar };
+    this.createdAt = createdAt;
     writeStorage(PLAYER_NAME_KEY, name);
     writeStorage(PLAYER_AVATAR_KEY, avatar);
+    writeStorage(PROFILE_CREATED_AT_KEY, createdAt);
   }
 
   get(): PlayerProfile {
     return { ...this.profile };
+  }
+
+  getCreatedAt(): string {
+    return this.createdAt;
   }
 
   subscribe(fn: ProfileListener): () => void {

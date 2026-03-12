@@ -3,6 +3,8 @@ export const PLAYER_AVATAR_KEY = "rocambor.playerAvatar";
 export const PLAYER_NAME_LEGACY_KEY = "rocambor_name";
 export const PLAYER_AVATAR_LEGACY_KEY = "rocambor_avatar";
 export const PROFILE_COMPLETE_KEY = "rocambor.profileComplete";
+export const PROFILE_CREATED_AT_KEY = "rocambor.profileCreatedAt";
+export const PROFILE_MATCH_HISTORY_KEY = "rocambor.profileMatchHistory";
 
 export function readStorage(key: string): string | null {
   try {

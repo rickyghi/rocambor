@@ -13,6 +13,7 @@ export const C2SMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("CREATE_ROOM"),
     mode: ModeSchema,
     target: z.number().int().min(6).max(30).optional(),
+    roomName: z.string().trim().max(30).optional(),
     rules: z
       .object({
         espadaObligatoria: z.boolean().optional(),

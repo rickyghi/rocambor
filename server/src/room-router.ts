@@ -28,7 +28,8 @@ export class RoomRouter {
     mode: Mode,
     creatorClientId: string,
     gameTarget?: number,
-    rules?: { espadaObligatoria?: boolean }
+    rules?: { espadaObligatoria?: boolean },
+    roomName?: string
   ): { roomId: string; code: string; room: Room } {
     const roomId = generateId();
     let code = generateCode();
@@ -43,6 +44,7 @@ export class RoomRouter {
       gameTarget: gameTarget || 12,
       creatorId: creatorClientId,
       rules,
+      roomName,
     });
 
     this.rooms.set(roomId, room);

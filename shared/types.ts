@@ -42,6 +42,7 @@ export interface PlayerInfo {
 export interface GameState {
   roomId: string;
   roomCode: string;
+  roomName?: string | null;
   mode: Mode;
   phase: Phase;
   turn: SeatIndex | null;

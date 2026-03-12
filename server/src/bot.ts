@@ -39,11 +39,18 @@ const BID_RANK: Record<string, number> = AUCTION_RANKED_BIDS.reduce(
   {} as Record<string, number>
 );
 
+interface SuitStrengthProfile {
+  points: number;
+  trumps: number;
+  matadors: number;
+  strength: number;
+}
+
 const BID_THRESHOLDS: Array<{
   bid: Bid;
   minStrength: number;
   openingAllowed: boolean;
-  requires?: (bestSuit: Suit) => boolean;
+  requires?: (bestSuit: Suit, profile: SuitStrengthProfile) => boolean;
 }> = [
   { bid: "entrada", minStrength: 26, openingAllowed: true },
   {
@@ -56,9 +63,13 @@ const BID_THRESHOLDS: Array<{
   { bid: "solo", minStrength: 44, openingAllowed: true },
   {
     bid: "solo_oros",
-    minStrength: 48,
+    minStrength: 56,
     openingAllowed: false,
-    requires: (bestSuit) => bestSuit === "oros",
+    requires: (bestSuit, profile) =>
+      bestSuit === "oros" &&
+      profile.points >= 48 &&
+      profile.trumps >= 6 &&
+      profile.matadors >= 2,
   },
 ];
 
@@ -125,11 +136,16 @@ function sameTeam(ctx: BotContext, a: SeatIndex, b: SeatIndex): boolean {
   return (a === ctx.ombre) === (b === ctx.ombre);
 }
 
-function evaluateSuitStrength(hand: Card[], suit: Suit): number {
+function evaluateSuitStrength(hand: Card[], suit: Suit): SuitStrengthProfile {
   const points = evalTrumpPointsExact(hand, suit);
   const trumps = hand.filter((c) => isTrump(suit, c)).length;
   const matadors = hand.filter((c) => isMatador(suit, c)).length;
-  return points + matadors * 4 + Math.max(0, trumps - 3) * 1.5;
+  return {
+    points,
+    trumps,
+    matadors,
+    strength: points + matadors * 4 + Math.max(0, trumps - 3) * 1.5,
+  };
 }
 
 function countMatadors(cards: Card[], trump: Suit): number {
@@ -139,11 +155,16 @@ function countMatadors(cards: Card[], trump: Suit): number {
 export function decideBid(ctx: BotContext): Bid {
   const hand0 = ctx.originalHand.length > 0 ? ctx.originalHand : ctx.hand;
   let bestSuit: Suit = "oros";
-  let bestStrength = -Infinity;
+  let bestProfile: SuitStrengthProfile = {
+    points: -Infinity,
+    trumps: 0,
+    matadors: 0,
+    strength: -Infinity,
+  };
   for (const s of SUITS) {
-    const strength = evaluateSuitStrength(hand0, s);
-    if (strength > bestStrength) {
-      bestStrength = strength;
+    const profile = evaluateSuitStrength(hand0, s);
+    if (profile.strength > bestProfile.strength) {
+      bestProfile = profile;
       bestSuit = s;
     }
   }
@@ -151,9 +172,9 @@ export function decideBid(ctx: BotContext): Bid {
   const a = ctx.auction;
   const openingStage = a.currentBid === "pass";
   const qualifiedBids = BID_THRESHOLDS.filter((candidate) => {
-    if (bestStrength < candidate.minStrength) return false;
+    if (bestProfile.strength < candidate.minStrength) return false;
     if (openingStage && !candidate.openingAllowed) return false;
-    return candidate.requires ? candidate.requires(bestSuit) : true;
+    return candidate.requires ? candidate.requires(bestSuit, bestProfile) : true;
   }).map((candidate) => candidate.bid);
 
   let bid: Bid;
@@ -175,7 +196,7 @@ export function decideBid(ctx: BotContext): Bid {
     a.order.indexOf(ctx.seat) === a.order.length - 1;
 
   if (allPass && isLast && bid === "pass") {
-    if (bestStrength >= 24) {
+    if (bestProfile.strength >= 24) {
       bid = "entrada";
     } else if (Math.random() < 0.04) {
       bid = "contrabola";
@@ -187,7 +208,7 @@ export function decideBid(ctx: BotContext): Bid {
   if (
     bid !== "pass" &&
     bid !== "contrabola" &&
-    bestStrength < 28 &&
+    bestProfile.strength < 28 &&
     currentRank !== undefined &&
     currentRank >= BID_RANK["entrada"]
   ) {
@@ -209,9 +230,9 @@ export function decideTrump(ctx: BotContext): Suit {
   let bestSuit: Suit = "oros";
   let bestStrength = -Infinity;
   for (const s of SUITS) {
-    const st = evaluateSuitStrength(ctx.hand, s);
-    if (st > bestStrength) {
-      bestStrength = st;
+    const profile = evaluateSuitStrength(ctx.hand, s);
+    if (profile.strength > bestStrength) {
+      bestStrength = profile.strength;
       bestSuit = s;
     }
   }

@@ -144,7 +144,7 @@ describe("decideBid", () => {
     expect(bid).toBe("oros");
   });
 
-  it("reserves solo_oros for truly top-tier overcalls", () => {
+  it("passes instead of overcalling solo_oros with a merely strong oros hand", () => {
     const hand = [
       card("oros", 1), card("oros", 12), card("oros", 11),
       card("oros", 10), card("oros", 7), card("oros", 5),
@@ -161,7 +161,47 @@ describe("decideBid", () => {
       },
     });
     const bid = decideBid(ctx);
+    expect(bid).toBe("pass");
+  });
+
+  it("reserves solo_oros for double-matador monster hands", () => {
+    const hand = [
+      card("espadas", 1), card("bastos", 1), card("oros", 7),
+      card("oros", 12), card("oros", 11), card("oros", 10),
+      card("oros", 1), card("copas", 12), card("espadas", 12),
+    ];
+    const ctx = makeCtx({
+      hand,
+      originalHand: hand,
+      auction: {
+        currentBid: "solo" as Bid,
+        currentBidder: 1 as SeatIndex,
+        passed: [],
+        order: [0, 1, 2] as SeatIndex[],
+      },
+    });
+    const bid = decideBid(ctx);
     expect(bid).toBe("solo_oros");
+  });
+
+  it("passes on a thin solo_oros overcall that lacks dominant oros control", () => {
+    const hand = [
+      card("oros", 1), card("oros", 12), card("oros", 11),
+      card("oros", 7), card("oros", 6), card("oros", 5),
+      card("copas", 12), card("espadas", 12), card("bastos", 12),
+    ];
+    const ctx = makeCtx({
+      hand,
+      originalHand: hand,
+      auction: {
+        currentBid: "solo" as Bid,
+        currentBidder: 1 as SeatIndex,
+        passed: [],
+        order: [0, 1, 2] as SeatIndex[],
+      },
+    });
+    const bid = decideBid(ctx);
+    expect(bid).toBe("pass");
   });
 
   it("declines penetro choice", () => {

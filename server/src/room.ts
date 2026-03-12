@@ -43,6 +43,7 @@ export interface RoomConfig {
   code: string;
   gameTarget?: number;
   creatorId: string;
+  roomName?: string;
   rules?: {
     espadaObligatoria?: boolean;
   };
@@ -73,9 +74,11 @@ export class Room {
   constructor(id: string, config: RoomConfig) {
     this.id = id;
     this.code = config.code;
+    const roomName = config.roomName?.trim() || null;
     this.state = {
       roomId: id,
       roomCode: config.code,
+      roomName,
       mode: config.mode,
       phase: "lobby",
       turn: null,
@@ -114,6 +117,11 @@ export class Room {
     }
   }
 
+  private shouldUseTurnDeadline(seat: SeatIndex | null): boolean {
+    const conn = this.seatConn(seat);
+    return !!conn && (conn.isBot || !conn.connected);
+  }
+
   broadcastState(): void {
     if (this.hostSeat === null) {
       const firstHuman = this.conns.find(
@@ -125,7 +133,10 @@ export class Room {
     this.state.hostSeat = this.hostSeat;
     for (const c of this.conns) {
       const hand = c.seat !== null && !c.isSpectator ? this.hands[c.seat] || null : null;
-      let stateToSend = this.state;
+      const baseState = this.shouldUseTurnDeadline(this.state.turn)
+        ? this.state
+        : { ...this.state, turnDeadline: undefined };
+      let stateToSend = baseState;
 
       // Send legal play hints to the player whose turn it is
       if (
@@ -135,7 +146,7 @@ export class Room {
       ) {
         const ledCard = this.table.length > 0 ? this.table[0] : null;
         const legal = legalPlays(this.state.trump, hand, ledCard);
-        stateToSend = { ...this.state, legalIds: legal.map((card) => card.id) };
+        stateToSend = { ...baseState, legalIds: legal.map((card) => card.id) };
       }
 
       this.send(c, { type: "STATE", state: stateToSend, hand });
@@ -144,6 +155,10 @@ export class Room {
 
   private patch(p: Partial<GameState>): void {
     Object.assign(this.state, p);
+    const turnConn = this.seatConn(this.state.turn);
+    if (turnConn && !turnConn.isBot && turnConn.connected) {
+      delete this.state.turnDeadline;
+    }
     this.state.seq++;
     this.lastActivity = Date.now();
     this.broadcastState();
@@ -562,8 +577,7 @@ export class Room {
 
   private armTimer(): void {
     this.clearTurnTimer();
-    const conn = this.seatConn(this.state.turn);
-    if (!conn || (!conn.isBot && conn.connected)) {
+    if (!this.shouldUseTurnDeadline(this.state.turn)) {
       this.broadcastState();
       return;
     }
@@ -580,6 +594,11 @@ export class Room {
   private onTimeout(): void {
     const seat = this.state.turn;
     if (seat === null) return;
+    if (!this.shouldUseTurnDeadline(seat)) {
+      this.clearTurnTimer();
+      this.broadcastState();
+      return;
+    }
     console.log(`[room] Turn timeout for seat ${seat} in room ${this.id}`);
     this.doBotAction(seat);
   }

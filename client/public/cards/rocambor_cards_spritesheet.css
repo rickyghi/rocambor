@@ -1,0 +1,51 @@
+/* Auto-generated spritesheet CSS — do not edit manually */
+.roc-card {
+  display: inline-block;
+  width: 96px;
+  height: 138px;
+  background-image: url('/cards/rocambor_cards_spritesheet.webp');
+  background-repeat: no-repeat;
+  background-size: 672px 828px;
+  image-rendering: auto;
+}
+.roc-card--oros-1 { background-position: -0px -0px; }
+.roc-card--oros-2 { background-position: -96px -0px; }
+.roc-card--oros-3 { background-position: -192px -0px; }
+.roc-card--oros-4 { background-position: -288px -0px; }
+.roc-card--oros-5 { background-position: -384px -0px; }
+.roc-card--oros-6 { background-position: -480px -0px; }
+.roc-card--oros-7 { background-position: -576px -0px; }
+.roc-card--oros-10 { background-position: -0px -138px; }
+.roc-card--oros-11 { background-position: -96px -138px; }
+.roc-card--oros-12 { background-position: -192px -138px; }
+.roc-card--copas-1 { background-position: -288px -138px; }
+.roc-card--copas-2 { background-position: -384px -138px; }
+.roc-card--copas-3 { background-position: -480px -138px; }
+.roc-card--copas-4 { background-position: -576px -138px; }
+.roc-card--copas-5 { background-position: -0px -276px; }
+.roc-card--copas-6 { background-position: -96px -276px; }
+.roc-card--copas-7 { background-position: -192px -276px; }
+.roc-card--copas-10 { background-position: -288px -276px; }
+.roc-card--copas-11 { background-position: -384px -276px; }
+.roc-card--copas-12 { background-position: -480px -276px; }
+.roc-card--espadas-1 { background-position: -576px -276px; }
+.roc-card--espadas-2 { background-position: -0px -414px; }
+.roc-card--espadas-3 { background-position: -96px -414px; }
+.roc-card--espadas-4 { background-position: -192px -414px; }
+.roc-card--espadas-5 { background-position: -288px -414px; }
+.roc-card--espadas-6 { background-position: -384px -414px; }
+.roc-card--espadas-7 { background-position: -480px -414px; }
+.roc-card--espadas-10 { background-position: -576px -414px; }
+.roc-card--espadas-11 { background-position: -0px -552px; }
+.roc-card--espadas-12 { background-position: -96px -552px; }
+.roc-card--bastos-1 { background-position: -192px -552px; }
+.roc-card--bastos-2 { background-position: -288px -552px; }
+.roc-card--bastos-3 { background-position: -384px -552px; }
+.roc-card--bastos-4 { background-position: -480px -552px; }
+.roc-card--bastos-5 { background-position: -576px -552px; }
+.roc-card--bastos-6 { background-position: -0px -690px; }
+.roc-card--bastos-7 { background-position: -96px -690px; }
+.roc-card--bastos-10 { background-position: -192px -690px; }
+.roc-card--bastos-11 { background-position: -288px -690px; }
+.roc-card--bastos-12 { background-position: -384px -690px; }
+.roc-card--back { background-position: -480px -690px; }
