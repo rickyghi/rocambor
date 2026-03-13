@@ -1263,3 +1263,21 @@ describe("Room - score delta safety", () => {
     expect((room.state.scores as any).NaN).toBeUndefined();
   });
 });
+
+describe("Room - score delta seat range", () => {
+  it("ignores seat indices outside 0-3 range", () => {
+    const room = makeRoom();
+    addHuman(room, 0);
+    room.state.scores = { 0: 10, 1: 10, 2: 10 };
+
+    const deltas: Record<string, number> = { "0": 5, "99": 100 };
+    for (const [seatStr, delta] of Object.entries(deltas)) {
+      const seat = Number(seatStr);
+      if (Number.isNaN(seat) || delta == null || seat < 0 || seat > 3) continue;
+      (room.state.scores as any)[seat] += delta;
+    }
+
+    expect(room.state.scores[0]).toBe(15);
+    expect((room.state.scores as any)[99]).toBeUndefined();
+  });
+});

@@ -1298,7 +1298,7 @@ export class Room {
     // Apply score deltas
     for (const [seatStr, delta] of Object.entries(scoreResult.deltas)) {
       const seat = Number(seatStr);
-      if (Number.isNaN(seat) || delta == null) continue;
+      if (Number.isNaN(seat) || delta == null || seat < 0 || seat > 3) continue;
       this.state.scores[seat as SeatIndex] += delta;
     }
 
