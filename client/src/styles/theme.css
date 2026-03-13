@@ -128,12 +128,12 @@
   --text-on-panel-dim: rgba(248, 246, 240, 0.45);
 
   /* ── Game Table card sizes ── */
-  --card-w: 128px;
-  --card-h: 192px;
-  --card-scale: 1.333;            /* 128 / 96 sprite base */
-  --card-w-play: 112px;
-  --card-h-play: 176px;
-  --card-scale-play: 1.167;       /* 112 / 96 */
+  --card-w: 164px;
+  --card-h: 236px;
+  --card-scale: 1.708333;         /* 164 / 96 sprite base */
+  --card-w-play: 196px;
+  --card-h-play: 282px;
+  --card-scale-play: 2.041667;    /* 196 / 96 */
   --trick-card-w: 96px;
   --trick-card-h: 138px;
   --trick-card-scale: 1.0;        /* 96 / 96 — trick cards use sprite base */

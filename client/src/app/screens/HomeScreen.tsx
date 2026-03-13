@@ -197,28 +197,6 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
             <h1 className="home-panel-logo-fallback">ROCAMBOR</h1>
           </div>
 
-          <div className="home-locale-row">
-            <span className="home-locale-label">{t("common.language")}</span>
-            <div className="home-locale-group" role="group" aria-label={t("common.language")}>
-              <button
-                className={`home-locale-btn${settings.locale === "en" ? " active" : ""}`}
-                type="button"
-                aria-pressed={settings.locale === "en"}
-                onClick={() => setLocale("en")}
-              >
-                {t("common.english")}
-              </button>
-              <button
-                className={`home-locale-btn${settings.locale === "es" ? " active" : ""}`}
-                type="button"
-                aria-pressed={settings.locale === "es"}
-                onClick={() => setLocale("es")}
-              >
-                {t("common.spanish")}
-              </button>
-            </div>
-          </div>
-
           <div className="home-mode-section">
             <span className="home-mode-label">{t("home.selectVariation")}</span>
             <div className="home-modes" role="group" aria-label={t("common.mode")}>
@@ -316,36 +294,60 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
 
           <div className="home-divider" aria-hidden="true" />
 
-          <div className="home-bottom-bar">
-            <button
-              className="home-bottom-btn home-bottom-btn--settings home-settings-btn"
-              type="button"
-              aria-label={t("common.settings")}
-              onClick={() => openSettingsModal(ctx.settings)}
-            >
-              <Icon markup={ICON_SETTINGS} />
-              <span className="home-bottom-btn-label">{t("common.settings")}</span>
-            </button>
-            <button
-              className="home-bottom-btn home-bottom-btn--profile home-profile-btn"
-              type="button"
-              aria-label={t("common.profile")}
-              onClick={() => openProfileModal(ctx.profile, { locale: settings.locale })}
-            >
-              <img
-                className="home-bottom-avatar"
-                src={profile.avatar}
-                alt={profile.name}
-                onError={(event) => {
-                  if (event.currentTarget.src.endsWith(fallbackAvatar)) return;
-                  event.currentTarget.src = fallbackAvatar;
-                }}
-              />
-              <span className="home-bottom-btn-copy">
-                <span className="home-bottom-btn-label">{t("common.profile")}</span>
-                <span className="home-bottom-btn-value">{profile.name}</span>
-              </span>
-            </button>
+          <div className="home-utility-stack">
+            <div className="home-bottom-bar">
+              <button
+                className="home-bottom-btn home-bottom-btn--settings home-settings-btn"
+                type="button"
+                aria-label={t("common.settings")}
+                onClick={() => openSettingsModal(ctx.settings)}
+              >
+                <Icon markup={ICON_SETTINGS} />
+                <span className="home-bottom-btn-label">{t("common.settings")}</span>
+              </button>
+              <button
+                className="home-bottom-btn home-bottom-btn--profile home-profile-btn"
+                type="button"
+                aria-label={t("common.profile")}
+                onClick={() => openProfileModal(ctx.profile, { locale: settings.locale })}
+              >
+                <img
+                  className="home-bottom-avatar"
+                  src={profile.avatar}
+                  alt={profile.name}
+                  onError={(event) => {
+                    if (event.currentTarget.src.endsWith(fallbackAvatar)) return;
+                    event.currentTarget.src = fallbackAvatar;
+                  }}
+                />
+                <span className="home-bottom-btn-copy">
+                  <span className="home-bottom-btn-label">{t("common.profile")}</span>
+                  <span className="home-bottom-btn-value">{profile.name}</span>
+                </span>
+              </button>
+            </div>
+
+            <div className="home-locale-row">
+              <span className="home-locale-label">{t("common.language")}</span>
+              <div className="home-locale-group" role="group" aria-label={t("common.language")}>
+                <button
+                  className={`home-locale-btn${settings.locale === "en" ? " active" : ""}`}
+                  type="button"
+                  aria-pressed={settings.locale === "en"}
+                  onClick={() => setLocale("en")}
+                >
+                  {t("common.english")}
+                </button>
+                <button
+                  className={`home-locale-btn${settings.locale === "es" ? " active" : ""}`}
+                  type="button"
+                  aria-pressed={settings.locale === "es"}
+                  onClick={() => setLocale("es")}
+                >
+                  {t("common.spanish")}
+                </button>
+              </div>
+            </div>
           </div>
 
           <p className="home-quote">{t("home.quote")}</p>

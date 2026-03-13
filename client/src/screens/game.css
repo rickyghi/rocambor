@@ -671,8 +671,8 @@
 .phase-play .hero-self-slot {
   position: relative;
   z-index: 10;
-  margin-bottom: 2px;
-  transform: translateY(84px);
+  margin-bottom: 0;
+  transform: translateY(-12px);
 }
 
 .phase-play .hero-self-slot .hero-self {
@@ -1163,8 +1163,13 @@
 
 /* Play phase: taller hand row for larger cards covering lower third */
 .phase-play .hand-row {
-  min-height: 264px;
-  padding: 28px 60px 0;
+  min-height: 248px;
+  margin-top: -34px;
+  padding: 0 56px 0;
+}
+
+.phase-play .game-hand-dock {
+  margin-top: 0;
 }
 
 .hand-card-wrap {
@@ -1205,12 +1210,12 @@
 
 /* Phase-specific card sizes — play phase: larger cards covering lower third */
 .phase-play .hand-card-wrap {
-  width: var(--card-w-play, 214px);
-  height: var(--card-h-play, 308px);
-  margin-left: -68px;
+  width: var(--card-w-play, 196px);
+  height: var(--card-h-play, 282px);
+  margin-left: -64px;
 }
 .phase-play .hand-card-wrap .roc-card {
-  transform: translate(-50%, -50%) scale(var(--card-scale-play, 2.229167));
+  transform: translate(-50%, -50%) scale(var(--card-scale-play, 2.041667));
 }
 
 .hand-card-wrap:hover:not(:disabled) {
@@ -2525,7 +2530,7 @@
     right: auto;
     width: 100%;
     margin-top: auto;
-    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
     grid-template-rows: 1fr;
   }
 
@@ -2707,12 +2712,15 @@
     margin-top: auto;
     padding-inline: 10px;
     z-index: 12;
+    flex-shrink: 0;
   }
 
   .game-controls-shell[data-phase="auction"],
-  .game-controls-shell[data-phase="exchange"] {
+  .game-controls-shell[data-phase="exchange"],
+  .game-controls-shell[data-phase="trump_choice"],
+  .game-controls-shell[data-phase="penetro_choice"] {
     padding-inline: 16px;
-    margin-bottom: -2px;
+    margin-bottom: 6px;
   }
 
   .game-controls-bar {
@@ -2723,14 +2731,23 @@
   }
 
   .game-controls-bar[data-phase="auction"],
-  .game-controls-bar[data-phase="exchange"] {
+  .game-controls-bar[data-phase="exchange"],
+  .game-controls-bar[data-phase="trump_choice"],
+  .game-controls-bar[data-phase="penetro_choice"] {
     min-height: auto;
     padding: 0;
     border-radius: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .game-controls-bar[data-phase="auction"]:has(.auction-panel),
-  .game-controls-bar[data-phase="exchange"]:has(.auction-panel) {
+  .game-controls-bar[data-phase="exchange"]:has(.auction-panel),
+  .game-controls-bar[data-phase="trump_choice"]:has(.auction-panel),
+  .game-controls-bar[data-phase="penetro_choice"]:has(.auction-panel) {
     width: 100%;
     max-width: none;
   }
@@ -2771,6 +2788,31 @@
     padding-top: 2px;
   }
 
+  .game-stage:has(.game-controls-shell[data-actionable="true"]) .game-stage-bottom {
+    margin-top: 0;
+    padding-top: 108px;
+  }
+
+  .game-stage:has(.game-controls-shell[data-actionable="true"]) .hand-dock-header {
+    display: none;
+  }
+
+  .game-stage:has(.game-controls-shell[data-actionable="true"]) .game-hand-dock {
+    margin-top: 20px;
+  }
+
+  .game-stage:has(.game-controls-shell[data-phase="exchange"][data-actionable="true"]) .game-stage-bottom,
+  .game-stage:has(.game-controls-shell[data-phase="trump_choice"][data-actionable="true"]) .game-stage-bottom,
+  .game-stage:has(.game-controls-shell[data-phase="penetro_choice"][data-actionable="true"]) .game-stage-bottom {
+    padding-top: 132px;
+  }
+
+  .game-stage:has(.game-controls-shell[data-phase="exchange"][data-actionable="true"]) .game-hand-dock,
+  .game-stage:has(.game-controls-shell[data-phase="trump_choice"][data-actionable="true"]) .game-hand-dock,
+  .game-stage:has(.game-controls-shell[data-phase="penetro_choice"][data-actionable="true"]) .game-hand-dock {
+    margin-top: 32px;
+  }
+
   .phase-auction .game-stage-bottom,
   .phase-exchange .game-stage-bottom {
     padding-top: 8px;
@@ -2785,7 +2827,7 @@
   }
 
   .phase-play .trick-overlay-inner {
-    transform: translateY(-28px);
+    transform: translateY(-44px);
   }
 
   .hand-dock-header {
@@ -2858,25 +2900,25 @@
 
   /* CRITICAL: must repeat ALL base .phase-play properties to win specificity */
   .phase-play .hand-card-wrap {
-    width: 120px;
+    width: 128px;
     height: auto;
     aspect-ratio: 96 / 138;
     margin-left: 0;
     overflow: visible;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: translate(-50%, -50%) scale(1.25); /* 120/96 */
+    transform: translate(-50%, -50%) scale(1.333333); /* 128/96 */
     transform-origin: center center;
   }
 
   .phase-play .hand-row {
     gap: 12px;
     padding: 4px 16px 8px;
-    min-height: 192px;
+    min-height: 200px;
   }
 
   .phase-play .game-hand-dock {
-    margin-top: -42px;
+    margin-top: -18px;
   }
 
   .hand-card-wrap:hover:not(:disabled),
@@ -2913,7 +2955,9 @@
 
   /* ── Mobile auction / exchange strip: embed controls into the hand dock ── */
   .auction-panel-auction,
-  .auction-panel-exchange {
+  .auction-panel-exchange,
+  .auction-panel-trump,
+  .auction-panel-penetro {
     width: 100%;
     padding: 0 0 8px;
     border: none;
@@ -2927,7 +2971,11 @@
   .auction-panel-auction::before,
   .auction-panel-auction::after,
   .auction-panel-exchange::before,
-  .auction-panel-exchange::after {
+  .auction-panel-exchange::after,
+  .auction-panel-trump::before,
+  .auction-panel-trump::after,
+  .auction-panel-penetro::before,
+  .auction-panel-penetro::after {
     display: none;
   }
 
@@ -2937,7 +2985,15 @@
   .auction-panel-auction .auction-panel-quote,
   .auction-panel-exchange .auction-panel-header,
   .auction-panel-exchange .auction-panel-divider,
-  .auction-panel-exchange .auction-panel-quote {
+  .auction-panel-exchange .auction-panel-quote,
+  .auction-panel-trump .auction-panel-header,
+  .auction-panel-trump .auction-panel-status,
+  .auction-panel-trump .auction-panel-divider,
+  .auction-panel-trump .auction-panel-quote,
+  .auction-panel-penetro .auction-panel-header,
+  .auction-panel-penetro .auction-panel-status,
+  .auction-panel-penetro .auction-panel-divider,
+  .auction-panel-penetro .auction-panel-quote {
     display: none;
   }
 
@@ -2981,6 +3037,14 @@
   .auction-bid-grid-exchange[data-count="2"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-width: 272px;
+    margin-inline: auto;
+  }
+
+  .auction-trump-grid,
+  .auction-bid-grid-penetro[data-count="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
     margin-inline: auto;
   }
 
@@ -3079,6 +3143,9 @@
     background: rgba(200, 166, 81, 0.12);
     border-color: rgba(200, 166, 81, 0.3);
     color: var(--text-on-panel);
+    min-height: 50px;
+    border-radius: 14px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.14);
   }
 
   .auction-trump-btn:hover:not(:disabled) {
@@ -3176,7 +3243,7 @@
   }
 
   .game-stage-bottom {
-    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   }
 
   .game-stage-bottom::before {
@@ -3236,11 +3303,11 @@
   }
 
   .phase-play .hand-card-wrap {
-    width: 124px;
+    width: 132px;
   }
 
   .phase-play .hand-card-wrap .roc-card {
-    transform: translate(-50%, -50%) scale(1.292); /* 124/96 */
+    transform: translate(-50%, -50%) scale(1.375); /* 132/96 */
   }
 
   .hand-action-btn {
@@ -3257,7 +3324,9 @@
   }
 
   .auction-panel-auction,
-  .auction-panel-exchange {
+  .auction-panel-exchange,
+  .auction-panel-trump,
+  .auction-panel-penetro {
     padding: 0 0 10px;
     border-radius: 0;
   }
@@ -3367,14 +3436,14 @@
   }
 
   .phase-play .hand-card-wrap {
-    width: 110px;
+    width: 116px;
     height: auto;
     aspect-ratio: 96 / 138;
     margin-left: 0;
     overflow: visible;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: translate(-50%, -50%) scale(1.146); /* 110/96 */
+    transform: translate(-50%, -50%) scale(1.208333); /* 116/96 */
   }
 
   .auction-panel-exchange .auction-panel-status {
@@ -3466,14 +3535,14 @@
   }
 
   .phase-play .hand-card-wrap {
-    width: 102px;
+    width: 106px;
     height: auto;
     aspect-ratio: 96 / 138;
     margin-left: 0;
     overflow: visible;
   }
   .phase-play .hand-card-wrap .roc-card {
-    transform: translate(-50%, -50%) scale(1.063); /* 102/96 */
+    transform: translate(-50%, -50%) scale(1.104167); /* 106/96 */
   }
 
   .hand-action-btn {

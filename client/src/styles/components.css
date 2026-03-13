@@ -1552,6 +1552,11 @@ textarea {
     bottom: 16px;
   }
 
+  body:has(.game-screen) #toasts {
+    top: calc(148px + env(safe-area-inset-top, 0px));
+    bottom: auto;
+  }
+
   .toast {
     animation-name: toast-in-mobile;
   }

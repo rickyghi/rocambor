@@ -61,7 +61,7 @@ function trickSlotStyle(
         left: { x: "-112px", y: "24px", r: "-7deg" },
         across: { x: "0px", y: "-88px", r: "0deg" },
         right: { x: "112px", y: "24px", r: "7deg" },
-        self: { x: "0px", y: "114px", r: "0deg" },
+        self: { x: "0px", y: "72px", r: "0deg" },
       }
     : {
         left: { x: "-214px", y: "18px", r: "-10deg" },
@@ -132,21 +132,10 @@ function mobileActionState(
   }
 
   if (state.phase === "exchange" && state.canExchangeNow) {
-    const count = state.selectedCards.size;
-    const { min, max } = state.getExchangeLimits();
-    const requireExactOne = min === 1 && max === 1;
-    if (count > 0) {
-      return {
-        hidden: false,
-        disabled: requireExactOne ? count !== 1 : count < min || count > max,
-        label: `${t("game.exchange.trade")} ${count}`,
-        ready: true,
-      };
-    }
     return {
-      hidden: min > 0,
-      disabled: min > 0,
-      label: min > 0 ? t("game.selectCards") : t("game.keepAll"),
+      hidden: true,
+      disabled: true,
+      label: t("game.exchange.trade"),
       ready: false,
     };
   }
@@ -262,6 +251,23 @@ export function GameHandDock({
 
     const drag = dragStateRef.current;
 
+    const beginDrag = (clientX: number): void => {
+      drag.startX = clientX;
+      drag.startScrollLeft = row.scrollLeft;
+      drag.dragging = false;
+    };
+
+    const updateDrag = (clientX: number): boolean => {
+      const delta = clientX - drag.startX;
+      if (!drag.dragging && Math.abs(delta) > 6) {
+        drag.dragging = true;
+        row.classList.add("dragging");
+      }
+      if (!drag.dragging) return false;
+      row.scrollLeft = drag.startScrollLeft - delta;
+      return true;
+    };
+
     const finishDrag = (pointerId: number): void => {
       if (drag.pointerId !== pointerId) return;
       if (drag.dragging) {
@@ -279,13 +285,22 @@ export function GameHandDock({
       }
     };
 
+    const finishTouchDrag = (): void => {
+      if (drag.pointerId !== -1) return;
+      if (drag.dragging) {
+        dragSuppressUntilRef.current = Date.now() + 220;
+      }
+      drag.pointerId = null;
+      drag.dragging = false;
+      row.classList.remove("dragging");
+    };
+
     const handlePointerDown = (event: PointerEvent): void => {
       if (row.scrollWidth <= row.clientWidth + 4) return;
+      if (event.pointerType === "touch") return;
       if (event.pointerType === "mouse" && event.button !== 0) return;
       drag.pointerId = event.pointerId;
-      drag.startX = event.clientX;
-      drag.startScrollLeft = row.scrollLeft;
-      drag.dragging = false;
+      beginDrag(event.clientX);
       try {
         row.setPointerCapture(event.pointerId);
       } catch {
@@ -295,14 +310,9 @@ export function GameHandDock({
 
     const handlePointerMove = (event: PointerEvent): void => {
       if (drag.pointerId !== event.pointerId) return;
-      const delta = event.clientX - drag.startX;
-      if (!drag.dragging && Math.abs(delta) > 6) {
-        drag.dragging = true;
-        row.classList.add("dragging");
+      if (updateDrag(event.clientX)) {
+        event.preventDefault();
       }
-      if (!drag.dragging) return;
-      row.scrollLeft = drag.startScrollLeft - delta;
-      event.preventDefault();
     };
 
     const handlePointerUp = (event: PointerEvent): void => {
@@ -313,16 +323,49 @@ export function GameHandDock({
       finishDrag(event.pointerId);
     };
 
+    const handleTouchStart = (event: TouchEvent): void => {
+      if (row.scrollWidth <= row.clientWidth + 4) return;
+      const touch = event.touches[0];
+      if (!touch) return;
+      drag.pointerId = -1;
+      beginDrag(touch.clientX);
+    };
+
+    const handleTouchMove = (event: TouchEvent): void => {
+      if (drag.pointerId !== -1) return;
+      const touch = event.touches[0];
+      if (!touch) return;
+      if (updateDrag(touch.clientX)) {
+        event.preventDefault();
+      }
+    };
+
+    const handleTouchEnd = (): void => {
+      finishTouchDrag();
+    };
+
+    const handleTouchCancel = (): void => {
+      finishTouchDrag();
+    };
+
     row.addEventListener("pointerdown", handlePointerDown);
     row.addEventListener("pointermove", handlePointerMove);
     row.addEventListener("pointerup", handlePointerUp);
     row.addEventListener("pointercancel", handlePointerCancel);
+    row.addEventListener("touchstart", handleTouchStart, { passive: true });
+    row.addEventListener("touchmove", handleTouchMove, { passive: false });
+    row.addEventListener("touchend", handleTouchEnd);
+    row.addEventListener("touchcancel", handleTouchCancel);
 
     return () => {
       row.removeEventListener("pointerdown", handlePointerDown);
       row.removeEventListener("pointermove", handlePointerMove);
       row.removeEventListener("pointerup", handlePointerUp);
       row.removeEventListener("pointercancel", handlePointerCancel);
+      row.removeEventListener("touchstart", handleTouchStart);
+      row.removeEventListener("touchmove", handleTouchMove);
+      row.removeEventListener("touchend", handleTouchEnd);
+      row.removeEventListener("touchcancel", handleTouchCancel);
       row.classList.remove("dragging");
       drag.pointerId = null;
       drag.dragging = false;
