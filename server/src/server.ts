@@ -27,6 +27,12 @@ import {
   verifySupabaseAccessToken,
   verifyWsTicket,
 } from "./auth";
+import { createRateLimiter, RateLimiter } from "./rate-limit";
+
+// ---- Rate Limiters ----
+const wsTicketLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
+const rescueLimiter = createRateLimiter({ windowMs: 3_600_000, maxRequests: 3 });
+const defaultApiLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 30 });
 
 const port = Number(process.env.PORT || 8080);
 let wss: WebSocketServer | null = null;
@@ -80,6 +86,29 @@ function handleApi(
   res: http.ServerResponse
 ): void {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+
+  // ---- Rate limiting ----
+  const clientIp =
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+    req.socket.remoteAddress ||
+    "unknown";
+
+  const limiter: RateLimiter =
+    url.pathname === "/api/auth/ws-ticket"
+      ? wsTicketLimiter
+      : url.pathname === "/api/me/tokens/rescue"
+        ? rescueLimiter
+        : defaultApiLimiter;
+
+  if (!limiter.check(clientIp)) {
+    const retryAfter = limiter.retryAfterSecs(clientIp);
+    res.writeHead(429, {
+      "Content-Type": "application/json",
+      "Retry-After": String(retryAfter),
+    });
+    res.end(JSON.stringify({ error: "Too many requests" }));
+    return;
+  }
 
   if (url.pathname === "/api/auth/ws-ticket" && req.method === "POST") {
     void handleWsTicketRequest(req, res);
@@ -973,6 +1002,9 @@ async function shutdown(signal: string): Promise<void> {
       try {
         router?.destroy();
         reconnectMgr?.destroy();
+        wsTicketLimiter.destroy();
+        rescueLimiter.destroy();
+        defaultApiLimiter.destroy();
         await closeDB();
         await closeRedis();
         console.log("[shutdown] Cleanup completed");

@@ -23,6 +23,7 @@ import {
   FRIENDLY_TOKEN_ANTE,
   fundFriendlyStakeMatch,
   settleFriendlyStakeMatch,
+  withRetry,
 } from "./persistence";
 import { bidRank, isRankedBid, mapBidToContract } from "./auction-utils";
 import { calculateHandScore, scorePenetro } from "./scoring";
@@ -32,6 +33,11 @@ const TURN_MS = 25_000;
 const BOT_DELAY_MIN = 600;
 const BOT_DELAY_MAX = 1200;
 const POST_HAND_DELAY = 3000;
+
+// AFK timeout constants
+const AFK_TIMEOUT_MS = 90_000;
+const AFK_WARNING_MS = 75_000;
+const AFK_BOT_REPLACE_THRESHOLD = 3;
 export interface Conn {
   id: string;
   ws: WebSocket;
@@ -81,6 +87,12 @@ export class Room {
   private currentStakeMatchRef: string | null = null;
   private currentStakeParticipants: string[] = [];
   private currentMatchStartedAt: string | null = null;
+
+  // AFK timeout tracking
+  private afkTimer: NodeJS.Timeout | null = null;
+  private afkWarningTimer: NodeJS.Timeout | null = null;
+  private afkEpoch = 0;
+  private consecutiveAfk: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
 
   constructor(id: string, config: RoomConfig) {
     this.id = id;
@@ -604,6 +616,7 @@ export class Room {
   newHand(): void {
     this.rematchVotes.clear();
     this.clearTurnTimer();
+    this.consecutiveAfk = { 0: 0, 1: 0, 2: 0, 3: 0 };
 
     if (this.state.mode === "quadrille") {
       this.restIndex = (this.restIndex + 1) % 4;
@@ -704,6 +717,7 @@ export class Room {
   private clearTurnTimer(): void {
     this.timerEpoch += 1;
     this.botEpoch += 1;
+    this.clearAfkTimer();
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -715,9 +729,74 @@ export class Room {
     delete this.state.turnDeadline;
   }
 
+  // ---- AFK Timeout ----
+  private clearAfkTimer(): void {
+    this.afkEpoch += 1;
+    if (this.afkTimer) {
+      clearTimeout(this.afkTimer);
+      this.afkTimer = null;
+    }
+    if (this.afkWarningTimer) {
+      clearTimeout(this.afkWarningTimer);
+      this.afkWarningTimer = null;
+    }
+  }
+
+  private armAfkTimer(): void {
+    this.clearAfkTimer();
+    const seat = this.state.turn;
+    if (seat === null) return;
+    const conn = this.seatConn(seat);
+    // Only arm for connected humans (bots and disconnected handled by armTimer)
+    if (!conn || conn.isBot || !conn.connected) return;
+
+    const epoch = this.afkEpoch;
+
+    this.afkWarningTimer = setTimeout(() => {
+      if (this.afkEpoch !== epoch) return;
+      this.afkWarningTimer = null;
+      this.event("AFK_WARNING", { seat, secondsLeft: 15 });
+    }, AFK_WARNING_MS);
+
+    this.afkTimer = setTimeout(() => {
+      if (this.afkEpoch !== epoch) return;
+      this.afkTimer = null;
+      this.onAfkTimeout(seat);
+    }, AFK_TIMEOUT_MS);
+  }
+
+  private onAfkTimeout(seat: SeatIndex): void {
+    console.log(`[room] AFK timeout for seat ${seat} in room ${this.id}`);
+    this.consecutiveAfk[seat] = (this.consecutiveAfk[seat] || 0) + 1;
+
+    // Auto-play using bot logic
+    this.doBotAction(seat, true);
+
+    // Replace with bot after repeated AFK
+    if (this.consecutiveAfk[seat] >= AFK_BOT_REPLACE_THRESHOLD) {
+      this.replaceWithBot(seat);
+    }
+  }
+
+  private replaceWithBot(seat: SeatIndex): void {
+    const conn = this.seatConn(seat);
+    if (!conn) return;
+    console.log(
+      `[room] Replacing seat ${seat} with bot after ${AFK_BOT_REPLACE_THRESHOLD} consecutive AFK turns`
+    );
+    conn.isBot = true;
+    this.consecutiveAfk[seat] = 0;
+    this.event("PLAYER_REPLACED_BY_BOT", { seat, handle: conn.handle });
+  }
+
+  private resetAfkCounter(seat: SeatIndex): void {
+    this.consecutiveAfk[seat] = 0;
+  }
+
   private armTimer(): void {
     this.clearTurnTimer();
     if (!this.shouldUseTurnDeadline(this.state.turn)) {
+      this.armAfkTimer(); // Arm AFK timer for connected humans
       this.broadcastState();
       return;
     }
@@ -787,10 +866,10 @@ export class Room {
     return min + Math.random() * (max - min);
   }
 
-  private doBotAction(seat: SeatIndex): void {
+  private doBotAction(seat: SeatIndex, force = false): void {
     if (this.state.turn !== seat) return;
     const conn = this.seatConn(seat);
-    if (!conn || (!conn.isBot && conn.connected)) return;
+    if (!conn || (!force && !conn.isBot && conn.connected)) return;
     const ctx = this.buildBotContext(seat);
 
     const action = botAct(ctx);
@@ -1484,18 +1563,20 @@ export class Room {
       this.state.scores[seat as SeatIndex] += delta;
     }
 
-    saveHandResult({
-      roomId: this.id,
-      handNo: this.state.handNo,
-      trump: this.state.trump,
-      ombre: om,
-      resting: this.state.resting,
-      result: scoreResult.result,
-      points: scoreResult.points,
-      award: scoreResult.award,
-      tricks: this.state.tricks,
-      scores: this.state.scores,
-    }).catch((err) => console.error("[room] saveHandResult failed:", err));
+    withRetry("saveHandResult", () =>
+      saveHandResult({
+        roomId: this.id,
+        handNo: this.state.handNo,
+        trump: this.state.trump,
+        ombre: om,
+        resting: this.state.resting,
+        result: scoreResult.result,
+        points: scoreResult.points,
+        award: scoreResult.award,
+        tricks: this.state.tricks,
+        scores: this.state.scores,
+      })
+    );
 
     this.nextHand();
   }
@@ -1530,22 +1611,26 @@ export class Room {
         return c?.handle || null;
       });
 
-      saveMatchResult({
-        roomId: this.id,
-        mode: this.state.mode,
-        winner,
-        finalScores: this.state.scores,
-        totalHands: this.state.handNo,
-        playerIds,
-        playerHandles,
-        gameTarget: this.state.gameTarget,
-        ombre: this.state.ombre,
-        resting: this.state.resting,
-        stakeMode: this.state.stakes.stakeMode,
-        ante: this.state.stakes.ante,
-        pot: this.state.stakes.pot,
-        startedAt: this.currentMatchStartedAt,
-      }).catch((err) => console.error("[room] saveMatchResult failed:", err));
+      withRetry("saveMatchResult", () =>
+        saveMatchResult({
+          roomId: this.id,
+          mode: this.state.mode,
+          winner,
+          finalScores: this.state.scores,
+          totalHands: this.state.handNo,
+          playerIds,
+          playerHandles,
+          gameTarget: this.state.gameTarget,
+          ombre: this.state.ombre,
+          resting: this.state.resting,
+          stakeMode: this.state.stakes.stakeMode,
+          ante: this.state.stakes.ante,
+          pot: this.state.stakes.pot,
+          contract: this.state.contract,
+          trump: this.state.trump,
+          startedAt: this.currentMatchStartedAt,
+        })
+      );
 
       const winningConn = this.conns.find((conn) => conn.seat === winner);
       if (
@@ -1554,12 +1639,12 @@ export class Room {
         this.state.stakes.pot > 0 &&
         winningConn?.playerId
       ) {
-        settleFriendlyStakeMatch(
-          winningConn.playerId,
-          this.currentStakeMatchRef,
-          this.state.stakes.pot
-        ).catch((err) =>
-          console.error("[room] settleFriendlyStakeMatch failed:", err)
+        withRetry("settleFriendlyStakeMatch", () =>
+          settleFriendlyStakeMatch(
+            winningConn.playerId,
+            this.currentStakeMatchRef,
+            this.state.stakes.pot
+          )
         );
       }
     } else {
@@ -1705,6 +1790,11 @@ export class Room {
       // Game actions require an active seated connection
       if (conn.seat === null || !this.conns.includes(conn)) {
         return this.send(conn, { type: "ERROR", code: "NO_SEAT" });
+      }
+
+      // Human took a game action — reset their AFK counter
+      if (!conn.isBot) {
+        this.resetAfkCounter(conn.seat);
       }
 
       switch (msg.type) {

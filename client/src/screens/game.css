@@ -2907,7 +2907,7 @@
     justify-content: flex-start;
     align-items: flex-end;
     gap: 0;
-    padding: 4px 16px 2px;
+    padding: 4px 16px 6px;
     overflow-x: auto;
     overflow-y: visible;
     scroll-snap-type: x proximity;
@@ -3478,7 +3478,7 @@
 
   .hand-row {
     min-height: 140px;
-    padding: 6px 14px 2px;
+    padding: 6px 14px 6px;
     gap: 0;
   }
 

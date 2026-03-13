@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactElement } from "react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { createTranslator, positionLabel } from "../../i18n";
 import { DomCardArt, skinUsesRocamborSprites } from "../../lib/dom-card-art";
 import type { SeatIndex } from "../../protocol";
@@ -386,6 +386,26 @@ export function GameHandDock({
 
   const game = state.game;
   const legalIds = game?.legalIds || [];
+  const handleHandKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+
+    const row = e.currentTarget;
+    const buttons = Array.from(row.querySelectorAll<HTMLButtonElement>("button.hand-card-wrap:not([disabled])"));
+    if (buttons.length === 0) return;
+
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+
+    let nextIndex: number;
+    if (e.key === "ArrowLeft") {
+      nextIndex = currentIndex <= 0 ? buttons.length - 1 : currentIndex - 1;
+    } else {
+      nextIndex = currentIndex >= buttons.length - 1 ? 0 : currentIndex + 1;
+    }
+
+    buttons[nextIndex]?.focus();
+  }, []);
+
   const showHandDock = snapshot.spriteMode && state.hand.length > 0;
 
   return (
@@ -400,7 +420,8 @@ export function GameHandDock({
         className={`hand-row${snapshot.invalidShakeNonce > 0 ? " invalid-shake" : ""}`}
         id="hand-layer"
         role="listbox"
-        aria-label={t("game.yourHandAria")}
+        aria-label="Your hand"
+        onKeyDown={handleHandKeyDown}
       >
         {state.hand.map((card, index) => {
           const selected = state.selectedCards.has(card.id);

@@ -34,6 +34,32 @@ interface MemoryStats {
   lastPlayed: string | null;
 }
 
+/**
+ * Retry an async operation with exponential backoff.
+ * Logs failures but never throws — safe for fire-and-forget calls.
+ */
+export async function withRetry<T>(
+  label: string,
+  fn: () => Promise<T>,
+  maxAttempts = 3,
+  baseDelayMs = 500
+): Promise<T | undefined> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isLast = attempt === maxAttempts;
+      console.error(
+        `[persistence] ${label} attempt ${attempt}/${maxAttempts} failed:`,
+        err
+      );
+      if (isLast) return undefined;
+      await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** (attempt - 1)));
+    }
+  }
+  return undefined;
+}
+
 const inMemoryLeaderboard = new Map<string, MemoryStats>();
 
 const DEFAULT_ACCOUNT_SETTINGS: PersistedPlayerSettings = {

@@ -1337,3 +1337,227 @@ describe("Room - implied trump for oros bids", () => {
     expect(room.state.phase).toBe("exchange");
   });
 });
+
+describe("Room - contract_upgrade phase", () => {
+  let room: Room;
+
+  beforeEach(() => {
+    room = makeRoom();
+    addHuman(room, 0);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+  });
+
+  /**
+   * Helper: drive a tresillo auction so that `winnerSeat` wins with `winningBid`
+   * and the game enters the contract_upgrade phase.
+   */
+  function winAuctionWith(winnerSeat: SeatIndex, winningBid: Bid) {
+    const order = room.state.auction.order.slice();
+    for (const seat of order) {
+      if (seat === winnerSeat) {
+        room.applyBid(seat, winningBid);
+      } else {
+        room.applyBid(seat, "pass");
+      }
+    }
+  }
+
+  it("upgrades entrada to oros and sets trump automatically", () => {
+    const order = room.state.auction.order.slice();
+    const winner = order[0];
+
+    winAuctionWith(winner, "entrada");
+
+    expect(room.state.phase).toBe("contract_upgrade");
+    expect(room.state.ombre).toBe(winner);
+    expect(room.state.contract).toBe("entrada");
+
+    // Upgrade from entrada to oros
+    room.upgradeContract(winner, "oros");
+
+    // Contract should be updated
+    expect(room.state.contract).toBe("oros");
+    // Oros implies trump = oros and skips trump_choice
+    expect(room.state.trump).toBe("oros");
+    expect(room.state.phase).toBe("exchange");
+  });
+
+  it("upgrades entrada to solo and enters trump_choice", () => {
+    const order = room.state.auction.order.slice();
+    const winner = order[0];
+
+    winAuctionWith(winner, "entrada");
+
+    expect(room.state.phase).toBe("contract_upgrade");
+
+    // Upgrade from entrada to solo
+    room.upgradeContract(winner, "solo");
+
+    expect(room.state.contract).toBe("solo");
+    // Solo without a pre-declared suit requires trump_choice
+    expect(room.state.phase).toBe("trump_choice");
+    expect(room.state.turn).toBe(winner);
+  });
+
+  it("rejects downgrade (same or lower bid)", () => {
+    // Use all-human room so every conn has _sent for message inspection
+    const r = makeRoom();
+    addHuman(r, 0);
+    addHuman(r, 1 as SeatIndex);
+    addHuman(r, 2 as SeatIndex);
+    r.startGame();
+    r.conns.forEach((c) => (c.isBot = false));
+
+    const order = r.state.auction.order.slice();
+
+    // Win with oros (via entrada first bid then oros overcall)
+    r.applyBid(order[0], "entrada");
+    r.applyBid(order[1], "oros");
+    r.applyBid(order[2], "pass");
+    r.applyBid(order[0], "pass");
+
+    const ombre = r.state.ombre!;
+    expect(r.state.phase).toBe("contract_upgrade");
+    expect(r.state.contract).toBe("oros");
+
+    // Clear sent messages so we can isolate the error
+    const ombreConn = r.conns.find((c) => c.seat === ombre)!;
+    (ombreConn.ws as any)._sent.length = 0;
+
+    // Try to "upgrade" to entrada (lower) — should be rejected
+    r.upgradeContract(ombre, "entrada");
+
+    // Phase should remain contract_upgrade (no transition)
+    expect(r.state.phase).toBe("contract_upgrade");
+    expect(r.state.contract).toBe("oros");
+
+    const msgs = (ombreConn.ws as any)._sent.map((s: string) => JSON.parse(s));
+    expect(msgs.some((m: any) => m.type === "ERROR" && m.code === "INVALID_UPGRADE")).toBe(true);
+  });
+
+  it("rejects upgrade from non-ombre seat", () => {
+    // Use all-human room so every conn has _sent for message inspection
+    const r = makeRoom();
+    addHuman(r, 0);
+    addHuman(r, 1 as SeatIndex);
+    addHuman(r, 2 as SeatIndex);
+    r.startGame();
+    r.conns.forEach((c) => (c.isBot = false));
+
+    const order = r.state.auction.order.slice();
+    const winner = order[0];
+
+    // Drive auction: winner bids entrada, others pass
+    for (const seat of order) {
+      r.applyBid(seat, seat === winner ? "entrada" : "pass");
+    }
+
+    expect(r.state.phase).toBe("contract_upgrade");
+    expect(r.state.ombre).toBe(winner);
+
+    // Pick a seat that is NOT the ombre
+    const nonOmbre = order[1];
+    const nonOmbreConn = r.conns.find((c) => c.seat === nonOmbre)!;
+    (nonOmbreConn.ws as any)._sent.length = 0;
+
+    // Non-ombre tries to upgrade — should be rejected
+    r.upgradeContract(nonOmbre, "oros");
+
+    // Phase and contract unchanged
+    expect(r.state.phase).toBe("contract_upgrade");
+    expect(r.state.contract).toBe("entrada");
+
+    const msgs = (nonOmbreConn.ws as any)._sent.map((s: string) => JSON.parse(s));
+    expect(msgs.some((m: any) => m.type === "ERROR" && m.code === "NOT_OMBRE")).toBe(true);
+  });
+});
+
+describe("Room - espada obligatoria", () => {
+  function allPass(room: Room): void {
+    const order = room.state.auction.order.slice();
+    for (const seat of order) {
+      room.applyBid(seat, "pass");
+    }
+  }
+
+  it("forces spadille holder to become ombre with entrada when all pass", () => {
+    const room = makeRoom("tresillo");
+    addHuman(room, 0);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+    (room as any).botMaybeAct = () => {};
+
+    // Ensure espada obligatoria is on (default, but be explicit)
+    room.state.rules.espadaObligatoria = true;
+
+    // Remove any existing spadille from all hands, then plant it in seat 1
+    const targetSeat = 1 as SeatIndex;
+    for (const seat of room.seatsActive()) {
+      room.hands[seat] = room.hands[seat].filter(
+        (card) => !(card.s === "espadas" && card.r === 1)
+      );
+    }
+    room.hands[targetSeat].push({ s: "espadas", r: 1, id: "spadille-test" } as any);
+    room.state.handsCount[targetSeat] = room.hands[targetSeat].length;
+
+    allPass(room);
+
+    expect(room.state.phase).toBe("trump_choice");
+    expect(room.state.ombre).toBe(targetSeat);
+    expect(room.state.contract).toBe("entrada");
+    expect(room.state.turn).toBe(targetSeat);
+  });
+
+  it("deals new hand in tresillo when all pass and no one holds spadille", () => {
+    const room = makeRoom("tresillo");
+    addHuman(room, 0);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+    (room as any).botMaybeAct = () => {};
+
+    room.state.rules.espadaObligatoria = true;
+
+    // Remove spadille from every hand
+    for (const seat of room.seatsActive()) {
+      room.hands[seat] = room.hands[seat].filter(
+        (card) => !(card.s === "espadas" && card.r === 1)
+      );
+      room.state.handsCount[seat] = room.hands[seat].length;
+    }
+
+    allPass(room);
+
+    // Tresillo with no spadille and espada on: should redeal (new auction)
+    expect(room.state.phase).toBe("auction");
+    expect(room.state.contract).toBeNull();
+    expect(room.state.ombre).toBeNull();
+  });
+
+  it("identifies the correct seat as spadille holder regardless of seat position", () => {
+    const room = makeRoom("tresillo");
+    addHuman(room, 0);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+    (room as any).botMaybeAct = () => {};
+
+    room.state.rules.espadaObligatoria = true;
+
+    // Remove spadille from all hands, then place it in seat 2
+    for (const seat of room.seatsActive()) {
+      room.hands[seat] = room.hands[seat].filter(
+        (card) => !(card.s === "espadas" && card.r === 1)
+      );
+    }
+    const spadilleSeat = 2 as SeatIndex;
+    room.hands[spadilleSeat].push({ s: "espadas", r: 1, id: "spadille-s2" } as any);
+    room.state.handsCount[spadilleSeat] = room.hands[spadilleSeat].length;
+
+    allPass(room);
+
+    expect(room.state.ombre).toBe(spadilleSeat);
+    expect(room.state.turn).toBe(spadilleSeat);
+    expect(room.state.contract).toBe("entrada");
+    expect(room.state.phase).toBe("trump_choice");
+  });
+});
