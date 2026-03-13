@@ -62,6 +62,45 @@ describe("scoring", () => {
     expect(result.deltas).toEqual({ 1: 1, 2: 1 });
   });
 
+  it("scores codille when a defender has more tricks than ombre (below 5)", () => {
+    const result = calculateHandScore({
+      contract: "entrada",
+      ombre: 0 as SeatIndex,
+      activeSeats: [0, 1, 2] as SeatIndex[],
+      tricks: { 0: 3, 1: 4, 2: 2, 3: 0 } as Record<SeatIndex, number>,
+      trickWinners: [1, 0, 1, 2, 1, 0, 1, 0, 0] as SeatIndex[],
+    });
+    expect(result.result).toBe("codille");
+    expect(result.points).toBe(2);
+    expect(result.award).toEqual([1]);
+  });
+
+  it("scores puesta when ombre leads individually but loses majority", () => {
+    const result = calculateHandScore({
+      contract: "entrada",
+      ombre: 0 as SeatIndex,
+      activeSeats: [0, 1, 2] as SeatIndex[],
+      tricks: { 0: 4, 1: 3, 2: 2, 3: 0 } as Record<SeatIndex, number>,
+      trickWinners: [0, 1, 2, 1, 0, 2, 1, 0, 0] as SeatIndex[],
+    });
+    expect(result.result).toBe("puesta");
+    expect(result.points).toBe(1);
+    expect(result.award).toEqual([1, 2]);
+  });
+
+  it("scores puesta when ombre ties with defenders", () => {
+    const result = calculateHandScore({
+      contract: "entrada",
+      ombre: 0 as SeatIndex,
+      activeSeats: [0, 1, 2] as SeatIndex[],
+      tricks: { 0: 3, 1: 3, 2: 3, 3: 0 } as Record<SeatIndex, number>,
+      trickWinners: [0, 1, 2, 0, 1, 2, 0, 1, 2] as SeatIndex[],
+    });
+    expect(result.result).toBe("puesta");
+    expect(result.points).toBe(1);
+    expect(result.award).toEqual([1, 2]);
+  });
+
   it("scores bola directly against the declared ombre", () => {
     const made = calculateHandScore({
       contract: "bola",

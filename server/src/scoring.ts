@@ -118,8 +118,8 @@ function scoreContrabola(
 /**
  * Calculate the hand score for standard contracts (entrada, oros, volteo, solo, solo_oros).
  * - Sacada: ombre ≥5 tricks → 1–4 pts (bonus for oros/solo_oros)
- * - Codille: a defender ≥5 tricks → 2 pts to that defender
- * - Puesta: nobody ≥5 → 1 pt to each defender
+ * - Codille: a defender has more tricks than ombre → 2 pts to that defender
+ * - Puesta: no defender beats ombre's trick count → 1 pt to each defender
  */
 function scoreStandard(
   contract: Contract,
@@ -141,7 +141,7 @@ function scoreStandard(
   }
 
   const maxDef = Math.max(...defenders.map((s) => tricks[s]));
-  if (maxDef >= 5) {
+  if (maxDef > ombreTricks) {
     const winner = defenders.find((s) => tricks[s] === maxDef)!;
     return {
       result: "codille",
