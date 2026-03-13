@@ -7,6 +7,11 @@ import {
   claimCurrentWalletRescue,
   fetchCurrentWallet,
 } from "../../lib/account-api";
+import {
+  loadAccountWallet,
+  saveAccountWallet,
+  subscribeAccountWallet,
+} from "../../lib/account-wallet-cache";
 import { showModal } from "../../ui/modal";
 import { showToast } from "../../ui/toast";
 import { openSettingsModal } from "../../ui/settings-modal";
@@ -215,34 +220,52 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
         setWalletLoading(false);
         return;
       }
-      setWalletLoading(true);
+
+      const cachedWallet = loadAccountWallet(auth.user.id);
+      setWallet(cachedWallet);
+      setWalletLoading(!cachedWallet);
+
+      if (cachedWallet) {
+        return;
+      }
+
       try {
         const nextWallet = await fetchCurrentWallet(ctx.auth);
         if (!cancelled) {
-          setWallet(nextWallet);
+          saveAccountWallet(auth.user.id, nextWallet);
         }
       } catch {
         if (!cancelled) {
           setWallet(null);
-          showToast(t("home.walletRefreshFailed"), "error");
-        }
-      } finally {
-        if (!cancelled) {
           setWalletLoading(false);
+          showToast(t("home.walletRefreshFailed"), "error");
         }
       }
     };
 
+    const unsubscribe = auth.user
+      ? subscribeAccountWallet(auth.user.id, (nextWallet) => {
+          if (cancelled) return;
+          setWallet(nextWallet);
+          setWalletLoading(false);
+        })
+      : () => {};
+
     void loadWallet();
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [auth.user?.id, ctx.auth, settings.locale]);
 
   const claimRescue = async (): Promise<void> => {
     try {
       const nextWallet = await claimCurrentWalletRescue(ctx.auth);
-      setWallet(nextWallet);
+      if (auth.user) {
+        saveAccountWallet(auth.user.id, nextWallet);
+      } else {
+        setWallet(nextWallet);
+      }
       showToast(t("home.walletRescueSuccess"), "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : t("home.walletRefreshFailed");

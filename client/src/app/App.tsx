@@ -11,8 +11,10 @@ import { detectSpritesheetSupport, ensureSpritesheetCss } from "../lib/card-spri
 import {
   fetchCurrentAccount,
   fetchCurrentMatchHistory,
+  fetchCurrentWallet,
   patchCurrentAccount,
 } from "../lib/account-api";
+import { saveAccountWallet } from "../lib/account-wallet-cache";
 import { saveAccountProfileMatchHistory } from "../lib/profile-history";
 import { ProfileManager } from "../lib/profile";
 import type { AppContext, RouterHandle, ScreenName } from "../router";
@@ -77,6 +79,10 @@ export function App(): ReactElement {
   const { auth, settings, sounds, state, connection, profile } = services;
 
   const [route, setRoute] = useState<ScreenName>(() => readRouteFromHash());
+  const [accountMeta, setAccountMeta] = useState<{
+    userId: string;
+    playerId: string;
+  } | null>(null);
   const routeRef = useRef(route);
   const accountSyncRef = useRef<{
     hydrating: boolean;
@@ -166,6 +172,7 @@ export function App(): ReactElement {
     const loadAccount = async (): Promise<void> => {
       const userId = auth.getUserId();
       if (!userId) {
+        setAccountMeta(null);
         syncState.ready = false;
         if (syncState.saveTimer !== null) {
           window.clearTimeout(syncState.saveTimer);
@@ -195,6 +202,7 @@ export function App(): ReactElement {
         applyRemoteAccount(profile, settings, me);
         syncState.hydrating = false;
         syncState.ready = true;
+        setAccountMeta({ userId, playerId: me.playerId });
 
         const history = await fetchCurrentMatchHistory(auth).catch((error) => {
           console.error("[account] Failed to load account match history:", error);
@@ -203,7 +211,16 @@ export function App(): ReactElement {
         if (!cancelled && auth.getUserId() === userId && history) {
           saveAccountProfileMatchHistory(userId, history.matches);
         }
+
+        const wallet = await fetchCurrentWallet(auth).catch((error) => {
+          console.error("[account] Failed to load account wallet:", error);
+          return null;
+        });
+        if (!cancelled && auth.getUserId() === userId) {
+          saveAccountWallet(userId, wallet);
+        }
       } catch (error) {
+        setAccountMeta(null);
         syncState.hydrating = false;
         syncState.ready = false;
         console.error("[account] Failed to load account profile:", error);
@@ -221,6 +238,107 @@ export function App(): ReactElement {
       unsubscribe();
     };
   }, [auth, profile, settings]);
+
+  useEffect(() => {
+    if (!accountMeta) return;
+
+    let cancelled = false;
+    let refreshPlayerTimer: number | null = null;
+    let refreshWalletTimer: number | null = null;
+    let refreshHistoryTimer: number | null = null;
+
+    const schedule = (
+      pendingTimer: number | null,
+      assign: (value: number | null) => void,
+      task: () => Promise<void>
+    ): void => {
+      if (pendingTimer !== null) {
+        window.clearTimeout(pendingTimer);
+      }
+      assign(
+        window.setTimeout(() => {
+          assign(null);
+          if (cancelled || auth.getUserId() !== accountMeta.userId) return;
+          void task();
+        }, 180)
+      );
+    };
+
+    const refreshAccount = async (): Promise<void> => {
+      const me = await fetchCurrentAccount(auth).catch((error) => {
+        console.error("[account] Failed to refresh realtime profile:", error);
+        return null;
+      });
+      if (!me || cancelled || auth.getUserId() !== accountMeta.userId) return;
+
+      accountSyncRef.current.hydrating = true;
+      applyRemoteAccount(profile, settings, me);
+      accountSyncRef.current.hydrating = false;
+      setAccountMeta((current) => {
+        if (
+          current &&
+          current.userId === accountMeta.userId &&
+          current.playerId === me.playerId
+        ) {
+          return current;
+        }
+        return { userId: accountMeta.userId, playerId: me.playerId };
+      });
+    };
+
+    const refreshWallet = async (): Promise<void> => {
+      const wallet = await fetchCurrentWallet(auth).catch((error) => {
+        console.error("[account] Failed to refresh realtime wallet:", error);
+        return null;
+      });
+      if (cancelled || auth.getUserId() !== accountMeta.userId) return;
+      saveAccountWallet(accountMeta.userId, wallet);
+    };
+
+    const refreshHistory = async (): Promise<void> => {
+      const history = await fetchCurrentMatchHistory(auth).catch((error) => {
+        console.error("[account] Failed to refresh realtime match history:", error);
+        return null;
+      });
+      if (!history || cancelled || auth.getUserId() !== accountMeta.userId) return;
+      saveAccountProfileMatchHistory(accountMeta.userId, history.matches);
+    };
+
+    const unsubscribe = auth.subscribeToAccountRealtime(accountMeta.playerId, {
+      onPlayerChanged: () => {
+        schedule(refreshPlayerTimer, (value) => {
+          refreshPlayerTimer = value;
+        }, refreshAccount);
+        schedule(refreshWalletTimer, (value) => {
+          refreshWalletTimer = value;
+        }, refreshWallet);
+      },
+      onWalletChanged: () => {
+        schedule(refreshWalletTimer, (value) => {
+          refreshWalletTimer = value;
+        }, refreshWallet);
+      },
+      onMatchHistoryChanged: () => {
+        schedule(refreshHistoryTimer, (value) => {
+          refreshHistoryTimer = value;
+        }, refreshHistory);
+      },
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      if (refreshPlayerTimer !== null) {
+        window.clearTimeout(refreshPlayerTimer);
+      }
+      if (refreshWalletTimer !== null) {
+        window.clearTimeout(refreshWalletTimer);
+      }
+      if (refreshHistoryTimer !== null) {
+        window.clearTimeout(refreshHistoryTimer);
+      }
+    };
+  }, [accountMeta, auth, profile, settings]);
 
   useEffect(() => {
     const syncState = accountSyncRef.current;

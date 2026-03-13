@@ -139,7 +139,10 @@ function buildHudPills(
         pills.push({ text: t("game.auction") });
         if (game.auction.currentBid !== "pass" && game.auction.currentBidder !== null) {
           pills.push({
-            text: bidDisplayLabel(game.auction.currentBid, locale),
+            text: `${seatLabelShort(state, game.auction.currentBidder, locale)} · ${bidDisplayLabel(
+              game.auction.currentBid,
+              locale
+            )}`,
             className: "hud-pill-contract",
           });
         } else {
@@ -197,15 +200,20 @@ function buildHudPills(
       }
 
       if (compact) {
+        if (game.contract && game.ombre !== null) {
+          pills.push({
+            text: `${seatLabelShort(state, game.ombre, locale)} · ${localizedContractDisplayLabel(
+              game.contract,
+              game.trump,
+              locale
+            )}`,
+            className: "hud-pill-contract",
+          });
+        }
         if (game.turn !== null) {
           pills.push({
             text: compactTurnText,
             className: isMyTurn ? "hud-pill-active" : undefined,
-          });
-        } else if (game.contract) {
-          pills.push({
-            text: localizedContractDisplayLabel(game.contract, game.trump, locale),
-            className: "hud-pill-contract",
           });
         }
       } else if (game.contract) {

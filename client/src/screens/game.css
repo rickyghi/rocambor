@@ -2245,19 +2245,19 @@
 
 @media (max-width: 920px) and (orientation: portrait) {
   .game-shell {
-    padding-top: calc(48px + env(safe-area-inset-top, 0px)); /* clear the absolutely-positioned header */
+    padding-top: calc(72px + env(safe-area-inset-top, 0px)); /* clear the absolutely-positioned header */
     padding-bottom: env(safe-area-inset-bottom, 0px);
     overflow-y: auto;
     overflow-x: hidden;
   }
 
   .game-header {
-    min-height: 38px;
-    padding: 4px 8px;
+    min-height: 42px;
+    padding: 6px 10px;
     row-gap: 0;
-    top: calc(4px + env(safe-area-inset-top, 0px));
-    left: max(4px, env(safe-area-inset-left, 0px));
-    right: max(4px, env(safe-area-inset-right, 0px));
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    left: max(8px, env(safe-area-inset-left, 0px));
+    right: max(8px, env(safe-area-inset-right, 0px));
     grid-template-areas: "left hud right";
     grid-template-columns: auto 1fr auto;
     /* Mobile: restore dark glass bar (Figma mobile has branded header) */
@@ -2387,9 +2387,9 @@
   .game-opponents-strip {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
-    padding: 6px 6px 0;
-    margin: 6px max(6px, env(safe-area-inset-right, 0px)) 0 max(6px, env(safe-area-inset-left, 0px));
+    gap: 8px;
+    padding: 10px 8px 0;
+    margin: 10px max(8px, env(safe-area-inset-right, 0px)) 0 max(8px, env(safe-area-inset-left, 0px));
     border-radius: var(--rMd);
     background: transparent;
     border: none;
@@ -2400,14 +2400,14 @@
 
   .mobile-opponent {
     display: grid;
-    gap: 3px;
+    gap: 4px;
     justify-items: center;
     align-content: center;
-    min-height: 52px;
+    min-height: 58px;
     border: none;
     background: transparent;
     border-radius: 10px;
-    padding: 2px 3px;
+    padding: 4px 3px;
   }
 
   .mobile-opponent.active-turn {
@@ -2518,7 +2518,11 @@
 
   .mob-bid-tag,
   .mob-ombre-tag {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    white-space: nowrap;
   }
 
   .mob-stat {
@@ -2534,7 +2538,7 @@
     grid-template-rows: minmax(0, 1fr) auto auto;
     align-items: end;
     overflow: hidden;
-    --mobile-hand-lane-min: 220px;
+    --mobile-hand-lane-min: 186px;
   }
 
   .game-stage-bottom {
@@ -2545,18 +2549,18 @@
     grid-row: 3;
     align-self: stretch;
     width: 100%;
-    gap: 10px;
+    gap: 6px;
     min-height: var(--mobile-hand-lane-min);
     margin-top: 0;
     padding-top: 0;
-    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
     grid-template-rows: 1fr;
   }
 
   .game-stage-bottom::before {
     left: 0;
     right: 0;
-    height: calc(var(--mobile-hand-lane-min) + 12px);
+    height: calc(var(--mobile-hand-lane-min) + 8px);
     border-radius: 24px 24px 0 0;
     background:
       linear-gradient(180deg, rgba(3, 6, 7, 0) 0%, rgba(3, 6, 7, 0.22) 14%, rgba(3, 6, 7, 0.78) 52%, rgba(2, 4, 5, 0.98) 100%);
@@ -2668,13 +2672,15 @@
     width: auto;
     max-width: calc(100vw - 48px);
     bottom: auto;
-    top: clamp(216px, 32vh, 272px);
+    top: clamp(232px, 35vh, 304px);
     transform: translateX(-50%);
     padding: 0;
     border-radius: 999px;
-    border-color: rgba(214, 166, 74, 0.55);
-    background: rgba(214, 166, 74, 0.96);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+    border-color: rgba(214, 166, 74, 0.42);
+    background:
+      radial-gradient(circle at top left, rgba(214, 166, 74, 0.16), transparent 40%),
+      linear-gradient(180deg, rgba(19, 42, 39, 0.95) 0%, rgba(12, 24, 23, 0.94) 100%);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
   }
 
   .game-callout-hud.result .game-callout-kicker {
@@ -2684,8 +2690,8 @@
   .game-callout-hud.result .game-callout-text {
     font-size: 12px;
     font-weight: 800;
-    color: #19191f;
-    padding: 9px 16px;
+    color: rgba(248, 246, 240, 0.96);
+    padding: 10px 18px;
     text-align: center;
   }
 
@@ -2702,20 +2708,26 @@
     width: 84px;
     height: auto;
     aspect-ratio: 96 / 138;
+    box-shadow: none;
   }
 
   .trick-card-wrap .game-dom-card {
     transform: scale(0.875); /* 84/96 */
     transform-origin: top left;
+    filter: drop-shadow(0 12px 22px rgba(0, 0, 0, 0.24));
   }
 
   .trick-card-wrap.winner {
     width: 96px;
     z-index: 2;
+    box-shadow: none;
   }
 
   .trick-card-wrap.winner .game-dom-card {
     transform: scale(1);
+    filter:
+      drop-shadow(0 0 14px rgba(214, 166, 74, 0.36))
+      drop-shadow(0 12px 22px rgba(0, 0, 0, 0.26));
   }
 
   .trick-card-label {
@@ -2731,7 +2743,7 @@
     align-self: end;
     width: 100%;
     margin-top: 0;
-    margin-bottom: 14px;
+    margin-bottom: 8px;
     padding-inline: 14px;
     z-index: 12;
     flex-shrink: 0;
@@ -2742,7 +2754,7 @@
   .game-controls-shell[data-phase="trump_choice"],
   .game-controls-shell[data-phase="penetro_choice"] {
     padding-inline: 16px;
-    margin-bottom: 22px;
+    margin-bottom: 8px;
   }
 
   .game-controls-bar {
@@ -2806,10 +2818,10 @@
   .game-hand-dock {
     position: static;
     pointer-events: auto;
-    gap: 10px;
+    gap: 4px;
     padding-top: 0;
     margin-top: 0;
-    min-height: 220px;
+    min-height: 184px;
     justify-content: flex-end;
     width: 100%;
     min-width: 0;
@@ -2850,7 +2862,7 @@
   }
 
   .phase-play .game-stage-bottom::before {
-    height: 244px;
+    height: 216px;
   }
 
   .phase-play .trick-overlay-inner {
@@ -2862,7 +2874,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
-    min-height: 24px;
+    min-height: 18px;
     position: relative;
     z-index: 2;
   }
@@ -2891,11 +2903,11 @@
     max-width: 100%;
     min-width: 0;
     align-self: stretch;
-    min-height: 156px;
+    min-height: 138px;
     justify-content: flex-start;
     align-items: flex-end;
-    gap: 12px;
-    padding: 8px 16px 6px;
+    gap: 0;
+    padding: 4px 16px 2px;
     overflow-x: auto;
     overflow-y: visible;
     scroll-snap-type: x proximity;
@@ -2912,11 +2924,11 @@
   .hand-row::-webkit-scrollbar { display: none; }
 
   .hand-card-wrap {
-    width: 108px;
+    width: 104px;
     height: auto;
     aspect-ratio: 96 / 138;
     transform: none;
-    margin-left: 0;
+    margin-left: -20px;
     flex-shrink: 0;
     scroll-snap-align: start;
     overflow: visible;
@@ -2929,27 +2941,27 @@
   }
 
   .hand-card-wrap .game-dom-card {
-    transform: translate(-50%, -50%) scale(1.125); /* 108/96 */
+    transform: translate(-50%, -50%) scale(1.083333); /* 104/96 */
     transform-origin: center center;
   }
 
   /* CRITICAL: must repeat ALL base .phase-play properties to win specificity */
   .phase-play .hand-card-wrap {
-    width: 128px;
+    width: 124px;
     height: auto;
     aspect-ratio: 96 / 138;
-    margin-left: 0;
+    margin-left: -24px;
     overflow: visible;
   }
   .phase-play .hand-card-wrap .game-dom-card {
-    transform: translate(-50%, -50%) scale(1.333333); /* 128/96 */
+    transform: translate(-50%, -50%) scale(1.291667); /* 124/96 */
     transform-origin: center center;
   }
 
   .phase-play .hand-row {
-    gap: 12px;
-    padding: 8px 16px 10px;
-    min-height: 200px;
+    gap: 0;
+    padding: 6px 16px 6px;
+    min-height: 180px;
   }
 
   .phase-play .game-hand-dock {
@@ -3216,16 +3228,16 @@
 
 @media (min-width: 390px) and (max-width: 430px) and (orientation: portrait) {
   .game-stage {
-    --mobile-hand-lane-min: 232px;
+    --mobile-hand-lane-min: 196px;
   }
 
   .game-shell {
-    padding-top: calc(52px + env(safe-area-inset-top, 0px));
+    padding-top: calc(78px + env(safe-area-inset-top, 0px));
   }
 
   .game-header {
-    min-height: 40px;
-    padding: 5px 9px;
+    min-height: 44px;
+    padding: 6px 10px;
     border-radius: 16px;
   }
 
@@ -3242,12 +3254,12 @@
 
   .game-opponents-strip {
     gap: 8px;
-    padding-top: 8px;
-    margin-top: 8px;
+    padding-top: 10px;
+    margin-top: 10px;
   }
 
   .mobile-opponent {
-    min-height: 54px;
+    min-height: 60px;
     gap: 4px;
   }
 
@@ -3282,11 +3294,11 @@
   }
 
   .game-stage-bottom {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
 
   .game-stage-bottom::before {
-    height: calc(var(--mobile-hand-lane-min) + 12px);
+    height: calc(var(--mobile-hand-lane-min) + 8px);
     border-radius: 26px 26px 0 0;
   }
 
@@ -3300,13 +3312,13 @@
   }
 
   .game-hand-dock {
-    gap: 10px;
+    gap: 6px;
     padding-top: 0;
   }
 
   .hand-dock-header {
     padding: 0 18px;
-    min-height: 26px;
+    min-height: 20px;
   }
 
   .hand-dock-title {
@@ -3319,34 +3331,36 @@
   }
 
   .hand-row {
-    min-height: 164px;
-    gap: 14px;
-    padding: 10px 18px 8px;
+    min-height: 146px;
+    gap: 0;
+    padding: 6px 18px 4px;
     scroll-padding-inline: 18px;
     mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
     -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
   }
 
   .hand-card-wrap {
-    width: 112px;
+    width: 108px;
+    margin-left: -20px;
   }
 
   .hand-card-wrap .game-dom-card {
-    transform: translate(-50%, -50%) scale(1.167); /* 112/96 */
+    transform: translate(-50%, -50%) scale(1.125); /* 108/96 */
   }
 
   .phase-play .hand-row {
-    min-height: 188px;
-    gap: 14px;
-    padding: 12px 18px 10px;
+    min-height: 184px;
+    gap: 0;
+    padding: 8px 18px 6px;
   }
 
   .phase-play .hand-card-wrap {
-    width: 132px;
+    width: 128px;
+    margin-left: -24px;
   }
 
   .phase-play .hand-card-wrap .game-dom-card {
-    transform: translate(-50%, -50%) scale(1.375); /* 132/96 */
+    transform: translate(-50%, -50%) scale(1.333333); /* 128/96 */
   }
 
   .hand-action-btn {
@@ -3386,7 +3400,7 @@
 
 @media (max-width: 430px) and (orientation: portrait) {
   .game-stage {
-    --mobile-hand-lane-min: 214px;
+    --mobile-hand-lane-min: 180px;
   }
 
   .game-header-main {
@@ -3425,7 +3439,7 @@
   }
 
   .mobile-opponent {
-    min-height: 48px;
+    min-height: 52px;
     padding: 2px;
     border-radius: 8px;
   }
@@ -3463,30 +3477,30 @@
   }
 
   .hand-row {
-    min-height: 150px;
-    padding: 8px 14px 2px;
-    gap: 10px;
+    min-height: 140px;
+    padding: 6px 14px 2px;
+    gap: 0;
   }
 
   .hand-card-wrap {
-    width: 98px;
+    width: 94px;
     aspect-ratio: 96 / 138;
     height: auto;
-    margin-left: 0;
+    margin-left: -18px;
   }
   .hand-card-wrap .game-dom-card {
-    transform: translate(-50%, -50%) scale(1.021); /* 98/96 */
+    transform: translate(-50%, -50%) scale(0.979167); /* 94/96 */
   }
 
   .phase-play .hand-card-wrap {
-    width: 116px;
+    width: 112px;
     height: auto;
     aspect-ratio: 96 / 138;
-    margin-left: 0;
+    margin-left: -22px;
     overflow: visible;
   }
   .phase-play .hand-card-wrap .game-dom-card {
-    transform: translate(-50%, -50%) scale(1.208333); /* 116/96 */
+    transform: translate(-50%, -50%) scale(1.166667); /* 112/96 */
   }
 
   .auction-panel-exchange .auction-panel-status {
@@ -3519,11 +3533,11 @@
 
 @media (max-width: 360px) and (orientation: portrait) {
   .game-stage {
-    --mobile-hand-lane-min: 206px;
+    --mobile-hand-lane-min: 172px;
   }
 
   .mobile-opponent {
-    min-height: 42px;
+    min-height: 46px;
     padding: 2px 1px;
   }
 
@@ -3552,10 +3566,10 @@
   }
 
   .hand-card-wrap {
-    width: 90px;
+    width: 86px;
     aspect-ratio: 96 / 138;
     height: auto;
-    margin-left: 0;
+    margin-left: -16px;
   }
 
   .auction-panel-exchange .auction-panel-status {
@@ -3578,18 +3592,18 @@
     font-size: 11px;
   }
   .hand-card-wrap .game-dom-card {
-    transform: translate(-50%, -50%) scale(0.938); /* 90/96 */
+    transform: translate(-50%, -50%) scale(0.895833); /* 86/96 */
   }
 
   .phase-play .hand-card-wrap {
-    width: 106px;
+    width: 102px;
     height: auto;
     aspect-ratio: 96 / 138;
-    margin-left: 0;
+    margin-left: -20px;
     overflow: visible;
   }
   .phase-play .hand-card-wrap .game-dom-card {
-    transform: translate(-50%, -50%) scale(1.104167); /* 106/96 */
+    transform: translate(-50%, -50%) scale(1.0625); /* 102/96 */
   }
 
   .hand-action-btn {

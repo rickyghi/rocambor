@@ -7,10 +7,11 @@ import {
   fallbackAvatarAt,
   randomAvatarSeed,
 } from "../../lib/avatars";
-import { fetchCurrentMatchHistory } from "../../lib/account-api";
+import { fetchCurrentAccount, fetchCurrentMatchHistory } from "../../lib/account-api";
 import {
   loadProfileMatchHistory,
   saveAccountProfileMatchHistory,
+  subscribeProfileMatchHistory,
 } from "../../lib/profile-history";
 import {
   ProfileManager,
@@ -191,30 +192,55 @@ function renderRecentMatches(
     .join("");
 }
 
-async function fetchRemoteProfileStats(): Promise<RemoteProfileStats> {
-  const playerId =
+async function fetchRemoteProfileStats(auth?: AuthManager): Promise<RemoteProfileStats> {
+  let playerId =
     localStorage.getItem("rocambor_currentPlayerId") ||
     localStorage.getItem("rocambor_playerId");
-  if (!playerId) {
-    return {
-      gamesPlayed: 0,
-      wins: 0,
-      winRate: 0,
-      elo: 1200,
-      lastPlayed: null,
-      standing: null,
-    };
-  }
 
   try {
     const base = apiBase();
-    const [statsRes, leaderboardRes] = await Promise.all([
+    const leaderboardPromise = fetch(`${base}/api/leaderboard?limit=100`);
+    const accountPromise = auth ? fetchCurrentAccount(auth) : Promise.resolve(null);
+    const [leaderboardRes, me] = await Promise.all([leaderboardPromise, accountPromise]);
+
+    if (me?.playerId) {
+      playerId = me.playerId;
+      const leaderboardPayload = leaderboardRes.ok ? await leaderboardRes.json() : null;
+      const leaderboard = Array.isArray(leaderboardPayload?.leaderboard)
+        ? leaderboardPayload.leaderboard
+        : [];
+      const standingIndex = leaderboard.findIndex(
+        (entry: { playerId?: string }) => entry.playerId === me.playerId
+      );
+
+      return {
+        gamesPlayed: me.gamesPlayed,
+        wins: me.wins,
+        winRate:
+          me.gamesPlayed > 0 ? me.wins / Math.max(1, me.gamesPlayed) : 0,
+        elo: me.elo,
+        lastPlayed: me.lastPlayed,
+        standing: standingIndex >= 0 ? standingIndex + 1 : null,
+      };
+    }
+
+    if (!playerId) {
+      return {
+        gamesPlayed: 0,
+        wins: 0,
+        winRate: 0,
+        elo: 1200,
+        lastPlayed: null,
+        standing: null,
+      };
+    }
+
+    const [statsRes, leaderboardPayload] = await Promise.all([
       fetch(`${base}/api/players/${playerId}/stats`),
-      fetch(`${base}/api/leaderboard?limit=100`),
+      leaderboardRes.ok ? leaderboardRes.json() : Promise.resolve(null),
     ]);
 
     const statsPayload = statsRes.ok ? await statsRes.json() : null;
-    const leaderboardPayload = leaderboardRes.ok ? await leaderboardRes.json() : null;
     const leaderboard = Array.isArray(leaderboardPayload?.leaderboard)
       ? leaderboardPayload.leaderboard
       : [];
@@ -276,6 +302,7 @@ export function openProfileModal(
   let baseSeed = current.name || randomAvatarSeed();
   let presets = createAvatarPresets(baseSeed);
   const accountId = options.auth?.getUserId() || null;
+  const canUploadPortrait = Boolean(accountId && options.auth?.isConfigured());
   const recentHistory = loadProfileMatchHistory(accountId);
 
   const content = document.createElement("div");
@@ -381,6 +408,12 @@ export function openProfileModal(
         ${t("profile.useNameSeed")}
       </label>
       <div class="profile-avatar-toolbar">
+        ${
+          canUploadPortrait
+            ? `<input id="profile-avatar-upload" type="file" accept="image/*" hidden />
+               <button type="button" class="btn-secondary profile-upload-avatar">${t("profile.uploadPortrait")}</button>`
+            : `<span class="profile-upload-hint">${t("profile.signInToUploadPortrait")}</span>`
+        }
         <button type="button" class="btn-secondary profile-randomize">${t("profile.randomize")}</button>
       </div>
       <div class="profile-avatar-grid" role="listbox" aria-label="${t("profile.avatarChoices")}"></div>
@@ -390,6 +423,8 @@ export function openProfileModal(
 
   const nameInput = content.querySelector("#profile-name") as HTMLInputElement;
   const useNameSeedInput = content.querySelector("#profile-name-seed") as HTMLInputElement;
+  const uploadInput = content.querySelector("#profile-avatar-upload") as HTMLInputElement | null;
+  const uploadBtn = content.querySelector(".profile-upload-avatar") as HTMLButtonElement | null;
   const randomizeBtn = content.querySelector(".profile-randomize") as HTMLButtonElement;
   const grid = content.querySelector(".profile-avatar-grid") as HTMLElement;
   const status = content.querySelector(".profile-status") as HTMLElement;
@@ -410,6 +445,20 @@ export function openProfileModal(
 
   nameInput.value = current.name;
 
+  let uploadInFlight = false;
+
+  const setStatus = (message: string, variant: "idle" | "error" | "success" = "idle"): void => {
+    status.textContent = message;
+    status.classList.toggle("error", variant === "error");
+    status.classList.toggle("success", variant === "success");
+  };
+
+  const setUploadBusy = (busy: boolean): void => {
+    uploadInFlight = busy;
+    if (uploadBtn) uploadBtn.disabled = busy;
+    if (uploadInput) uploadInput.disabled = busy;
+  };
+
   const setPreview = (): void => {
     const normalized = normalizeProfileName(nameInput.value) || (locale === "es" ? "Jugador" : "Player");
     const fallback = fallbackAvatarAt(Math.abs(normalized.charCodeAt(0) || 0) % 12);
@@ -421,7 +470,14 @@ export function openProfileModal(
 
   const renderAvatarGrid = (): void => {
     grid.innerHTML = "";
-    presets.forEach((preset, index) => {
+    const avatarChoices =
+      !useNameSeedInput.checked &&
+      selectedAvatar &&
+      !presets.some((preset) => preset.url === selectedAvatar)
+        ? [{ url: selectedAvatar, fallback: selectedAvatar }, ...presets]
+        : presets;
+
+    avatarChoices.forEach((preset, index) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "profile-avatar-option";
@@ -484,10 +540,58 @@ export function openProfileModal(
     setPreview();
   });
 
+  uploadBtn?.addEventListener("click", () => {
+    if (uploadInFlight) return;
+    uploadInput?.click();
+  });
+
+  uploadInput?.addEventListener("change", () => {
+    const file = uploadInput.files?.[0];
+    if (!file || !options.auth) return;
+
+    if (!file.type.startsWith("image/")) {
+      setStatus(t("profile.portraitFileType"), "error");
+      uploadInput.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setStatus(t("profile.portraitFileSize"), "error");
+      uploadInput.value = "";
+      return;
+    }
+
+    setUploadBusy(true);
+    setStatus(t("profile.uploadingPortrait"));
+
+    void options.auth
+      .uploadAvatar(file)
+      .then((publicUrl) => {
+        useNameSeedInput.checked = false;
+        selectedAvatar = publicUrl;
+        renderAvatarGrid();
+        setPreview();
+        setStatus(t("profile.portraitUploaded"), "success");
+      })
+      .catch((error) => {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : t("profile.portraitUploadFailed");
+        setStatus(message, "error");
+      })
+      .finally(() => {
+        setUploadBusy(false);
+        if (uploadInput) {
+          uploadInput.value = "";
+        }
+      });
+  });
+
   renderAvatarGrid();
   setPreview();
 
-  fetchRemoteProfileStats().then((stats) => {
+  fetchRemoteProfileStats(options.auth).then((stats) => {
     const tier = resolveHonorTier(stats.elo);
     const nextElo = tier.nextElo ?? stats.elo;
     const tierFloor = tier.minElo;
@@ -515,12 +619,15 @@ export function openProfileModal(
     achievementGrid.innerHTML = renderAchievementGrid(buildAchievementModel(stats, locale), locale);
   });
 
+  const unsubscribeHistory = subscribeProfileMatchHistory(accountId, (entries) => {
+    recentList.innerHTML = renderRecentMatches(locale, entries);
+  });
+
   if (accountId && options.auth) {
     void fetchCurrentMatchHistory(options.auth)
       .then((payload) => {
         if (!payload) return;
         saveAccountProfileMatchHistory(accountId, payload.matches);
-        recentList.innerHTML = renderRecentMatches(locale, payload.matches);
       })
       .catch((error) => {
         console.error("[profile] Failed to load account match history:", error);
@@ -535,6 +642,9 @@ export function openProfileModal(
     dismissible: !options.force,
     scroll: true,
     closeAriaLabel: t("common.closeModal"),
+    onClose: () => {
+      unsubscribeHistory();
+    },
     actions: [
       ...(options.force
         ? []
@@ -561,8 +671,7 @@ export function openProfileModal(
           }
 
           profile.markComplete();
-          status.textContent = "";
-          status.classList.remove("error");
+          setStatus("");
           options.onSaved?.();
           return true;
         },
