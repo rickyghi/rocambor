@@ -822,7 +822,12 @@ export class Room {
           this.armTimer();
           this.botMaybeAct();
         }
+      } else if (a.currentBid === "oros" || a.currentBid === "solo_oros") {
+        this.state.trump = "oros";
+        this.event("TRUMP_SET", { method: "implied_oros", suit: "oros" });
+        this.startExchange();
       } else {
+        // Only entrada (non-oros) needs trump_choice
         this.state.phase = "trump_choice";
         this.state.turn = this.state.ombre;
         this.patch(this.state);

@@ -1281,3 +1281,47 @@ describe("Room - score delta seat range", () => {
     expect((room.state.scores as any)[99]).toBeUndefined();
   });
 });
+
+describe("Room - implied trump for oros bids", () => {
+  it("sets trump to oros and skips trump_choice when winning bid is oros", () => {
+    const room = makeRoom();
+    addHuman(room, 0);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+
+    const [s0, s1, s2] = room.state.auction.order;
+    // oros is restricted as opening bid, so s0 bids entrada first
+    room.applyBid(s0, "entrada");
+    // s1 overcalls with oros
+    room.applyBid(s1, "oros");
+    // s0 and s2 pass, s1 wins with oros
+    room.applyBid(s2, "pass");
+    room.applyBid(s0, "pass");
+
+    expect(room.state.ombre).toBe(s1);
+    expect(room.state.trump).toBe("oros");
+    expect(room.state.phase).not.toBe("trump_choice");
+    expect(room.state.phase).toBe("exchange");
+  });
+
+  it("sets trump to oros and skips trump_choice when winning bid is solo_oros", () => {
+    const room = makeRoom();
+    addHuman(room, 0);
+    room.startGame();
+    room.conns.forEach((c) => (c.isBot = false));
+
+    const [s0, s1, s2] = room.state.auction.order;
+    // solo_oros is restricted as opening bid, so s0 bids entrada first
+    room.applyBid(s0, "entrada");
+    // s1 overcalls with solo_oros
+    room.applyBid(s1, "solo_oros");
+    // s0 and s2 pass, s1 wins with solo_oros
+    room.applyBid(s2, "pass");
+    room.applyBid(s0, "pass");
+
+    expect(room.state.ombre).toBe(s1);
+    expect(room.state.trump).toBe("oros");
+    expect(room.state.phase).not.toBe("trump_choice");
+    expect(room.state.phase).toBe("exchange");
+  });
+});
