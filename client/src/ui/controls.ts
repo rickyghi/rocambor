@@ -1,6 +1,7 @@
 import type { ConnectionManager } from "../connection";
 import type { ClientState } from "../state";
 import type { Bid, Suit } from "../protocol";
+import { BID_ORDER, AUCTION_RANKED_BIDS } from "../protocol";
 import { escapeHtml } from "../utils/escape";
 
 export class GameControls {
@@ -46,6 +47,9 @@ export class GameControls {
 
     if (phase === "auction" && myTurn) {
       html = this.renderAuction();
+      actionable = true;
+    } else if (phase === "contract_upgrade" && myTurn) {
+      html = this.renderContractUpgrade();
       actionable = true;
     } else if (phase === "penetro_choice" && myTurn) {
       html = this.renderPenetroChoice();
@@ -146,6 +150,60 @@ export class GameControls {
             <span class="auction-bid-icon">${crossSvg}</span>
             <span class="auction-bid-name">Pass</span>
             <span class="auction-bid-desc">Wait for turn</span>
+          </button>
+        </div>
+        <div class="auction-panel-divider"></div>
+        <div class="auction-panel-quote">\u201CFortune favors the bold\u201D</div>
+      </div>
+    `;
+  }
+
+  private renderContractUpgrade(): string {
+    const currentBid = this.state.game!.auction.currentBid;
+    const currentIdx = BID_ORDER.indexOf(currentBid);
+
+    const bidMeta: Record<string, { label: string; icon: string; desc: string }> = {
+      entrada: { label: "Entrada", icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>`, desc: "Challenge the table" },
+      oros: { label: "Entrada Oros", icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>`, desc: "Entrada with Oros" },
+      volteo: { label: "Volteo", icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`, desc: "Flip top card" },
+      solo: { label: "Solo", icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/><circle cx="12" cy="12" r="3"/></svg>`, desc: "Play alone" },
+      solo_oros: { label: "Solo Oros", icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/><circle cx="12" cy="12" r="3"/></svg>`, desc: "Solo with Oros" },
+      contrabola: { label: "Contrabola", icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="4"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="16" cy="16" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>`, desc: "All-in gamble" },
+    };
+
+    // Available upgrades: ranked bids + contrabola that are higher than current
+    const upgrades = [...AUCTION_RANKED_BIDS, "contrabola" as Bid].filter(
+      (b) => BID_ORDER.indexOf(b) > currentIdx
+    );
+
+    const btns = upgrades
+      .map((b) => {
+        const meta = bidMeta[b];
+        if (!meta) return "";
+        return `<button class="auction-bid upgrade-btn" data-upgrade="${b}">
+          <span class="auction-bid-icon">${meta.icon}</span>
+          <span class="auction-bid-name">${meta.label}</span>
+          <span class="auction-bid-desc">${meta.desc}</span>
+        </button>`;
+      })
+      .join("");
+
+    const checkSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+    const arrowSvg = `<svg class="auction-header-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
+
+    return `
+      <div class="auction-panel">
+        <div class="auction-panel-header">
+          <span class="auction-header-icon">${arrowSvg}</span>
+          <span class="auction-header-title">Upgrade Contract</span>
+        </div>
+        <div class="auction-panel-status">You won with ${this.bidLabel(currentBid)}. Upgrade?</div>
+        <div class="auction-bid-grid">
+          ${btns}
+          <button class="auction-bid upgrade-btn keep-btn" data-upgrade="keep">
+            <span class="auction-bid-icon">${checkSvg}</span>
+            <span class="auction-bid-name">Keep ${this.bidLabel(currentBid)}</span>
+            <span class="auction-bid-desc">Proceed as-is</span>
           </button>
         </div>
         <div class="auction-panel-divider"></div>
@@ -305,6 +363,16 @@ export class GameControls {
         if (this.actionLocked) return;
         const bid = btn.dataset.bid as Bid;
         this.conn.send({ type: "BID", value: bid });
+        this.setActionLock(true);
+      });
+    });
+
+    // Upgrade buttons
+    this.container.querySelectorAll<HTMLButtonElement>(".upgrade-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (this.actionLocked) return;
+        const value = btn.dataset.upgrade as Bid | "keep";
+        this.conn.send({ type: "UPGRADE_CONTRACT", value });
         this.setActionLock(true);
       });
     });

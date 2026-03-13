@@ -385,12 +385,14 @@ export function decidePlay(ctx: BotContext): string | null {
 }
 
 export function botAct(ctx: BotContext): {
-  type: "BID" | "PENETRO_DECISION" | "CHOOSE_TRUMP" | "EXCHANGE" | "PLAY";
+  type: "BID" | "PENETRO_DECISION" | "CHOOSE_TRUMP" | "EXCHANGE" | "PLAY" | "UPGRADE_CONTRACT";
   payload: unknown;
 } | null {
   switch (ctx.phase) {
     case "auction":
       return { type: "BID", payload: decideBid(ctx) };
+    case "contract_upgrade":
+      return { type: "UPGRADE_CONTRACT", payload: "keep" };
     case "penetro_choice":
       return { type: "PENETRO_DECISION", payload: decidePenetroDecision() };
     case "trump_choice":

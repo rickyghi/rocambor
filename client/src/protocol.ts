@@ -14,4 +14,4 @@ export type {
   S2CMessage,
 } from "@shared/types";
 
-export { ALL_SEATS, BID_ORDER, BID_VAL } from "@shared/types";
+export { ALL_SEATS, BID_ORDER, BID_VAL, AUCTION_RANKED_BIDS } from "@shared/types";

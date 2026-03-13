@@ -273,6 +273,10 @@ describe("Room - auction", () => {
     // Winner should be ombre
     expect(room.state.ombre).toBe(order[0]);
     expect(room.state.contract).toBe("entrada");
+    // Enters contract upgrade phase since higher bids are available
+    expect(room.state.phase).toBe("contract_upgrade");
+    // Keep current bid to proceed
+    room.upgradeContract(order[0], "keep");
     expect(room.state.phase).toBe("trump_choice");
   });
 
@@ -297,6 +301,10 @@ describe("Room - auction", () => {
 
     expect(room.state.ombre).toBe(s0);
     expect(room.state.contract).toBe("solo");
+    // Enters contract upgrade phase since solo_oros is higher
+    expect(room.state.phase).toBe("contract_upgrade");
+    // Keep current bid to proceed
+    room.upgradeContract(s0, "keep");
     expect(room.state.trump).toBe("copas");
     expect(room.state.phase).toBe("exchange");
   });
@@ -1299,6 +1307,10 @@ describe("Room - implied trump for oros bids", () => {
     room.applyBid(s0, "pass");
 
     expect(room.state.ombre).toBe(s1);
+    // Enters contract upgrade phase since higher bids are available
+    expect(room.state.phase).toBe("contract_upgrade");
+    // Keep current bid to proceed
+    room.upgradeContract(s1, "keep");
     expect(room.state.trump).toBe("oros");
     expect(room.state.phase).not.toBe("trump_choice");
     expect(room.state.phase).toBe("exchange");

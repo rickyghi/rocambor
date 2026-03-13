@@ -37,6 +37,10 @@ export const C2SMessageSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("EXCHANGE_DEFER") }),
   z.object({ type: z.literal("PENETRO_DECISION"), accept: z.boolean() }),
+  z.object({
+    type: z.literal("UPGRADE_CONTRACT"),
+    value: z.union([BidSchema, z.literal("keep")]),
+  }),
   z.object({ type: z.literal("CLOSE_HAND") }),
   z.object({ type: z.literal("PLAY"), cardId: z.string().min(1) }),
   z.object({ type: z.literal("REMATCH") }),

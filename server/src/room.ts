@@ -10,6 +10,8 @@ import {
   Mode,
   PlayerInfo,
   S2CMessage,
+  BID_ORDER,
+  AUCTION_RANKED_BIDS,
 } from "../../shared/types";
 import { makeDeck, legalPlays, trickWinner, generateSeed } from "./engine";
 import { botAct, BotContext } from "./bot";
@@ -683,6 +685,9 @@ export class Room {
       case "EXCHANGE":
         this.finishExchange(seat, action.payload as string[]);
         break;
+      case "UPGRADE_CONTRACT":
+        this.upgradeContract(seat, action.payload as Bid | "keep");
+        break;
       case "PLAY":
         this.playCard(seat, action.payload as string);
         break;
@@ -802,37 +807,22 @@ export class Room {
         contract: this.state.contract,
       });
 
-      if (a.currentBid === "volteo") {
-        const top = this.talon[0];
-        this.state.trump = top.s;
-        this.event("TRUMP_SET", { method: "volteo", suit: this.state.trump });
-        this.startExchange();
-      } else if (a.currentBid === "contrabola") {
-        this.startExchange();
-      } else if (a.currentBid === "solo") {
-        const declared = this.soloTrumpBySeat[a.currentBidder];
-        if (declared) {
-          this.state.trump = declared;
-          this.event("TRUMP_SET", { method: "solo_bid", suit: declared });
-          this.startExchange();
-        } else {
-          this.state.phase = "trump_choice";
-          this.state.turn = this.state.ombre;
-          this.patch(this.state);
-          this.armTimer();
-          this.botMaybeAct();
-        }
-      } else if (a.currentBid === "oros" || a.currentBid === "solo_oros") {
-        this.state.trump = "oros";
-        this.event("TRUMP_SET", { method: "implied_oros", suit: "oros" });
-        this.startExchange();
-      } else {
-        // Only entrada (non-oros) needs trump_choice
-        this.state.phase = "trump_choice";
+      // Check if there are higher bids available for upgrade
+      const currentIdx = BID_ORDER.indexOf(a.currentBid);
+      const hasUpgrades = AUCTION_RANKED_BIDS.some(
+        (b) => BID_ORDER.indexOf(b) > currentIdx
+      );
+
+      if (hasUpgrades) {
+        // Enter contract upgrade phase
+        this.state.phase = "contract_upgrade";
         this.state.turn = this.state.ombre;
         this.patch(this.state);
         this.armTimer();
         this.botMaybeAct();
+      } else {
+        // Already at highest bid, proceed directly
+        this.resolveContract();
       }
       return;
     }
@@ -869,6 +859,69 @@ export class Room {
 
     this.event("AUCTION_PASS_OUT", {});
     this.newHand();
+  }
+
+  private resolveContract(): void {
+    const contract = this.state.contract;
+    const ombre = this.state.ombre!;
+
+    if (contract === "volteo") {
+      const top = this.talon[0];
+      this.state.trump = top.s;
+      this.event("TRUMP_SET", { method: "volteo", suit: this.state.trump });
+      this.startExchange();
+    } else if (contract === "contrabola") {
+      this.startExchange();
+    } else if (contract === "solo") {
+      const declared = this.soloTrumpBySeat[ombre];
+      if (declared) {
+        this.state.trump = declared;
+        this.event("TRUMP_SET", { method: "solo_bid", suit: declared });
+        this.startExchange();
+      } else {
+        this.state.phase = "trump_choice";
+        this.state.turn = ombre;
+        this.patch(this.state);
+        this.armTimer();
+        this.botMaybeAct();
+      }
+    } else if (contract === "oros" || contract === "solo_oros") {
+      this.state.trump = "oros";
+      this.event("TRUMP_SET", { method: "implied_oros", suit: "oros" });
+      this.startExchange();
+    } else {
+      // entrada — needs trump choice
+      this.state.phase = "trump_choice";
+      this.state.turn = ombre;
+      this.patch(this.state);
+      this.armTimer();
+      this.botMaybeAct();
+    }
+  }
+
+  upgradeContract(seat: SeatIndex, newBid: Bid | "keep"): void {
+    if (this.state.phase !== "contract_upgrade") {
+      return this.errorSeat(seat, "WRONG_PHASE");
+    }
+    if (this.state.ombre !== seat) {
+      return this.errorSeat(seat, "NOT_OMBRE");
+    }
+
+    if (newBid !== "keep") {
+      const currentBid = this.state.auction.currentBid;
+      const currentIdx = BID_ORDER.indexOf(currentBid);
+      const newIdx = BID_ORDER.indexOf(newBid);
+      if (newIdx <= currentIdx) {
+        return this.errorSeat(seat, "INVALID_UPGRADE", "Must upgrade to a higher bid");
+      }
+
+      const newContract = mapBidToContract(newBid);
+      this.event("CONTRACT_UPGRADE", { seat, from: this.state.contract, to: newContract });
+      this.state.contract = newContract;
+      this.state.auction.currentBid = newBid;
+    }
+
+    this.resolveContract();
   }
 
   private nextAuctionSeat(
@@ -1516,6 +1569,8 @@ export class Room {
           return this.deferDefenderExchange(conn.seat);
         case "PENETRO_DECISION":
           return this.handlePenetroDecision(conn.seat, Boolean(msg.accept));
+        case "UPGRADE_CONTRACT":
+          return this.upgradeContract(conn.seat, msg.value as Bid | "keep");
         case "CLOSE_HAND":
           return this.closeHand(conn.seat);
         case "PLAY":

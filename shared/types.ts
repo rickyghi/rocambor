@@ -27,7 +27,7 @@ export const BID_VAL: Record<Bid, number> = {
 
 // ---- Game phases ----
 export type Phase =
-  | "lobby" | "dealing" | "auction" | "trump_choice"
+  | "lobby" | "dealing" | "auction" | "contract_upgrade" | "trump_choice"
   | "exchange" | "penetro_choice" | "play" | "scoring" | "post_hand" | "match_end";
 
 // ---- Player info in state ----
@@ -103,6 +103,7 @@ export type C2SMessage =
   | { type: "EXCHANGE_DEFER" }
   | { type: "PENETRO_DECISION"; accept: boolean }
   | { type: "CLOSE_HAND" }
+  | { type: "UPGRADE_CONTRACT"; value: Bid | "keep" }
   | { type: "PLAY"; cardId: string }
   | { type: "REMATCH" }
   | { type: "LEAVE_QUEUE" }

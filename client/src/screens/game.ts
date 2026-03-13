@@ -415,7 +415,7 @@ export class GameScreen {
     const phaseClasses = ["phase-auction", "phase-play", "phase-exchange", "phase-trump"];
     phaseClasses.forEach((cls) => this.rootEl.classList.remove(cls));
 
-    if (phase === "auction") this.rootEl.classList.add("phase-auction");
+    if (phase === "auction" || phase === "contract_upgrade") this.rootEl.classList.add("phase-auction");
     else if (phase === "play") this.rootEl.classList.add("phase-play");
     else if (phase === "exchange") this.rootEl.classList.add("phase-exchange");
     else if (phase === "trump_choice") this.rootEl.classList.add("phase-trump");
@@ -709,6 +709,11 @@ export class GameScreen {
             ? this.t("game.phaseBanner.yourTurnChooseBidWithLeader", { leader })
             : leader;
       }
+    } else if (game.phase === "contract_upgrade") {
+      sub =
+        game.turn === this.ctx.state.mySeat
+          ? "You won the auction! Upgrade your contract?"
+          : "Declarer is considering an upgrade\u2026";
     } else if (game.phase === "trump_choice") {
       sub =
         game.turn === this.ctx.state.mySeat
