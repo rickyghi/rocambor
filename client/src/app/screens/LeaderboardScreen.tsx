@@ -379,7 +379,6 @@ export function LeaderboardScreen({ ctx }: { ctx: AppContext }): ReactElement {
     } catch (err) {
       const nextError = err instanceof Error ? err.message : t("leaderboard.refreshFailed");
       setError(nextError);
-      throw err instanceof Error ? err : new Error(nextError);
     } finally {
       setLoading(false);
       setRefreshing(false);
