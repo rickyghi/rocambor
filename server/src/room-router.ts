@@ -1,5 +1,5 @@
 import { Room } from "./room";
-import { Mode } from "../../shared/types";
+import { Mode, StakeMode } from "../../shared/types";
 
 function generateCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // No I, O, 0, 1 to avoid confusion
@@ -27,6 +27,7 @@ export class RoomRouter {
   createRoom(
     mode: Mode,
     creatorClientId: string,
+    stakeMode: StakeMode = "free",
     gameTarget?: number,
     rules?: { espadaObligatoria?: boolean },
     roomName?: string
@@ -40,6 +41,7 @@ export class RoomRouter {
 
     const room = new Room(roomId, {
       mode,
+      stakeMode,
       code,
       gameTarget: gameTarget || 12,
       creatorId: creatorClientId,

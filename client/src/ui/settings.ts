@@ -52,6 +52,12 @@ export class SettingsManager {
     return { ...this.settings };
   }
 
+  hydrate(next: Partial<Settings>): void {
+    this.settings = { ...this.settings, ...next };
+    this.saveToStorage();
+    this.notify();
+  }
+
   subscribe(fn: SettingsListener): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);

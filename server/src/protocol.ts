@@ -2,16 +2,22 @@ import { z } from "zod";
 
 const SuitSchema = z.enum(["oros", "copas", "espadas", "bastos"]);
 const ModeSchema = z.enum(["tresillo", "quadrille"]);
+const StakeModeSchema = z.enum(["free", "tokens"]);
 const BidSchema = z.enum([
   "pass", "entrada", "oros", "volteo", "solo", "solo_oros", "bola", "contrabola",
 ]);
 const SeatSchema = z.number().int().min(0).max(3);
 
 export const C2SMessageSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("QUICK_PLAY"), mode: ModeSchema }),
+  z.object({
+    type: z.literal("QUICK_PLAY"),
+    mode: ModeSchema,
+    stakeMode: StakeModeSchema.optional(),
+  }),
   z.object({
     type: z.literal("CREATE_ROOM"),
     mode: ModeSchema,
+    stakeMode: StakeModeSchema.optional(),
     target: z.number().int().min(6).max(30).optional(),
     roomName: z.string().trim().max(30).optional(),
     rules: z

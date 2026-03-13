@@ -128,9 +128,9 @@
   --text-on-panel-dim: rgba(248, 246, 240, 0.45);
 
   /* ── Game Table card sizes ── */
-  --card-w: 164px;
-  --card-h: 236px;
-  --card-scale: 1.708333;         /* 164 / 96 sprite base */
+  --card-w: 196px;
+  --card-h: 282px;
+  --card-scale: 2.041667;         /* 196 / 96 sprite base */
   --card-w-play: 196px;
   --card-h-play: 282px;
   --card-scale-play: 2.041667;    /* 196 / 96 */

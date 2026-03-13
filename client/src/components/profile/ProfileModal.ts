@@ -1,3 +1,4 @@
+import type { AuthManager } from "../../auth/supabase-auth";
 import {
   avatarFromSeed as buildSeedAvatar,
   buildDiceBearUrl,
@@ -6,7 +7,11 @@ import {
   fallbackAvatarAt,
   randomAvatarSeed,
 } from "../../lib/avatars";
-import { loadProfileMatchHistory } from "../../lib/profile-history";
+import { fetchCurrentMatchHistory } from "../../lib/account-api";
+import {
+  loadProfileMatchHistory,
+  saveAccountProfileMatchHistory,
+} from "../../lib/profile-history";
 import {
   ProfileManager,
   normalizeProfileName,
@@ -19,6 +24,7 @@ import {
   modeLabel,
   type Locale,
 } from "../../i18n";
+import type { ProfileMatchHistoryEntry } from "../../protocol";
 import { showModal } from "../../ui/modal";
 
 function isNameSeedAvatar(name: string, avatar: string): boolean {
@@ -141,9 +147,11 @@ function renderAchievementGrid(achievements: Achievement[], locale: Locale): str
     .join("");
 }
 
-function renderRecentMatches(locale: Locale): string {
+function renderRecentMatches(
+  locale: Locale,
+  history: ProfileMatchHistoryEntry[]
+): string {
   const { t } = createTranslator(locale);
-  const history = loadProfileMatchHistory();
   if (!history.length) {
     return `<div class="profile-recent-empty">${escapeText(t("profile.noRecentMatches"))}</div>`;
   }
@@ -184,7 +192,9 @@ function renderRecentMatches(locale: Locale): string {
 }
 
 async function fetchRemoteProfileStats(): Promise<RemoteProfileStats> {
-  const playerId = localStorage.getItem("rocambor_playerId");
+  const playerId =
+    localStorage.getItem("rocambor_currentPlayerId") ||
+    localStorage.getItem("rocambor_playerId");
   if (!playerId) {
     return {
       gamesPlayed: 0,
@@ -251,6 +261,7 @@ export interface ProfileModalOptions {
   title?: string;
   onSaved?: () => void;
   locale?: Locale;
+  auth?: AuthManager;
 }
 
 export function openProfileModal(
@@ -264,6 +275,8 @@ export function openProfileModal(
   let selectedAvatar = current.avatar || buildSeedAvatar(current.name);
   let baseSeed = current.name || randomAvatarSeed();
   let presets = createAvatarPresets(baseSeed);
+  const accountId = options.auth?.getUserId() || null;
+  const recentHistory = loadProfileMatchHistory(accountId);
 
   const content = document.createElement("div");
   content.className = "profile-modal";
@@ -347,7 +360,7 @@ export function openProfileModal(
               <div class="profile-card-caption">${t("profile.recentMatchesCaption")}</div>
             </div>
           </div>
-          <div class="profile-recent-list">${renderRecentMatches(locale)}</div>
+          <div class="profile-recent-list">${renderRecentMatches(locale, recentHistory)}</div>
         </section>
       </div>
     </div>
@@ -393,6 +406,7 @@ export function openProfileModal(
   const progressValue = content.querySelector(".profile-progress-value") as HTMLElement;
   const progressFill = content.querySelector(".profile-progress-fill") as HTMLElement;
   const achievementGrid = content.querySelector(".profile-achievement-grid") as HTMLElement;
+  const recentList = content.querySelector(".profile-recent-list") as HTMLElement;
 
   nameInput.value = current.name;
 
@@ -500,6 +514,18 @@ export function openProfileModal(
     progressFill.style.width = `${Math.round(progressRatio * 100)}%`;
     achievementGrid.innerHTML = renderAchievementGrid(buildAchievementModel(stats, locale), locale);
   });
+
+  if (accountId && options.auth) {
+    void fetchCurrentMatchHistory(options.auth)
+      .then((payload) => {
+        if (!payload) return;
+        saveAccountProfileMatchHistory(accountId, payload.matches);
+        recentList.innerHTML = renderRecentMatches(locale, payload.matches);
+      })
+      .catch((error) => {
+        console.error("[profile] Failed to load account match history:", error);
+      });
+  }
 
   showModal({
     title: options.title || t("profile.title"),

@@ -10,6 +10,7 @@ import {
   Mode,
   PlayerInfo,
   S2CMessage,
+  StakeMode,
   BID_ORDER,
   AUCTION_RANKED_BIDS,
 } from "../../shared/types";
@@ -19,6 +20,9 @@ import {
   saveHandResult,
   saveMatchResult,
   createRoomRecord,
+  FRIENDLY_TOKEN_ANTE,
+  fundFriendlyStakeMatch,
+  settleFriendlyStakeMatch,
 } from "./persistence";
 import { bidRank, isRankedBid, mapBidToContract } from "./auction-utils";
 import { calculateHandScore, scorePenetro } from "./scoring";
@@ -35,6 +39,7 @@ export interface Conn {
   handle: string;
   isBot: boolean;
   playerId: string | null;
+  authUserId: string | null;
   isSpectator: boolean;
   connected: boolean;
   lastSeen: number;
@@ -42,6 +47,7 @@ export interface Conn {
 
 export interface RoomConfig {
   mode: Mode;
+  stakeMode?: StakeMode;
   code: string;
   gameTarget?: number;
   creatorId: string;
@@ -72,6 +78,9 @@ export class Room {
   private hostSeat: SeatIndex | null = null;
   private rematchVotes = new Set<SeatIndex>();
   private soloTrumpBySeat: Partial<Record<SeatIndex, Suit>> = {};
+  private currentStakeMatchRef: string | null = null;
+  private currentStakeParticipants: string[] = [];
+  private currentMatchStartedAt: string | null = null;
 
   constructor(id: string, config: RoomConfig) {
     this.id = id;
@@ -102,6 +111,14 @@ export class Room {
       rules: {
         espadaObligatoria: config.rules?.espadaObligatoria ?? true,
         penetroEnabled: true,
+      },
+      stakes: {
+        stakeMode: config.stakeMode ?? "free",
+        currency: config.stakeMode === "tokens" ? "friendly_tokens" : null,
+        ante: config.stakeMode === "tokens" ? FRIENDLY_TOKEN_ANTE : 0,
+        pot: 0,
+        settlement:
+          config.stakeMode === "tokens" ? "winner_takes_pot" : null,
       },
     };
 
@@ -248,7 +265,12 @@ export class Room {
   }
 
   // ---- Connection management ----
-  attach(ws: WebSocket, clientId?: string, playerId?: string | null): Conn {
+  attach(
+    ws: WebSocket,
+    clientId?: string,
+    playerId?: string | null,
+    authUserId?: string | null
+  ): Conn {
     const conn: Conn = {
       id: clientId || Math.random().toString(36).slice(2),
       ws,
@@ -256,6 +278,7 @@ export class Room {
       handle: `Player ${Math.floor(Math.random() * 999)}`,
       isBot: false,
       playerId: playerId || null,
+      authUserId: authUserId || null,
       isSpectator: false,
       connected: true,
       lastSeen: Date.now(),
@@ -289,6 +312,9 @@ export class Room {
 
     if (replaceWithBot) {
       const bot = this.makeBot();
+      bot.handle = conn.handle;
+      bot.playerId = conn.playerId;
+      bot.authUserId = conn.authUserId;
       this.conns.push(bot);
       this.assignSeat(bot, leavingSeat);
     }
@@ -329,7 +355,8 @@ export class Room {
     clientId: string,
     ws: WebSocket,
     seat: SeatIndex,
-    playerId?: string | null
+    playerId?: string | null,
+    authUserId?: string | null
   ): Conn | null {
     // Check if seat is still occupied by a disconnected connection
     const existing = this.conns.find(
@@ -342,6 +369,7 @@ export class Room {
       existing.connected = true;
       existing.lastSeen = Date.now();
       existing.id = clientId;
+      existing.authUserId = authUserId || existing.authUserId;
 
       this.send(existing, {
         type: "WELCOME",
@@ -368,7 +396,12 @@ export class Room {
     const botConn = this.conns.find((c) => c.seat === seat && c.isBot);
     if (botConn) {
       this.conns = this.conns.filter((c) => c !== botConn);
-      const conn = this.attach(ws, clientId, playerId || null);
+      const conn = this.attach(
+        ws,
+        clientId,
+        playerId || null,
+        authUserId || null
+      );
       this.seatPlayer(conn, seat);
       return conn;
     }
@@ -384,6 +417,7 @@ export class Room {
       handle: `Spectator`,
       isBot: false,
       playerId: null,
+      authUserId: null,
       isSpectator: true,
       connected: true,
       lastSeen: Date.now(),
@@ -440,6 +474,7 @@ export class Room {
       handle: "Bot",
       isBot: true,
       playerId: null,
+      authUserId: null,
       isSpectator: false,
       connected: true,
       lastSeen: Date.now(),
@@ -471,12 +506,99 @@ export class Room {
     return humans.length >= 1; // At least 1 human, rest can be bots
   }
 
+  private seatedHumanPlayers(): Conn[] {
+    const seats = this.allSeats();
+    return this.conns.filter(
+      (c) =>
+        !c.isBot &&
+        !c.isSpectator &&
+        c.connected &&
+        c.seat !== null &&
+        seats.includes(c.seat)
+    );
+  }
+
+  private canStartTokenMatch(): boolean {
+    const humans = this.seatedHumanPlayers();
+    return (
+      humans.length === this.allSeats().length &&
+      humans.every(
+        (conn) =>
+          Boolean(conn.authUserId) &&
+          Boolean(conn.playerId) &&
+          conn.playerId === conn.authUserId
+      )
+    );
+  }
+
+  private notifyStakeStartBlocked(code: string, message: string): void {
+    const recipients = this.seatedHumanPlayers();
+    for (const conn of recipients) {
+      this.send(conn, { type: "ERROR", code, message });
+    }
+  }
+
+  private async prepareStakeFunding(): Promise<boolean> {
+    if (this.state.stakes.stakeMode !== "tokens") {
+      this.state.stakes.pot = 0;
+      this.currentStakeMatchRef = null;
+      this.currentStakeParticipants = [];
+      return true;
+    }
+
+    if (!this.canStartTokenMatch()) {
+      this.notifyStakeStartBlocked(
+        "STAKE_HUMAN_TABLE_REQUIRED",
+        "Staked tables require every active seat to be filled by a signed-in human player."
+      );
+      return false;
+    }
+
+    const playerIds = this.seatedHumanPlayers()
+      .map((conn) => conn.playerId)
+      .filter((playerId): playerId is string => Boolean(playerId));
+    const matchRef = `${this.id}:${Date.now()}`;
+    const funded = await fundFriendlyStakeMatch(
+      playerIds,
+      matchRef,
+      this.state.stakes.ante
+    );
+    if (!funded.ok) {
+      const blocked = new Set(funded.insufficientPlayerIds);
+      for (const conn of this.seatedHumanPlayers()) {
+        if (conn.playerId && blocked.has(conn.playerId)) {
+          this.send(conn, {
+            type: "ERROR",
+            code: "INSUFFICIENT_TOKENS",
+            message:
+              "You do not have enough friendly tokens to fund this staked match.",
+          });
+        }
+      }
+      return false;
+    }
+
+    this.currentStakeMatchRef = matchRef;
+    this.currentStakeParticipants = playerIds;
+    this.state.stakes.pot = funded.pot;
+    return true;
+  }
+
   // ---- Game lifecycle ----
-  startGame(): void {
-    if (this.state.phase !== "lobby") return;
-    if (!this.canStart()) return;
-    this.fillWithBots();
+  async startGame(): Promise<boolean> {
+    if (this.state.phase !== "lobby") return false;
+    if (!this.canStart()) return false;
+    const startedAt = new Date().toISOString();
+    if (this.state.stakes.stakeMode === "free") {
+      this.currentMatchStartedAt = startedAt;
+      this.fillWithBots();
+      this.newHand();
+      return true;
+    }
+    if (!(await this.prepareStakeFunding())) return false;
+    this.currentMatchStartedAt = startedAt;
     this.newHand();
+    return true;
   }
 
   newHand(): void {
@@ -492,7 +614,9 @@ export class Room {
 
     // Remove bots from non-active seats, ensure active seats filled
     this.cleanBots();
-    this.fillWithBots();
+    if (this.state.stakes.stakeMode === "free") {
+      this.fillWithBots();
+    }
 
     // Reset hand data
     for (const s of ALL_SEATS) {
@@ -1414,7 +1538,30 @@ export class Room {
         totalHands: this.state.handNo,
         playerIds,
         playerHandles,
+        gameTarget: this.state.gameTarget,
+        ombre: this.state.ombre,
+        resting: this.state.resting,
+        stakeMode: this.state.stakes.stakeMode,
+        ante: this.state.stakes.ante,
+        pot: this.state.stakes.pot,
+        startedAt: this.currentMatchStartedAt,
       }).catch((err) => console.error("[room] saveMatchResult failed:", err));
+
+      const winningConn = this.conns.find((conn) => conn.seat === winner);
+      if (
+        this.state.stakes.stakeMode === "tokens" &&
+        this.currentStakeMatchRef &&
+        this.state.stakes.pot > 0 &&
+        winningConn?.playerId
+      ) {
+        settleFriendlyStakeMatch(
+          winningConn.playerId,
+          this.currentStakeMatchRef,
+          this.state.stakes.pot
+        ).catch((err) =>
+          console.error("[room] settleFriendlyStakeMatch failed:", err)
+        );
+      }
     } else {
       // Show post-hand briefly then deal next
       this.state.phase = "post_hand";
@@ -1472,7 +1619,9 @@ export class Room {
       this.rematchVotes.clear();
       this.state.scores = { 0: 0, 1: 0, 2: 0, 3: 0 };
       this.state.handNo = 1;
-      this.newHand();
+      this.state.phase = "lobby";
+      this.state.stakes.pot = 0;
+      void this.startGame();
     }
   }
 
@@ -1528,7 +1677,7 @@ export class Room {
               message: "Only the room host can start the game",
             });
           }
-          this.startGame();
+          void this.startGame();
           return;
         }
 

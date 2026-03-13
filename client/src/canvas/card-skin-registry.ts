@@ -40,6 +40,7 @@ export interface CardSkinDefinition {
   // Image-based skin support
   imageMode?: boolean;
   imagePath?: string;
+  imageExtension?: "png" | "svg";
   // Metadata
   author?: string;
   theme?: SkinTheme;
@@ -67,6 +68,7 @@ export interface CardSkinImportInput {
   hoverBorderColor?: string;
   suitOverrides?: Partial<Record<Suit, SuitPalette>>;
   suitOverridesColorblind?: Partial<Record<Suit, SuitPalette>>;
+  imageExtension?: "png" | "svg";
 }
 
 const STORAGE_KEY = "rocambor_custom_card_skins_v1";
@@ -162,6 +164,7 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     rarity: "rare",
     imageMode: true,
     imagePath: "/cards/ronda_morocco",
+    imageExtension: "svg",
     faceColor: "#f4ead2",
     faceBorderColor: "#b08b5c",
     backColor: "#6b3f22",
@@ -187,6 +190,7 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     rarity: "legendary",
     imageMode: true,
     imagePath: "/cards/spanish_deck",
+    imageExtension: "png",
     // Procedural fallback properties (used for cards without images)
     faceColor: "#F8F6F0",
     faceBorderColor: "#C8A651",

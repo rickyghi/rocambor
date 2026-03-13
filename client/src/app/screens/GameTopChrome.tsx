@@ -500,7 +500,10 @@ export function GameTopChrome({
             className="btn-secondary game-profile-btn"
             type="button"
             onClick={() => {
-              openProfileModal(ctx.profile, { locale: settings.locale });
+              openProfileModal(ctx.profile, {
+                locale: settings.locale,
+                auth: ctx.auth,
+              });
             }}
           >
             <img

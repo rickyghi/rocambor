@@ -9,6 +9,7 @@ export const ALL_SEATS: readonly SeatIndex[] = [0, 1, 2, 3] as const;
 
 // ---- Game mode ----
 export type Mode = "tresillo" | "quadrille";
+export type StakeMode = "free" | "tokens";
 
 // ---- Contracts and Bids ----
 export type Contract =
@@ -36,6 +37,83 @@ export interface PlayerInfo {
   isBot: boolean;
   connected: boolean;
   playerId: string | null;
+}
+
+export interface AuthUserSummary {
+  id: string;
+  email: string | null;
+}
+
+export interface WsTicketResponse {
+  ticket: string;
+  expiresAt: string;
+  user: AuthUserSummary;
+}
+
+export type AnimationSpeed = "slow" | "normal" | "fast";
+export type TableThemeKey = "classic" | "royal" | "rustic";
+
+export interface PersistedPlayerSettings {
+  locale: "en" | "es";
+  soundEnabled: boolean;
+  espadaObligatoria: boolean;
+  soundVolume: number;
+  colorblindMode: boolean;
+  tableTheme: TableThemeKey;
+  cardSkin: string;
+  animationSpeed: AnimationSpeed;
+  reduceMotion: boolean;
+}
+
+export interface MeResponse {
+  playerId: string;
+  email: string | null;
+  name: string;
+  avatar: string;
+  createdAt: string;
+  gamesPlayed: number;
+  wins: number;
+  elo: number;
+  lastPlayed: string | null;
+  settings: PersistedPlayerSettings;
+  bootstrapSuggested: boolean;
+}
+
+export interface UpdateMeProfileRequest {
+  name?: string;
+  avatar?: string;
+  settings?: Partial<PersistedPlayerSettings>;
+}
+
+export interface WalletResponse {
+  playerId: string;
+  balance: number;
+  currency: "friendly_tokens";
+  rescueThreshold: number;
+  rescueTarget: number;
+  rescueCooldownHours: number;
+  canClaimRescue: boolean;
+  rescueAvailableAt: string | null;
+  lastRescueAt: string | null;
+}
+
+export interface ProfileMatchHistoryEntry {
+  id: string;
+  mode: Mode;
+  outcome: "win" | "loss";
+  role: "ombre" | "contra" | "resting";
+  score: number;
+  recordedAt: string;
+  placement: number | null;
+  stakeMode: StakeMode;
+  ante: number;
+  pot: number;
+}
+
+export interface MatchHistoryResponse {
+  matches: ProfileMatchHistoryEntry[];
+  count: number;
+  generatedAt: string;
 }
 
 // ---- Game state (sent to clients) ----
@@ -75,6 +153,13 @@ export interface GameState {
     espadaObligatoria: boolean;
     penetroEnabled: boolean;
   };
+  stakes: {
+    stakeMode: StakeMode;
+    currency: "friendly_tokens" | null;
+    ante: number;
+    pot: number;
+    settlement: "winner_takes_pot" | null;
+  };
   hostSeat?: SeatIndex | null;
   turnDeadline?: number;
   legalIds?: string[];
@@ -82,10 +167,11 @@ export interface GameState {
 
 // ---- Client-to-Server messages ----
 export type C2SMessage =
-  | { type: "QUICK_PLAY"; mode: Mode }
+  | { type: "QUICK_PLAY"; mode: Mode; stakeMode?: StakeMode }
   | {
       type: "CREATE_ROOM";
       mode: Mode;
+      stakeMode?: StakeMode;
       target?: number;
       roomName?: string;
       rules?: {

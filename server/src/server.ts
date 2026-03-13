@@ -9,8 +9,24 @@ import { ReconnectManager } from "./reconnect";
 import { Lobby } from "./lobby";
 import { C2SMessageSchema } from "./protocol";
 import { Conn } from "./room";
-import { getLeaderboard, getPlayerStats } from "./persistence";
-import { Mode, SeatIndex, S2CMessage } from "../../shared/types";
+import {
+  FRIENDLY_TOKEN_ANTE,
+  claimFriendlyRescue,
+  getLeaderboard,
+  getMatchHistoryForAuthUser,
+  getOrCreateAuthenticatedProfile,
+  getPlayerStats,
+  getWalletForAuthUser,
+  hasEnoughFriendlyTokens,
+  updateAuthenticatedProfile,
+} from "./persistence";
+import { AuthUserSummary, Mode, S2CMessage, StakeMode } from "../../shared/types";
+import {
+  createWsTicket,
+  isSupabaseAuthConfigured,
+  verifySupabaseAccessToken,
+  verifyWsTicket,
+} from "./auth";
 
 const port = Number(process.env.PORT || 8080);
 let wss: WebSocketServer | null = null;
@@ -29,7 +45,7 @@ const httpServer = http.createServer((req, res) => {
     : "*";
   res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
     res.writeHead(200);
@@ -64,6 +80,121 @@ function handleApi(
   res: http.ServerResponse
 ): void {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+
+  if (url.pathname === "/api/auth/ws-ticket" && req.method === "POST") {
+    void handleWsTicketRequest(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/me" && req.method === "GET") {
+    void (async () => {
+      const user = await authenticateApiRequest(req, res);
+      if (!user) return;
+      const me = await getOrCreateAuthenticatedProfile(user);
+      if (!me) {
+        res.writeHead(503, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Profile persistence is unavailable" }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(me));
+    })();
+    return;
+  }
+
+  if (url.pathname === "/api/me/profile" && req.method === "PATCH") {
+    void (async () => {
+      const user = await authenticateApiRequest(req, res);
+      if (!user) return;
+
+      try {
+        const rawBody = await readRequestBody(req);
+        const body = rawBody ? JSON.parse(rawBody) : {};
+        const updated = await updateAuthenticatedProfile(user, body);
+        if (!updated) {
+          res.writeHead(503, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Profile persistence is unavailable" }));
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(updated));
+      } catch (error) {
+        if (error instanceof SyntaxError) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid JSON body" }));
+          return;
+        }
+        const message = error instanceof Error ? error.message : "";
+        if (message === "BODY_TOO_LARGE") {
+          res.writeHead(413, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Request body too large" }));
+          return;
+        }
+        console.error("[api] me/profile error:", error);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to update profile" }));
+      }
+    })();
+    return;
+  }
+
+  if (url.pathname === "/api/me/wallet" && req.method === "GET") {
+    void (async () => {
+      const user = await authenticateApiRequest(req, res);
+      if (!user) return;
+      const wallet = await getWalletForAuthUser(user);
+      if (!wallet) {
+        res.writeHead(503, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Wallet persistence is unavailable" }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(wallet));
+    })();
+    return;
+  }
+
+  if (url.pathname === "/api/me/matches" && req.method === "GET") {
+    void (async () => {
+      const user = await authenticateApiRequest(req, res);
+      if (!user) return;
+      const history = await getMatchHistoryForAuthUser(user);
+      if (!history) {
+        res.writeHead(503, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Match history persistence is unavailable" }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(history));
+    })();
+    return;
+  }
+
+  if (url.pathname === "/api/me/tokens/rescue" && req.method === "POST") {
+    void (async () => {
+      const user = await authenticateApiRequest(req, res);
+      if (!user) return;
+      const result = await claimFriendlyRescue(user);
+      if (!result.ok) {
+        if (result.code === "NOT_ELIGIBLE") {
+          res.writeHead(409, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              error:
+                "Rescue tokens are not available yet. Your balance must be below the threshold and the cooldown must be over.",
+            })
+          );
+          return;
+        }
+        res.writeHead(503, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Wallet persistence is unavailable" }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(result.wallet));
+    })();
+    return;
+  }
 
   // GET /api/rooms - list active rooms
   if (url.pathname === "/api/rooms" && req.method === "GET") {
@@ -164,6 +295,139 @@ function handleApi(
   res.end(JSON.stringify({ error: "Not found" }));
 }
 
+function readRequestBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > 16 * 1024) {
+        reject(new Error("BODY_TOO_LARGE"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    });
+    req.on("error", reject);
+  });
+}
+
+async function handleWsTicketRequest(
+  req: http.IncomingMessage,
+  res: http.ServerResponse
+): Promise<void> {
+  if (!isSupabaseAuthConfigured()) {
+    res.writeHead(503, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Supabase auth is not configured" }));
+    return;
+  }
+
+  try {
+    const rawBody = await readRequestBody(req);
+    const body = rawBody
+      ? (JSON.parse(rawBody) as { accessToken?: unknown })
+      : {};
+    if (typeof body.accessToken !== "string" || !body.accessToken.trim()) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "accessToken is required" }));
+      return;
+    }
+
+    const user = await verifySupabaseAccessToken(body.accessToken);
+    if (!user) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid access token" }));
+      return;
+    }
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(createWsTicket(user)));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === "BODY_TOO_LARGE") {
+      res.writeHead(413, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Request body too large" }));
+      return;
+    }
+    if (error instanceof SyntaxError) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid JSON body" }));
+      return;
+    }
+    console.error("[api] ws-ticket error:", error);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Failed to create WebSocket ticket" }));
+  }
+}
+
+async function authenticateApiRequest(
+  req: http.IncomingMessage,
+  res: http.ServerResponse
+) {
+  if (!isSupabaseAuthConfigured()) {
+    res.writeHead(503, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Supabase auth is not configured" }));
+    return null;
+  }
+
+  const header = req.headers.authorization || "";
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Missing bearer token" }));
+    return null;
+  }
+
+  try {
+    const user = await verifySupabaseAccessToken(match[1]);
+    if (!user) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid access token" }));
+      return null;
+    }
+    return user;
+  } catch (error) {
+    console.error("[api] auth verification error:", error);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Authentication failed" }));
+    return null;
+  }
+}
+
+async function ensureStakeEntryAllowed(
+  ws: WebSocket,
+  stakeMode: StakeMode,
+  authUser: AuthUserSummary | null
+): Promise<boolean> {
+  if (stakeMode !== "tokens") return true;
+  if (!authUser) {
+    wsSend(ws, {
+      type: "ERROR",
+      code: "AUTH_REQUIRED",
+      message: "Sign in to create or join friendly-stakes tables.",
+    });
+    return false;
+  }
+  const canAfford = await hasEnoughFriendlyTokens(
+    authUser.id,
+    FRIENDLY_TOKEN_ANTE
+  );
+  if (!canAfford) {
+    wsSend(ws, {
+      type: "ERROR",
+      code: "INSUFFICIENT_TOKENS",
+      message:
+        "You do not have enough friendly tokens to enter a staked table right now.",
+    });
+    return false;
+  }
+  return true;
+}
+
 // ---- Helper to send raw message ----
 function wsSend(ws: WebSocket, msg: S2CMessage): void {
   if (ws.readyState === WebSocket.OPEN) {
@@ -211,11 +475,18 @@ async function startServer(): Promise<void> {
         `http://${req.headers.host || "localhost"}`
       );
       const resumeId = url.searchParams.get("resume") || undefined;
+      const ticket = url.searchParams.get("ticket") || undefined;
       const requestedPlayerId = url.searchParams.get("playerId") || undefined;
+      const ticketIdentity = ticket ? verifyWsTicket(ticket) : null;
+      if (ticket && !ticketIdentity) {
+        ws.close(4401, "Invalid auth ticket");
+        return;
+      }
       const playerId =
-        requestedPlayerId && isUuid(requestedPlayerId)
+        ticketIdentity?.user.id ||
+        (requestedPlayerId && isUuid(requestedPlayerId)
           ? requestedPlayerId
-          : randomUUID();
+          : randomUUID());
 
       // Try reconnection first
       if (resumeId) {
@@ -223,13 +494,27 @@ async function startServer(): Promise<void> {
           .tryResume(resumeId)
           .then((reservation) => {
             if (reservation) {
+              if (
+                ticketIdentity?.user.id &&
+                reservation.playerId &&
+                reservation.playerId !== ticketIdentity.user.id
+              ) {
+                handleNewConnection(
+                  ws,
+                  undefined,
+                  ticketIdentity.user.id,
+                  ticketIdentity.user
+                );
+                return;
+              }
               const room = router.getById(reservation.roomId);
               if (room) {
                 const conn = room.tryReconnect(
                   resumeId,
                   ws,
                   reservation.seat,
-                  reservation.playerId ?? playerId
+                  reservation.playerId ?? playerId,
+                  ticketIdentity?.user.id ?? null
                 );
                 if (conn) {
                   // Consume the reservation only after a successful reconnect
@@ -244,13 +529,28 @@ async function startServer(): Promise<void> {
               }
             }
             // Resume failed, treat as new connection
-            handleNewConnection(ws, resumeId, playerId);
+            handleNewConnection(
+              ws,
+              resumeId,
+              playerId,
+              ticketIdentity?.user ?? null
+            );
           })
           .catch(() => {
-            handleNewConnection(ws, resumeId, playerId);
+            handleNewConnection(
+              ws,
+              resumeId,
+              playerId,
+              ticketIdentity?.user ?? null
+            );
           });
       } else {
-        handleNewConnection(ws, undefined, playerId);
+        handleNewConnection(
+          ws,
+          undefined,
+          playerId,
+          ticketIdentity?.user ?? null
+        );
       }
     });
 
@@ -278,7 +578,8 @@ async function startServer(): Promise<void> {
 function attachPreRoomMessageHandler(
   ws: WebSocket,
   id: string,
-  playerId: string
+  playerId: string,
+  authUser: AuthUserSummary | null
 ): (raw: Buffer | string) => void {
   const onMessage = (raw: Buffer | string) => {
     try {
@@ -298,45 +599,78 @@ function attachPreRoomMessageHandler(
 
       switch (msg.type) {
         case "QUICK_PLAY": {
-          const result = lobby.joinQueue(id, playerId, ws, msg.mode);
-          if (result.status === "matched") {
-            const room = result.room;
-            for (const participant of result.participants) {
-              const preHandler = preRoomHandlers.get(participant.ws);
-              if (preHandler) {
-                participant.ws.removeListener("message", preHandler);
-                preRoomHandlers.delete(participant.ws);
+          void (async () => {
+            const stakeMode = msg.stakeMode || "free";
+            if (!(await ensureStakeEntryAllowed(ws, stakeMode, authUser))) {
+              return;
+            }
+
+            const result = await lobby.joinQueue(
+              id,
+              playerId,
+              authUser?.id ?? null,
+              ws,
+              msg.mode,
+              stakeMode
+            );
+            if (result.status === "matched") {
+              const room = result.room;
+              for (const participant of result.participants) {
+                const preHandler = preRoomHandlers.get(participant.ws);
+                if (preHandler) {
+                  participant.ws.removeListener("message", preHandler);
+                  preRoomHandlers.delete(participant.ws);
+                }
+                const conn = room.conns.find((c) => c.id === participant.clientId);
+                if (!conn) continue;
+                connToRoom.set(participant.ws, { conn, roomId: room.id });
+                setupWsHandlers(participant.ws, conn, room.id);
+                wsSend(participant.ws, {
+                  type: "ROOM_JOINED",
+                  roomId: room.id,
+                  code: room.code,
+                  seat: conn.seat,
+                });
               }
-              const conn = room.conns.find((c) => c.id === participant.clientId);
-              if (!conn) continue;
-              connToRoom.set(participant.ws, { conn, roomId: room.id });
-              setupWsHandlers(participant.ws, conn, room.id);
-              wsSend(participant.ws, {
-                type: "ROOM_JOINED",
-                roomId: room.id,
-                code: room.code,
-                seat: conn.seat,
+            } else if (result.status === "queued") {
+              wsSend(ws, {
+                type: "QUEUE_UPDATE",
+                position: result.position,
+                mode: msg.mode,
+              });
+            } else {
+              wsSend(ws, {
+                type: "ERROR",
+                code: result.code,
+                message: result.message,
               });
             }
-          } else {
+          })().catch((error) => {
+            console.error("[queue] quick play failed:", error);
             wsSend(ws, {
-              type: "QUEUE_UPDATE",
-              position: result.position,
-              mode: msg.mode,
+              type: "ERROR",
+              code: "QUEUE_FAILED",
+              message: "Unable to enter quick play right now.",
             });
-          }
+          });
           return;
         }
 
         case "CREATE_ROOM": {
+          const stakeMode = msg.stakeMode || "free";
+          void (async () => {
+            if (!(await ensureStakeEntryAllowed(ws, stakeMode, authUser))) {
+              return;
+            }
           const { roomId, code, room } = router.createRoom(
             msg.mode,
             id,
+            stakeMode,
             msg.target,
             msg.rules,
             msg.roomName
           );
-          const conn = room.attach(ws, id, playerId);
+          const conn = room.attach(ws, id, playerId, authUser?.id ?? null);
 
           // Auto-seat creator at seat 0
           room.assignSeat(conn, room.allSeats()[0]);
@@ -353,6 +687,14 @@ function attachPreRoomMessageHandler(
             seat: conn.seat,
           });
           room.broadcastState();
+          })().catch((error) => {
+            console.error("[room] create room failed:", error);
+            wsSend(ws, {
+              type: "ERROR",
+              code: "CREATE_ROOM_FAILED",
+              message: "Unable to create room right now.",
+            });
+          });
           return;
         }
 
@@ -367,7 +709,18 @@ function attachPreRoomMessageHandler(
             return;
           }
 
-          const conn = room.attach(ws, id, playerId);
+          void (async () => {
+            if (
+              !(await ensureStakeEntryAllowed(
+                ws,
+                room.state.stakes.stakeMode,
+                authUser
+              ))
+            ) {
+              return;
+            }
+
+          const conn = room.attach(ws, id, playerId, authUser?.id ?? null);
 
           if (room.state.phase === "lobby") {
             const seats = room.allSeats();
@@ -404,6 +757,14 @@ function attachPreRoomMessageHandler(
             seat: conn.seat,
           });
           room.broadcastState();
+          })().catch((error) => {
+            console.error("[room] join room failed:", error);
+            wsSend(ws, {
+              type: "ERROR",
+              code: "JOIN_ROOM_FAILED",
+              message: "Unable to join room right now.",
+            });
+          });
           return;
         }
 
@@ -461,16 +822,16 @@ function attachPreRoomMessageHandler(
 function handleNewConnection(
   ws: WebSocket,
   clientId?: string,
-  playerId?: string
+  playerId?: string,
+  authUser?: AuthUserSummary | null
 ): void {
   const id = clientId || randomUUID();
-  const resolvedPlayerId =
-    playerId && isUuid(playerId) ? playerId : randomUUID();
+  const resolvedPlayerId = playerId || randomUUID();
 
   // Send welcome (not attached to any room yet)
   wsSend(ws, { type: "WELCOME", clientId: id, playerId: resolvedPlayerId });
 
-  attachPreRoomMessageHandler(ws, id, resolvedPlayerId);
+  attachPreRoomMessageHandler(ws, id, resolvedPlayerId, authUser || null);
 
   // Keep-alive ping with pong timeout to detect TCP half-open connections
   let pongTimeout: NodeJS.Timeout | null = null;
@@ -569,7 +930,14 @@ function setupWsHandlers(
         const resolvedPlayerId = conn.playerId && isUuid(conn.playerId)
           ? conn.playerId
           : randomUUID();
-        attachPreRoomMessageHandler(ws, conn.id, resolvedPlayerId);
+        attachPreRoomMessageHandler(
+          ws,
+          conn.id,
+          resolvedPlayerId,
+          conn.authUserId
+            ? { id: conn.authUserId, email: null }
+            : null
+        );
       }
     } catch (error) {
       console.error("[message] Parse error:", error);

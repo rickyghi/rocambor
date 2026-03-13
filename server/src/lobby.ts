@@ -1,4 +1,4 @@
-import { Mode, SeatIndex } from "../../shared/types";
+import { Mode, SeatIndex, StakeMode } from "../../shared/types";
 import { MaybeRedis } from "./redis";
 import { RoomRouter } from "./room-router";
 import { Room, Conn } from "./room";
@@ -7,6 +7,7 @@ import { WebSocket } from "ws";
 interface QueueEntry {
   clientId: string;
   playerId: string;
+  authUserId: string | null;
   ws: WebSocket;
   joinedAt: number;
 }
@@ -18,9 +19,9 @@ interface MatchParticipant {
 }
 
 export class Lobby {
-  private queues: Record<Mode, QueueEntry[]> = {
-    tresillo: [],
-    quadrille: [],
+  private queues: Record<Mode, Record<StakeMode, QueueEntry[]>> = {
+    tresillo: { free: [], tokens: [] },
+    quadrille: { free: [], tokens: [] },
   };
 
   constructor(
@@ -28,20 +29,26 @@ export class Lobby {
     private router: RoomRouter
   ) {}
 
-  joinQueue(
+  async joinQueue(
     clientId: string,
     playerId: string,
+    authUserId: string | null,
     ws: WebSocket,
-    mode: Mode
-  ): { status: "queued"; position: number } | { status: "matched"; roomId: string; code: string; room: Room; participants: MatchParticipant[] } {
+    mode: Mode,
+    stakeMode: StakeMode
+  ): Promise<
+    | { status: "queued"; position: number }
+    | { status: "matched"; roomId: string; code: string; room: Room; participants: MatchParticipant[] }
+    | { status: "error"; code: string; message: string }
+  > {
     // Remove if already in any queue (prevents cross-mode duplicate entries)
     this.leaveQueue(clientId);
 
-    const queue = this.queues[mode];
-    queue.push({ clientId, playerId, ws, joinedAt: Date.now() });
+    const queue = this.queues[mode][stakeMode];
+    queue.push({ clientId, playerId, authUserId, ws, joinedAt: Date.now() });
 
     // Clean stale entries (disconnected WebSockets)
-    this.cleanQueue(mode);
+    this.cleanQueue(mode, stakeMode);
 
     const need = mode === "tresillo" ? 3 : 4;
 
@@ -50,6 +57,7 @@ export class Lobby {
       const { roomId, code, room } = this.router.createRoom(
         mode,
         matched[0].clientId,
+        stakeMode,
         undefined,
         { espadaObligatoria: true }
       );
@@ -59,7 +67,12 @@ export class Lobby {
       const participants: MatchParticipant[] = [];
       for (let i = 0; i < matched.length; i++) {
         const entry = matched[i];
-        const conn = room.attach(entry.ws, entry.clientId, entry.playerId);
+        const conn = room.attach(
+          entry.ws,
+          entry.clientId,
+          entry.playerId,
+          entry.authUserId
+        );
         const seat = seats[i];
         room.handle(conn, { type: "TAKE_SEAT", seat });
         participants.push({
@@ -70,7 +83,32 @@ export class Lobby {
       }
 
       // Auto-start with bots for remaining seats
-      room.startGame();
+      const started = await room.startGame();
+      if (!started) {
+        for (const participant of matched) {
+          if (participant.ws.readyState === WebSocket.OPEN) {
+            participant.ws.send(
+              JSON.stringify({
+                type: "ERROR",
+                code: "STAKE_START_FAILED",
+                message:
+                  stakeMode === "tokens"
+                    ? "Unable to fund this staked quick-play table right now."
+                    : "Unable to start quick play right now.",
+              })
+            );
+          }
+        }
+        this.router.removeRoom(roomId);
+        return {
+          status: "error",
+          code: "STAKE_START_FAILED",
+          message:
+            stakeMode === "tokens"
+              ? "Unable to fund this staked quick-play table right now."
+              : "Unable to start quick play right now.",
+        };
+      }
 
       return { status: "matched", roomId, code, room, participants };
     }
@@ -81,18 +119,24 @@ export class Lobby {
   leaveQueue(clientId: string, mode?: Mode): void {
     const modes: Mode[] = mode ? [mode] : ["tresillo", "quadrille"];
     for (const m of modes) {
-      this.queues[m] = this.queues[m].filter((e) => e.clientId !== clientId);
+      this.queues[m].free = this.queues[m].free.filter(
+        (e) => e.clientId !== clientId
+      );
+      this.queues[m].tokens = this.queues[m].tokens.filter(
+        (e) => e.clientId !== clientId
+      );
     }
   }
 
   getQueueSize(mode: Mode): number {
-    this.cleanQueue(mode);
-    return this.queues[mode].length;
+    this.cleanQueue(mode, "free");
+    this.cleanQueue(mode, "tokens");
+    return this.queues[mode].free.length + this.queues[mode].tokens.length;
   }
 
-  private cleanQueue(mode: Mode): void {
+  private cleanQueue(mode: Mode, stakeMode: StakeMode): void {
     const now = Date.now();
-    this.queues[mode] = this.queues[mode].filter((e) => {
+    this.queues[mode][stakeMode] = this.queues[mode][stakeMode].filter((e) => {
       // Remove entries older than 5 minutes
       if (now - e.joinedAt > 300_000) return false;
       // Remove disconnected WebSockets

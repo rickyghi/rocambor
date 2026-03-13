@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ConnectionManager } from "../connection";
+import type { AuthManager, AuthSnapshot } from "../auth/supabase-auth";
 import type { PlayerProfile, ProfileManager } from "../lib/profile";
 import type { ClientState } from "../state";
 import type { Settings, SettingsManager } from "../ui/settings";
@@ -49,6 +50,14 @@ export function useProfile(profile: ProfileManager): PlayerProfile {
   const [snapshot, setSnapshot] = useState(() => profile.get());
 
   useEffect(() => profile.subscribe(setSnapshot), [profile]);
+
+  return snapshot;
+}
+
+export function useAuthSnapshot(auth: AuthManager): AuthSnapshot {
+  const [snapshot, setSnapshot] = useState<AuthSnapshot>(() => auth.getSnapshot());
+
+  useEffect(() => auth.subscribe(setSnapshot), [auth]);
 
   return snapshot;
 }

@@ -114,6 +114,13 @@ export function MatchSummaryScreen({ ctx }: { ctx: AppContext }): ReactElement |
       role,
       score: game.scores[state.mySeat] || 0,
       recordedAt: new Date().toISOString(),
+      placement:
+        rankedEntries.findIndex((entry) => entry.seat === state.mySeat) >= 0
+          ? rankedEntries.findIndex((entry) => entry.seat === state.mySeat) + 1
+          : null,
+      stakeMode: game.stakes?.stakeMode || "free",
+      ante: game.stakes?.ante || 0,
+      pot: game.stakes?.pot || 0,
     });
   }, [game, state.mySeat]);
 

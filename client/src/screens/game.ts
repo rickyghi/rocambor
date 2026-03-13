@@ -16,6 +16,7 @@ import {
   detectSpritesheetSupport,
   ensureSpritesheetCss,
 } from "../lib/card-sprites";
+import { skinUsesRocamborSprites } from "../lib/dom-card-art";
 import {
   bidDisplayLabel,
   cardDisplayLabel,
@@ -173,6 +174,8 @@ export class GameScreen {
   }
 
   private setupSubscriptions(): void {
+    let lastObservedCardSkin = this.ctx.settings.get("cardSkin");
+
     this.unsubscribes.push(
       this.ctx.state.subscribe(() => {
         const nextSeq = this.ctx.state.game?.seq ?? -1;
@@ -203,8 +206,11 @@ export class GameScreen {
         this.renderer.requestRender();
       }),
 
-      this.ctx.settings.subscribe(() => {
+      this.ctx.settings.subscribe((settings) => {
         this.renderer.requestRender();
+        if (settings.cardSkin === lastObservedCardSkin) return;
+        lastObservedCardSkin = settings.cardSkin;
+        void this.configureSpritesheetMode();
       }),
 
       this.ctx.connection.on("EVENT", (msg: S2CMessage) => {
@@ -225,8 +231,15 @@ export class GameScreen {
   }
 
   private async configureSpritesheetMode(): Promise<void> {
-    const supported = await detectSpritesheetSupport();
+    const skinId = this.ctx.settings.get("cardSkin");
+    const supported = skinUsesRocamborSprites(skinId)
+      ? await detectSpritesheetSupport()
+      : true;
     if (!this.container.isConnected) return;
+    if (skinId !== this.ctx.settings.get("cardSkin")) {
+      void this.configureSpritesheetMode();
+      return;
+    }
 
     this.spriteMode = supported;
     this.syncCardPresentationMode();

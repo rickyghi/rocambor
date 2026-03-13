@@ -4,8 +4,16 @@ import "./../styles/theme.css";
 import "./../styles/components.css";
 import "./../styles/global.css";
 import { SoundManager } from "../audio/sounds";
+import { AuthManager } from "../auth/supabase-auth";
 import { ConnectionManager } from "../connection";
+import type { MeResponse } from "../protocol";
 import { detectSpritesheetSupport, ensureSpritesheetCss } from "../lib/card-sprites";
+import {
+  fetchCurrentAccount,
+  fetchCurrentMatchHistory,
+  patchCurrentAccount,
+} from "../lib/account-api";
+import { saveAccountProfileMatchHistory } from "../lib/profile-history";
 import { ProfileManager } from "../lib/profile";
 import type { AppContext, RouterHandle, ScreenName } from "../router";
 import { SCREEN_NAMES } from "../router";
@@ -28,20 +36,57 @@ function readRouteFromHash(): ScreenName {
   return "home";
 }
 
+function applyRemoteAccount(
+  profile: ProfileManager,
+  settings: SettingsManager,
+  me: MeResponse
+): void {
+  profile.hydrate(
+    {
+      name: me.name,
+      avatar: me.avatar,
+      createdAt: me.createdAt,
+      markComplete: true,
+    },
+    me.settings.locale
+  );
+  settings.hydrate({
+    locale: me.settings.locale,
+    soundEnabled: me.settings.soundEnabled,
+    espadaObligatoria: me.settings.espadaObligatoria,
+    soundVolume: me.settings.soundVolume,
+    colorblindMode: me.settings.colorblindMode,
+    tableTheme: me.settings.tableTheme,
+    cardSkin: me.settings.cardSkin,
+    animationSpeed: me.settings.animationSpeed,
+    reduceMotion: me.settings.reduceMotion,
+  });
+}
+
 export function App(): ReactElement {
   const [services] = useState(() => {
+    const auth = new AuthManager();
     const settings = new SettingsManager();
     const sounds = new SoundManager(settings);
     const state = new ClientState();
-    const connection = new ConnectionManager(state);
+    const connection = new ConnectionManager(state, auth);
     const profile = new ProfileManager();
 
-    return { settings, sounds, state, connection, profile };
+    return { auth, settings, sounds, state, connection, profile };
   });
-  const { settings, sounds, state, connection, profile } = services;
+  const { auth, settings, sounds, state, connection, profile } = services;
 
   const [route, setRoute] = useState<ScreenName>(() => readRouteFromHash());
   const routeRef = useRef(route);
+  const accountSyncRef = useRef<{
+    hydrating: boolean;
+    ready: boolean;
+    saveTimer: number | null;
+  }>({
+    hydrating: false,
+    ready: false,
+    saveTimer: null,
+  });
   const connectionSnapshot = useConnectionSnapshot(connection);
   const settingsSnapshot = useSettings(settings);
   const { t } = createTranslator(settingsSnapshot.locale);
@@ -98,20 +143,140 @@ export function App(): ReactElement {
   const ctx = useMemo<AppContext>(
     () => ({
       connection,
+      auth,
       state,
       sounds,
       settings,
       profile,
       router,
     }),
-    [connection, profile, router, settings, sounds, state]
+    [auth, connection, profile, router, settings, sounds, state]
   );
 
   useEffect(() => {
     if (import.meta.env.DEV) {
-      (window as any).__rocambor = { state, connection, settings, profile, router };
+      (window as any).__rocambor = { state, connection, settings, profile, router, auth };
     }
-  }, [connection, profile, router, settings, state]);
+  }, [auth, connection, profile, router, settings, state]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const syncState = accountSyncRef.current;
+
+    const loadAccount = async (): Promise<void> => {
+      const userId = auth.getUserId();
+      if (!userId) {
+        syncState.ready = false;
+        if (syncState.saveTimer !== null) {
+          window.clearTimeout(syncState.saveTimer);
+          syncState.saveTimer = null;
+        }
+        return;
+      }
+
+      try {
+        let me = await fetchCurrentAccount(auth);
+        if (!me || cancelled || auth.getUserId() !== userId) return;
+
+        if (me.bootstrapSuggested) {
+          const bootstrapped = await patchCurrentAccount(auth, {
+            name: profile.get().name,
+            avatar: profile.get().avatar,
+            settings: settings.getAll(),
+          });
+          if (bootstrapped) {
+            me = bootstrapped;
+          }
+        }
+
+        if (cancelled || auth.getUserId() !== userId) return;
+
+        syncState.hydrating = true;
+        applyRemoteAccount(profile, settings, me);
+        syncState.hydrating = false;
+        syncState.ready = true;
+
+        const history = await fetchCurrentMatchHistory(auth).catch((error) => {
+          console.error("[account] Failed to load account match history:", error);
+          return null;
+        });
+        if (!cancelled && auth.getUserId() === userId && history) {
+          saveAccountProfileMatchHistory(userId, history.matches);
+        }
+      } catch (error) {
+        syncState.hydrating = false;
+        syncState.ready = false;
+        console.error("[account] Failed to load account profile:", error);
+      }
+    };
+
+    const unsubscribe = auth.subscribe(() => {
+      void loadAccount();
+    });
+
+    void loadAccount();
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [auth, profile, settings]);
+
+  useEffect(() => {
+    const syncState = accountSyncRef.current;
+
+    const scheduleSave = (): void => {
+      if (!auth.getUserId() || !syncState.ready || syncState.hydrating) {
+        return;
+      }
+
+      if (syncState.saveTimer !== null) {
+        window.clearTimeout(syncState.saveTimer);
+      }
+
+      syncState.saveTimer = window.setTimeout(() => {
+        syncState.saveTimer = null;
+        if (!auth.getUserId() || !syncState.ready || syncState.hydrating) {
+          return;
+        }
+
+        void (async () => {
+          try {
+            const me = await patchCurrentAccount(auth, {
+              name: profile.get().name,
+              avatar: profile.get().avatar,
+              settings: settings.getAll(),
+            });
+            if (!me) return;
+
+            syncState.hydrating = true;
+            applyRemoteAccount(profile, settings, me);
+            syncState.hydrating = false;
+          } catch (error) {
+            syncState.hydrating = false;
+            console.error("[account] Failed to save account profile:", error);
+          }
+        })();
+      }, 300);
+    };
+
+    const unsubscribes = [
+      profile.subscribe(() => {
+        scheduleSave();
+      }),
+      settings.subscribe(() => {
+        scheduleSave();
+      }),
+    ];
+
+    return () => {
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
+      if (syncState.saveTimer !== null) {
+        window.clearTimeout(syncState.saveTimer);
+        syncState.saveTimer = null;
+      }
+    };
+  }, [auth, profile, settings]);
 
   return (
     <>

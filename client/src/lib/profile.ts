@@ -16,6 +16,13 @@ export interface PlayerProfile {
   avatar: string;
 }
 
+export interface ProfileHydration {
+  name?: string;
+  avatar?: string;
+  createdAt?: string;
+  markComplete?: boolean;
+}
+
 type ProfileListener = (profile: PlayerProfile) => void;
 
 const DEFAULT_NAME = "Player";
@@ -116,6 +123,32 @@ export class ProfileManager {
     const err = this.setName(profile.name, locale);
     if (err) return err;
     this.setAvatar(profile.avatar);
+    return null;
+  }
+
+  hydrate(next: ProfileHydration, locale: Locale = "en"): string | null {
+    if (typeof next.name === "string") {
+      const err = validateProfileName(next.name, locale);
+      if (err) return err;
+      this.profile.name = normalizeProfileName(next.name);
+      writeStorage(PLAYER_NAME_KEY, this.profile.name);
+    }
+
+    if (typeof next.avatar === "string") {
+      this.profile.avatar = next.avatar.trim() || fallbackAvatar(this.profile.name);
+      writeStorage(PLAYER_AVATAR_KEY, this.profile.avatar);
+    }
+
+    if (typeof next.createdAt === "string" && next.createdAt.trim()) {
+      this.createdAt = next.createdAt;
+      writeStorage(PROFILE_CREATED_AT_KEY, this.createdAt);
+    }
+
+    if (next.markComplete) {
+      this.markComplete();
+    }
+
+    this.notify();
     return null;
   }
 

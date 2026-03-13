@@ -2,12 +2,16 @@ import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
 import { createTranslator, modeLabel, type Locale } from "../../i18n";
 import type { AppContext } from "../../router";
-import type { Mode } from "../../protocol";
+import type { Mode, StakeMode, WalletResponse } from "../../protocol";
+import {
+  claimCurrentWalletRescue,
+  fetchCurrentWallet,
+} from "../../lib/account-api";
 import { showModal } from "../../ui/modal";
 import { showToast } from "../../ui/toast";
 import { openSettingsModal } from "../../ui/settings-modal";
 import { openProfileModal } from "../../components/profile/ProfileModal";
-import { useConnectionSnapshot, useProfile, useSettings } from "../hooks";
+import { useAuthSnapshot, useConnectionSnapshot, useProfile, useSettings } from "../hooks";
 import "../../screens/home.css";
 
 const ICON_SETTINGS = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
@@ -19,7 +23,11 @@ function Icon({ markup }: { markup: string }): ReactElement {
   return <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: markup }} />;
 }
 
-function openCreateRoomModal(ctx: AppContext, selectedMode: Mode): void {
+function openCreateRoomModal(
+  ctx: AppContext,
+  selectedMode: Mode,
+  stakeMode: StakeMode
+): void {
   const { t } = createTranslator(ctx.settings.get("locale"));
   const content = document.createElement("div");
   content.innerHTML = `
@@ -62,6 +70,7 @@ function openCreateRoomModal(ctx: AppContext, selectedMode: Mode): void {
           ctx.connection.send({
             type: "CREATE_ROOM",
             mode,
+            stakeMode,
             target: Number.isNaN(target) ? undefined : target,
             rules: {
               espadaObligatoria: ctx.settings.get("espadaObligatoria"),
@@ -116,11 +125,15 @@ function openJoinRoomModal(ctx: AppContext): void {
 
 export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
   const profile = useProfile(ctx.profile);
+  const auth = useAuthSnapshot(ctx.auth);
   const settings = useSettings(ctx.settings);
   const { connected } = useConnectionSnapshot(ctx.connection);
   const [selectedMode, setSelectedMode] = useState<Mode>("tresillo");
+  const [stakeMode, setStakeMode] = useState<StakeMode>("free");
   const [inQueue, setInQueue] = useState(false);
   const [queuePosition, setQueuePosition] = useState(0);
+  const [wallet, setWallet] = useState<WalletResponse | null>(null);
+  const [walletLoading, setWalletLoading] = useState(false);
   const { t } = createTranslator(settings.locale);
 
   useEffect(() => {
@@ -159,6 +172,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
         force: true,
         title: t("home.chooseNameAvatar"),
         locale: settings.locale,
+        auth: ctx.auth,
       });
     }, 120);
 
@@ -172,6 +186,71 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
   const setLocale = (locale: Locale): void => {
     ctx.settings.set("locale", locale);
   };
+
+  const signInWithProvider = async (provider: "google" | "apple"): Promise<void> => {
+    try {
+      await ctx.auth.signInWithProvider(provider);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("home.authUnavailable");
+      showToast(message, "error");
+    }
+  };
+
+  const signOut = async (): Promise<void> => {
+    try {
+      await ctx.auth.signOut();
+      showToast(t("home.signedOut"), "success", 1200);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("home.authUnavailable");
+      showToast(message, "error");
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWallet = async (): Promise<void> => {
+      if (!auth.user) {
+        setWallet(null);
+        setWalletLoading(false);
+        return;
+      }
+      setWalletLoading(true);
+      try {
+        const nextWallet = await fetchCurrentWallet(ctx.auth);
+        if (!cancelled) {
+          setWallet(nextWallet);
+        }
+      } catch {
+        if (!cancelled) {
+          setWallet(null);
+          showToast(t("home.walletRefreshFailed"), "error");
+        }
+      } finally {
+        if (!cancelled) {
+          setWalletLoading(false);
+        }
+      }
+    };
+
+    void loadWallet();
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.user?.id, ctx.auth, settings.locale]);
+
+  const claimRescue = async (): Promise<void> => {
+    try {
+      const nextWallet = await claimCurrentWalletRescue(ctx.auth);
+      setWallet(nextWallet);
+      showToast(t("home.walletRescueSuccess"), "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("home.walletRefreshFailed");
+      showToast(message, "error");
+    }
+  };
+
+  const stakedActionsDisabled = stakeMode === "tokens" && !auth.user;
 
   return (
     <div className="screen home-screen">
@@ -217,6 +296,30 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
             </div>
           </div>
 
+          <div className="home-mode-section">
+            <span className="home-mode-label">{t("home.playStyle")}</span>
+            <div className="home-modes home-modes--stakes" role="group" aria-label={t("home.playStyle")}>
+              <button
+                className={`home-mode-btn ${stakeMode === "free" ? "active" : ""}`}
+                type="button"
+                onClick={() => setStakeMode("free")}
+              >
+                {t("home.playStyleFree")}
+              </button>
+              <button
+                className={`home-mode-btn ${stakeMode === "tokens" ? "active" : ""}`}
+                type="button"
+                disabled={!auth.user}
+                onClick={() => setStakeMode("tokens")}
+              >
+                {t("home.playStyleStakes")}
+              </button>
+            </div>
+            {stakeMode === "tokens" || (auth.configured && !auth.user) ? (
+              <p className="home-stakes-hint">{t("home.stakesHint")}</p>
+            ) : null}
+          </div>
+
           <div className="home-actions" id="home-actions">
             {inQueue ? (
               <div className="home-queue-block">
@@ -242,8 +345,8 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 <button
                   className="home-action-row home-action-row--create home-create-btn"
                   type="button"
-                  disabled={!connected}
-                  onClick={() => openCreateRoomModal(ctx, selectedMode)}
+                  disabled={!connected || stakedActionsDisabled}
+                  onClick={() => openCreateRoomModal(ctx, selectedMode, stakeMode)}
                 >
                   <span className="home-action-icon">
                     <Icon markup={ICON_PLUS} />
@@ -256,9 +359,13 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 <button
                   className="home-action-row home-action-row--quick home-quick-btn"
                   type="button"
-                  disabled={!connected}
+                  disabled={!connected || stakedActionsDisabled}
                   onClick={() => {
-                    ctx.connection.send({ type: "QUICK_PLAY", mode: selectedMode });
+                    ctx.connection.send({
+                      type: "QUICK_PLAY",
+                      mode: selectedMode,
+                      stakeMode,
+                    });
                     setInQueue(true);
                     setQueuePosition(0);
                   }}
@@ -309,7 +416,12 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 className="home-bottom-btn home-bottom-btn--profile home-profile-btn"
                 type="button"
                 aria-label={t("common.profile")}
-                onClick={() => openProfileModal(ctx.profile, { locale: settings.locale })}
+                onClick={() =>
+                  openProfileModal(ctx.profile, {
+                    locale: settings.locale,
+                    auth: ctx.auth,
+                  })
+                }
               >
                 <img
                   className="home-bottom-avatar"
@@ -326,6 +438,84 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 </span>
               </button>
             </div>
+
+            {auth.configured ? (
+              <div className="home-auth-card">
+                <div className="home-auth-copy">
+                  <span className="home-auth-label">{t("home.accountTitle")}</span>
+                  <span className="home-auth-value">
+                    {auth.user?.email || t("home.accountGuest")}
+                  </span>
+                </div>
+                {auth.user ? (
+                  <div className="home-wallet-row">
+                    <div className="home-wallet-copy">
+                      <span className="home-auth-label">{t("home.walletBalance")}</span>
+                      <span className="home-wallet-value">
+                        {walletLoading
+                          ? t("home.walletLoading")
+                          : wallet
+                            ? `${wallet.balance.toLocaleString()}`
+                            : "—"}
+                      </span>
+                    </div>
+                    {wallet?.canClaimRescue ? (
+                      <button
+                        className="home-auth-btn home-auth-btn--rescue"
+                        type="button"
+                        onClick={() => {
+                          void claimRescue();
+                        }}
+                      >
+                        {t("home.walletRescue")}
+                      </button>
+                    ) : wallet ? (
+                      <span className="home-wallet-status">
+                        {wallet?.canClaimRescue
+                          ? t("home.walletRescueReady")
+                          : t("home.walletRescueCooldown")}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="home-auth-actions">
+                  {auth.user ? (
+                    <button
+                      className="home-auth-btn home-auth-btn--signout"
+                      type="button"
+                      onClick={() => {
+                        void signOut();
+                      }}
+                    >
+                      {t("home.signOut")}
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        className="home-auth-btn home-auth-btn--google"
+                        type="button"
+                        disabled={auth.loading}
+                        onClick={() => {
+                          void signInWithProvider("google");
+                        }}
+                      >
+                        {t("home.signInGoogle")}
+                      </button>
+                      <button
+                        className="home-auth-btn home-auth-btn--apple"
+                        type="button"
+                        disabled={auth.loading}
+                        onClick={() => {
+                          void signInWithProvider("apple");
+                        }}
+                      >
+                        {t("home.signInApple")}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : null}
 
             <div className="home-locale-row">
               <span className="home-locale-label">{t("common.language")}</span>

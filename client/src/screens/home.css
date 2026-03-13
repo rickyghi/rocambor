@@ -20,6 +20,127 @@
   gap: 10px;
 }
 
+.home-auth-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 12px 14px;
+  border: 1px solid rgba(214, 166, 74, 0.14);
+  border-radius: 16px;
+  background: rgba(11, 15, 20, 0.34);
+}
+
+.home-auth-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 4px;
+}
+
+.home-auth-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(248, 246, 240, 0.54);
+}
+
+.home-auth-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--home-text-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.home-auth-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.home-wallet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.home-wallet-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.home-wallet-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--home-gold);
+}
+
+.home-wallet-status {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(248, 246, 240, 0.5);
+  text-align: right;
+}
+
+.home-auth-btn {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(214, 166, 74, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--home-text-light);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color var(--dur-fast), background var(--dur-fast), border-color var(--dur-fast);
+}
+
+.home-auth-btn:hover:not(:disabled) {
+  color: var(--home-gold);
+  border-color: rgba(214, 166, 74, 0.34);
+  background: rgba(214, 166, 74, 0.08);
+}
+
+.home-auth-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.home-auth-btn--google {
+  border-color: rgba(89, 126, 255, 0.22);
+}
+
+.home-auth-btn--apple {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.home-auth-btn--signout {
+  border-color: rgba(214, 166, 74, 0.22);
+}
+
+.home-auth-btn--rescue {
+  border-color: rgba(214, 166, 74, 0.32);
+  background: rgba(214, 166, 74, 0.12);
+  color: var(--home-gold);
+}
+
 .home-bottom-bar {
   width: 100%;
   display: grid;
@@ -257,6 +378,13 @@
 
 .home-mode-btn:focus-visible {
   box-shadow: var(--focus-ring), var(--focus-ring-offset);
+}
+
+.home-stakes-hint {
+  margin: 8px 2px 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(248, 246, 240, 0.62);
 }
 
 /* ---- Action rows ---- */

@@ -1,8 +1,8 @@
 import type { CSSProperties, ReactElement } from "react";
 import { useEffect, useRef } from "react";
 import { createTranslator, positionLabel } from "../../i18n";
-import { spriteClassForCard } from "../../lib/card-sprites";
-import type { Card, SeatIndex } from "../../protocol";
+import { DomCardArt, skinUsesRocamborSprites } from "../../lib/dom-card-art";
+import type { SeatIndex } from "../../protocol";
 import type { AppContext } from "../../router";
 import type { ClientState } from "../../state";
 import { useClientState, useSettings } from "../hooks";
@@ -180,7 +180,11 @@ export function GameTrickDomLayers({
                 style={trickSlotStyle(rel, snapshot.isMobilePortrait)}
               >
                 {isWinner ? <div className="trick-winner-badge">{t("game.winner")}</div> : null}
-                <div className={spriteClassForCard(card)}></div>
+                <DomCardArt
+                  card={card}
+                  skinId={settings.cardSkin}
+                  colorblind={settings.colorblindMode}
+                />
                 {seat !== undefined ? (
                   <div className="trick-card-label">{trickActorLabel(state, seat, settings.locale)}</div>
                 ) : null}
@@ -215,9 +219,10 @@ export function GameHandDock({
   const handSignature = state.hand.map((card) => card.id).join("|");
   const { t } = createTranslator(settings.locale);
   const action = mobileActionState(state, snapshot, settings.locale);
+  const usesSpriteSheet = skinUsesRocamborSprites(settings.cardSkin);
 
   useEffect(() => {
-    if (!snapshot.spriteMode || state.hand.length === 0) return;
+    if (!snapshot.spriteMode || state.hand.length === 0 || !usesSpriteSheet) return;
 
     const timeoutId = window.setTimeout(() => {
       const nodes = handLayerRef.current?.querySelectorAll<HTMLElement>(".roc-card") ?? [];
@@ -243,7 +248,14 @@ export function GameHandDock({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [bridge, handSignature, snapshot.spriteMode, snapshot.isMobilePortrait, state.hand.length]);
+  }, [
+    bridge,
+    handSignature,
+    snapshot.spriteMode,
+    snapshot.isMobilePortrait,
+    state.hand.length,
+    usesSpriteSheet,
+  ]);
 
   useEffect(() => {
     const row = handLayerRef.current;
@@ -412,7 +424,11 @@ export function GameHandDock({
                 bridge.interactWithCard(card.id, touchConfirm);
               }}
             >
-              <div className={spriteClassForCard(card)}></div>
+              <DomCardArt
+                card={card}
+                skinId={settings.cardSkin}
+                colorblind={settings.colorblindMode}
+              />
             </button>
           );
         })}

@@ -1,4 +1,6 @@
-import type { C2SMessage, S2CMessage } from "./protocol";
+import type { C2SMessage, S2CMessage, WsTicketResponse } from "./protocol";
+import type { AuthManager } from "./auth/supabase-auth";
+import { getApiBaseUrl } from "./lib/runtime-config";
 import { ClientState } from "./state";
 
 type MessageHandler = (msg: S2CMessage) => void;
@@ -6,6 +8,7 @@ type MessageHandler = (msg: S2CMessage) => void;
 export class ConnectionManager {
   private ws: WebSocket | null = null;
   private clientId: string | null;
+  private guestPlayerId: string | null;
   private playerId: string | null;
   private reconnectAttempts = 0;
   private reconnectBaseDelay = 1000;
@@ -18,13 +21,34 @@ export class ConnectionManager {
   private _connected = false;
   private lastPingSentAt: number | null = null;
   private _latencyMs: number | null = null;
+  private connectAttempt = 0;
+  private identityRefreshPending = false;
 
-  constructor(private state: ClientState) {
+  constructor(
+    private state: ClientState,
+    private auth?: AuthManager
+  ) {
     this.clientId = localStorage.getItem("rocambor_clientId");
-    this.playerId = localStorage.getItem("rocambor_playerId");
+    this.guestPlayerId = localStorage.getItem("rocambor_playerId");
+    this.playerId = this.auth?.getUserId() ?? this.guestPlayerId;
+
+    if (this.auth) {
+      let lastAuthUserId = this.auth.getUserId();
+      this.auth.subscribe((snapshot) => {
+        const nextAuthUserId = snapshot.user?.id ?? null;
+        if (nextAuthUserId === lastAuthUserId) return;
+        lastAuthUserId = nextAuthUserId;
+        this.playerId = nextAuthUserId ?? this.guestPlayerId;
+        this.reconnectForIdentityChange();
+      });
+    }
   }
 
   connect(): void {
+    void this.openSocket();
+  }
+
+  private async openSocket(): Promise<void> {
     if (
       this.ws &&
       (this.ws.readyState === WebSocket.CONNECTING ||
@@ -32,6 +56,7 @@ export class ConnectionManager {
     ) {
       return;
     }
+    const connectAttempt = ++this.connectAttempt;
     this.manualDisconnect = false;
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
@@ -41,7 +66,15 @@ export class ConnectionManager {
     const baseUrl = this.getWebSocketUrl();
     const params = new URLSearchParams();
     if (this.clientId) params.set("resume", this.clientId);
-    if (this.playerId) params.set("playerId", this.playerId);
+    const wsTicket = await this.fetchWsTicket();
+    if (connectAttempt !== this.connectAttempt || this.manualDisconnect) return;
+    if (wsTicket) {
+      params.set("ticket", wsTicket.ticket);
+      this.playerId = wsTicket.user.id;
+    } else if (this.guestPlayerId) {
+      params.set("playerId", this.guestPlayerId);
+      this.playerId = this.guestPlayerId;
+    }
     const url = params.toString() ? `${baseUrl}/?${params.toString()}` : baseUrl;
 
     try {
@@ -71,7 +104,10 @@ export class ConnectionManager {
       this.stopHeartbeat();
       this.ws = null;
 
-      if (!this.manualDisconnect) {
+      if (this.identityRefreshPending) {
+        this.identityRefreshPending = false;
+        this.connect();
+      } else if (!this.manualDisconnect) {
         this.scheduleReconnect();
       }
       this.emit("_disconnected", {} as any);
@@ -95,6 +131,7 @@ export class ConnectionManager {
 
   disconnect(): void {
     this.manualDisconnect = true;
+    this.identityRefreshPending = false;
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -152,7 +189,12 @@ export class ConnectionManager {
         localStorage.setItem("rocambor_clientId", msg.clientId);
         if (msg.playerId) {
           this.playerId = msg.playerId;
-          localStorage.setItem("rocambor_playerId", msg.playerId);
+          localStorage.setItem("rocambor_currentPlayerId", msg.playerId);
+          const authUserId = this.auth?.getUserId() ?? null;
+          if (!authUserId || authUserId !== msg.playerId) {
+            this.guestPlayerId = msg.playerId;
+            localStorage.setItem("rocambor_playerId", msg.playerId);
+          }
         }
         break;
 
@@ -243,6 +285,54 @@ export class ConnectionManager {
     if (this.heartbeatTimer !== null) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
+    }
+  }
+
+  private reconnectForIdentityChange(): void {
+    if (this.manualDisconnect) return;
+    if (!this.ws) {
+      this.connect();
+      return;
+    }
+    if (
+      this.ws.readyState !== WebSocket.CONNECTING &&
+      this.ws.readyState !== WebSocket.OPEN
+    ) {
+      this.connect();
+      return;
+    }
+    this.identityRefreshPending = true;
+    try {
+      this.ws.close(4001, "Identity refresh");
+    } catch {
+      this.identityRefreshPending = false;
+      this.connect();
+    }
+  }
+
+  private async fetchWsTicket(): Promise<WsTicketResponse | null> {
+    if (!this.auth?.isConfigured()) return null;
+    const accessToken = await this.auth.getAccessToken();
+    if (!accessToken) return null;
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/auth/ws-ticket`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ accessToken }),
+      });
+
+      if (!response.ok) {
+        console.warn("[connection] Failed to fetch WebSocket auth ticket:", response.status);
+        return null;
+      }
+
+      return (await response.json()) as WsTicketResponse;
+    } catch (error) {
+      console.warn("[connection] WebSocket auth ticket request failed:", error);
+      return null;
     }
   }
 
