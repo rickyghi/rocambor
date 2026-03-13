@@ -968,7 +968,11 @@ export class Room {
       cursor = this.nextActive(cursor);
     }
 
-    const ex = computeExchangeOrder(this.state.contract!, ombre, activeOrderFromOmbre);
+    if (!this.state.contract) {
+      console.error("[room] contract is null at startExchange");
+      return;
+    }
+    const ex = computeExchangeOrder(this.state.contract, ombre, activeOrderFromOmbre);
 
     this.state.exchange = {
       current: ex[0] ?? null,
@@ -1261,6 +1265,10 @@ export class Room {
       return;
     }
     const om = this.state.ombre;
+    if (!this.state.contract) {
+      console.error("[room] contract is null at finishHand");
+      return;
+    }
     const active =
       this.state.contract === "penetro"
         ? (ALL_SEATS.slice() as SeatIndex[])
@@ -1273,7 +1281,7 @@ export class Room {
       this.event("PENETRO_RESULT", { winner: scoreResult.award[0], tricks: this.state.tricks });
     } else {
       scoreResult = calculateHandScore({
-        contract: this.state.contract!,
+        contract: this.state.contract,
         ombre: om,
         activeSeats: active,
         tricks: this.state.tricks,
