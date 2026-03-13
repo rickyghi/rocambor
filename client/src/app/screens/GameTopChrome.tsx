@@ -201,8 +201,12 @@ function buildHudPills(
 
       if (compact) {
         if (game.contract && game.ombre !== null) {
+          const ombreName =
+            game.ombre === state.mySeat
+              ? t("common.you")
+              : seatLabelShort(state, game.ombre, locale);
           pills.push({
-            text: `${seatLabelShort(state, game.ombre, locale)} · ${localizedContractDisplayLabel(
+            text: `${t("game.ombreRole")} · ${ombreName} · ${localizedContractDisplayLabel(
               game.contract,
               game.trump,
               locale
@@ -257,6 +261,20 @@ function buildHudPills(
 
     case "exchange": {
       pills.push({ text: compact ? t("game.exchange") : t("game.phaseExchange") });
+      if (compact && game.contract && game.ombre !== null) {
+        const ombreName =
+          game.ombre === state.mySeat
+            ? t("common.you")
+            : seatLabelShort(state, game.ombre, locale);
+        pills.push({
+          text: `${t("game.ombreRole")} · ${ombreName} · ${localizedContractDisplayLabel(
+            game.contract,
+            game.trump,
+            locale
+          )}`,
+          className: "hud-pill-contract",
+        });
+      }
       if (compact && game.exchange.current !== null) {
         pills.push({
           text:

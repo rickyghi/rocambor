@@ -297,16 +297,6 @@ export function GameHandDock({
       }
     };
 
-    const finishTouchDrag = (): void => {
-      if (drag.pointerId !== -1) return;
-      if (drag.dragging) {
-        dragSuppressUntilRef.current = Date.now() + 220;
-      }
-      drag.pointerId = null;
-      drag.dragging = false;
-      row.classList.remove("dragging");
-    };
-
     const handlePointerDown = (event: PointerEvent): void => {
       if (row.scrollWidth <= row.clientWidth + 4) return;
       if (event.pointerType === "touch") return;
@@ -335,49 +325,16 @@ export function GameHandDock({
       finishDrag(event.pointerId);
     };
 
-    const handleTouchStart = (event: TouchEvent): void => {
-      if (row.scrollWidth <= row.clientWidth + 4) return;
-      const touch = event.touches[0];
-      if (!touch) return;
-      drag.pointerId = -1;
-      beginDrag(touch.clientX);
-    };
-
-    const handleTouchMove = (event: TouchEvent): void => {
-      if (drag.pointerId !== -1) return;
-      const touch = event.touches[0];
-      if (!touch) return;
-      if (updateDrag(touch.clientX)) {
-        event.preventDefault();
-      }
-    };
-
-    const handleTouchEnd = (): void => {
-      finishTouchDrag();
-    };
-
-    const handleTouchCancel = (): void => {
-      finishTouchDrag();
-    };
-
     row.addEventListener("pointerdown", handlePointerDown);
     row.addEventListener("pointermove", handlePointerMove);
     row.addEventListener("pointerup", handlePointerUp);
     row.addEventListener("pointercancel", handlePointerCancel);
-    row.addEventListener("touchstart", handleTouchStart, { passive: true });
-    row.addEventListener("touchmove", handleTouchMove, { passive: false });
-    row.addEventListener("touchend", handleTouchEnd);
-    row.addEventListener("touchcancel", handleTouchCancel);
 
     return () => {
       row.removeEventListener("pointerdown", handlePointerDown);
       row.removeEventListener("pointermove", handlePointerMove);
       row.removeEventListener("pointerup", handlePointerUp);
       row.removeEventListener("pointercancel", handlePointerCancel);
-      row.removeEventListener("touchstart", handleTouchStart);
-      row.removeEventListener("touchmove", handleTouchMove);
-      row.removeEventListener("touchend", handleTouchEnd);
-      row.removeEventListener("touchcancel", handleTouchCancel);
       row.classList.remove("dragging");
       drag.pointerId = null;
       drag.dragging = false;
@@ -411,8 +368,12 @@ export function GameHandDock({
   return (
     <div className="game-hand-dock" id="game-hand-dock" aria-label={t("game.yourHandArea")} hidden={!showHandDock}>
       <div className="hand-dock-header" aria-hidden="true">
-        <span className="hand-dock-title">{t("game.yourHand")}</span>
-        <span className="hand-dock-hint">{t("game.swipe")}</span>
+        <span className="hand-dock-title">
+          {snapshot.isMobilePortrait ? t("game.yourHandSwipe") : t("game.yourHand")}
+        </span>
+        {snapshot.isMobilePortrait ? null : (
+          <span className="hand-dock-hint">{t("game.swipe")}</span>
+        )}
       </div>
       <div
         key={snapshot.invalidShakeNonce}

@@ -255,7 +255,6 @@ export function GameOpponentsStrip({
             const name = player?.handle || `${locale === "es" ? "Asiento" : "Seat"} ${seat}`;
             const score = game.scores[seat] || 0;
             const tricks = game.tricks[seat] || 0;
-            const cards = game.handsCount[seat] || 0;
             const active = game.turn === seat ? " active-turn" : "";
             const disconnected = player && !player.connected ? " disconnected" : "";
             const isOmbre = game.ombre === seat;
@@ -279,7 +278,8 @@ export function GameOpponentsStrip({
               isOmbre && game.contract
                 ? localizedContractDisplayLabel(game.contract, game.trump, locale)
                 : null;
-            const aria = `${positionLabel(position, locale)}, ${name}, ${locale === "es" ? "puntuación" : "score"} ${score}, ${locale === "es" ? "bazas" : "tricks"} ${tricks}, ${locale === "es" ? "cartas" : "cards"} ${cards}`;
+            const tricksLabel = t("game.tricksShort", { count: tricks });
+            const aria = `${positionLabel(position, locale)}, ${name}, ${locale === "es" ? "puntuación" : "score"} ${score}, ${locale === "es" ? "bazas" : "tricks"} ${tricks}`;
 
             return (
               <div
@@ -301,28 +301,27 @@ export function GameOpponentsStrip({
                   {isOmbre ? (
                     <span
                       className="mob-opp-crown"
-                      aria-label={locale === "es" ? "Jugador" : "Player"}
-                      title={locale === "es" ? "Jugador" : "Player"}
+                      aria-label={t("game.ombreRole")}
+                      title={t("game.ombreRole")}
                     >
-                      &#9830;
+                      {t("game.ombreRole").toUpperCase()}
                     </span>
                   ) : null}
                 </div>
                 <span className="mobile-opponent-name">{name}</span>
-                {bidTag ? (
-                  <span className={`mob-bid-tag ${bidTag.className}`}>{bidTag.text}</span>
-                ) : null}
-                {ombreContractTag ? (
-                  <span className="mob-ombre-tag">{ombreContractTag}</span>
-                ) : null}
-                <div className="mob-opp-card-lines" aria-label={`${locale === "es" ? "Cartas" : "Cards"}: ${cards}`}>
-                  {Array.from({ length: Math.min(cards, 9) }, (_, idx) => (
-                    <span key={idx} className="mob-card-line"></span>
-                  ))}
-                </div>
-                <div className="mobile-opponent-stats">
-                  <span className="mob-stat">Pts: {score}</span>
-                  <span className="mob-stat">{locale === "es" ? "Bazas" : "Tricks"}: {tricks}</span>
+                <div
+                  className="mobile-opponent-stats"
+                  aria-label={t("game.tricksWon", { count: tricks })}
+                >
+                  {bidTag ? (
+                    <span className={`mob-bid-tag ${bidTag.className}`}>{bidTag.text}</span>
+                  ) : null}
+                  {ombreContractTag ? (
+                    <span className="mob-ombre-tag">
+                      {t("game.ombreRole").toUpperCase()} · {ombreContractTag}
+                    </span>
+                  ) : null}
+                  <span className="mob-stat mob-stat-tricks">{tricksLabel}</span>
                 </div>
               </div>
             );
