@@ -1,6 +1,7 @@
 export type ToastType = "info" | "success" | "error" | "warning";
 
 let container: HTMLElement | null = null;
+const activeTimers = new Set<ReturnType<typeof setTimeout>>();
 
 function ensureContainer(): HTMLElement {
   if (!container) {
@@ -25,8 +26,24 @@ export function showToast(
   el.textContent = message;
   c.appendChild(el);
 
-  setTimeout(() => {
+  const exitTimer = setTimeout(() => {
+    activeTimers.delete(exitTimer);
     el.classList.add("toast-exit");
-    setTimeout(() => el.remove(), 300);
+    const removeTimer = setTimeout(() => {
+      activeTimers.delete(removeTimer);
+      el.remove();
+    }, 300);
+    activeTimers.add(removeTimer);
   }, duration);
+  activeTimers.add(exitTimer);
+}
+
+/** Cancel all pending toast timers and remove the container. */
+export function clearToasts(): void {
+  for (const t of activeTimers) clearTimeout(t);
+  activeTimers.clear();
+  if (container) {
+    container.remove();
+    container = null;
+  }
 }
