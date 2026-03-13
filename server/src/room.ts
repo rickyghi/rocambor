@@ -1114,7 +1114,11 @@ export class Room {
 
     if (next === null) {
       this.state.phase = "play";
-      this.state.turn = this.nextActive(this.state.ombre!);
+      if (this.state.ombre === null) {
+        console.error("[room] ombre is null at exchange→play transition");
+        return;
+      }
+      this.state.turn = this.nextActive(this.state.ombre);
       this.patch(this.state);
       this.armTimer();
       this.botMaybeAct();
@@ -1252,7 +1256,11 @@ export class Room {
   private finishHand(): void {
     this.clearTurnTimer();
 
-    const om = this.state.ombre!;
+    if (this.state.ombre === null) {
+      console.error("[room] ombre is null at finishHand");
+      return;
+    }
+    const om = this.state.ombre;
     const active =
       this.state.contract === "penetro"
         ? (ALL_SEATS.slice() as SeatIndex[])
