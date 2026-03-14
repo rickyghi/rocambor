@@ -2675,7 +2675,7 @@
     grid-template-rows: minmax(0, 1fr) auto auto;
     align-items: end;
     overflow: hidden;
-    --mobile-hand-lane-min: 176px;
+    --mobile-hand-lane-min: 220px;
   }
 
   .game-stage-bottom {
@@ -2714,7 +2714,7 @@
   .phase-auction .game-stage,
   .phase-exchange .game-stage,
   .phase-trump .game-stage {
-    --mobile-hand-lane-min: 150px;
+    --mobile-hand-lane-min: 206px;
   }
 
   .hero-plates-layer {
@@ -2725,28 +2725,34 @@
     display: none;
   }
 
-  /* On mobile, show self hero as compact strip above hand dock */
+  /* On mobile, show self hero as a compact strip above the hand dock */
   .hero-self-slot {
-    display: none;
+    display: block;
+    position: relative;
+    z-index: 2;
+    padding: 0 16px;
+    margin: 0 0 4px;
   }
 
   .phase-play .hero-self-slot {
     transform: none;
+    margin-bottom: 6px;
   }
 
-  .hero-self-slot .hero-avatar {
-    width: 24px;
-    height: 24px;
-    flex-shrink: 0;
+  .hero-self-slot .hero-avatar,
+  .hero-self-slot .hero-avatar-wrap {
+    display: none;
   }
 
   .hero-self-slot .hero-name {
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 10px;
+    font-weight: 800;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 80px;
+    max-width: 92px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 
   .hero-self-slot .hero-role-badge {
@@ -2756,12 +2762,16 @@
 
   .hero-self-slot .hero-trick-dots {
     margin-left: auto;
-    gap: 3px;
+    gap: 4px;
+    justify-content: flex-end;
+    min-height: 8px;
+    flex-wrap: nowrap;
   }
 
   .hero-self-slot .hero-trick-dot {
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
   }
 
   /* Hide verbose stats on mobile self hero */
@@ -2771,12 +2781,17 @@
   }
 
   .hero-self-slot .hero-plate {
-    background: none;
-    border: none;
-    box-shadow: none;
-    padding: 0;
-    min-width: 0;
     width: 100%;
+    min-width: 0;
+    padding: 6px 10px;
+    border-radius: 14px;
+    border: 1px solid rgba(214, 166, 74, 0.22);
+    background:
+      radial-gradient(circle at top left, rgba(214, 166, 74, 0.12), transparent 38%),
+      linear-gradient(180deg, rgba(18, 35, 34, 0.92) 0%, rgba(11, 21, 21, 0.94) 100%);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
   .hero-self-slot .hero-header {
@@ -2788,16 +2803,22 @@
 
   .hero-self-slot .hero-copy {
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 4px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
     min-width: 0;
-    flex-wrap: nowrap;
+    flex: 0 1 auto;
+  }
+
+  .hero-self-slot .hero-meta-row {
+    display: none;
   }
 
   .hero-self-slot .hero-role-line {
     font-size: 9px;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(248, 246, 240, 0.66);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2805,9 +2826,17 @@
 
   .hero-self-slot .hero-turn-flash {
     font-size: 9px;
-    padding: 1px 6px;
+    padding: 2px 6px;
     position: static;
-    margin-left: 4px;
+    margin-left: auto;
+    margin-right: 4px;
+  }
+
+  .game-stage:has(.game-controls-shell[data-phase="exchange"][data-actionable="true"]) .hero-self-slot,
+  .game-stage:has(.game-controls-shell[data-phase="auction"][data-actionable="true"]) .hero-self-slot,
+  .game-stage:has(.game-controls-shell[data-phase="trump_choice"][data-actionable="true"]) .hero-self-slot,
+  .game-stage:has(.game-controls-shell[data-phase="penetro_choice"][data-actionable="true"]) .hero-self-slot {
+    margin-top: 2px;
   }
 
   /* game-canvas-wrap is already position:absolute;inset:0 — no box overrides needed */
@@ -2895,7 +2924,7 @@
     align-self: end;
     width: 100%;
     margin-top: 0;
-    margin-bottom: -24px;
+    margin-bottom: -8px;
     padding-inline: 14px;
     z-index: 12;
     flex-shrink: 0;
@@ -2906,7 +2935,7 @@
   .game-controls-shell[data-phase="trump_choice"],
   .game-controls-shell[data-phase="penetro_choice"] {
     padding-inline: 16px;
-    margin-bottom: -82px;
+    margin-bottom: 6px;
   }
 
   .game-controls-bar {
@@ -2970,7 +2999,7 @@
   .game-hand-dock {
     position: static;
     pointer-events: auto;
-    gap: 2px;
+    gap: 6px;
     padding-top: 0;
     margin-top: 0;
     min-height: 0;
@@ -2981,7 +3010,7 @@
 
   .game-stage:has(.game-controls-shell[data-actionable="true"]) .game-stage-bottom {
     margin-top: 0;
-    padding-top: 4px;
+    padding-top: 0;
   }
 
   .game-stage:has(.game-controls-shell[data-actionable="true"]) .hand-dock-header {
@@ -2997,14 +3026,14 @@
   .game-stage:has(.game-controls-shell[data-phase="trump_choice"][data-actionable="true"]) .game-stage-bottom,
   .game-stage:has(.game-controls-shell[data-phase="penetro_choice"][data-actionable="true"]) .game-stage-bottom {
     padding-top: 0;
-    margin-top: -34px;
+    margin-top: 0;
   }
 
   .game-stage:has(.game-controls-shell[data-phase="exchange"][data-actionable="true"]) .game-hand-dock,
   .game-stage:has(.game-controls-shell[data-phase="auction"][data-actionable="true"]) .game-hand-dock,
   .game-stage:has(.game-controls-shell[data-phase="trump_choice"][data-actionable="true"]) .game-hand-dock,
   .game-stage:has(.game-controls-shell[data-phase="penetro_choice"][data-actionable="true"]) .game-hand-dock {
-    margin-top: -2px;
+    margin-top: 0;
   }
 
   .phase-auction .game-stage-bottom,
@@ -3029,8 +3058,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 18px 0;
-    min-height: 14px;
-    margin-bottom: -2px;
+    min-height: 16px;
+    margin-bottom: 2px;
     position: relative;
     z-index: 2;
   }
@@ -3059,11 +3088,11 @@
     max-width: 100%;
     min-width: 0;
     align-self: stretch;
-    min-height: 142px;
+    min-height: 188px;
     justify-content: flex-start;
     align-items: flex-end;
     gap: 0;
-    padding: 0 16px 0;
+    padding: 4px 16px 0;
     overflow-x: auto;
     overflow-y: visible;
     scroll-snap-type: none;
@@ -3123,8 +3152,8 @@
   .phase-auction .hand-row,
   .phase-exchange .hand-row,
   .phase-trump .hand-row {
-    min-height: 132px;
-    padding: 0 16px 0;
+    min-height: 188px;
+    padding: 4px 16px 0;
   }
 
   .phase-play .game-hand-dock {
@@ -3412,13 +3441,13 @@
 
 @media (min-width: 390px) and (max-width: 430px) and (orientation: portrait) {
   .game-stage {
-    --mobile-hand-lane-min: 184px;
+    --mobile-hand-lane-min: 224px;
   }
 
   .phase-auction .game-stage,
   .phase-exchange .game-stage,
   .phase-trump .game-stage {
-    --mobile-hand-lane-min: 154px;
+    --mobile-hand-lane-min: 210px;
   }
 
   .game-shell {
@@ -3500,7 +3529,7 @@
   .game-controls-shell[data-phase="exchange"],
   .game-controls-shell[data-phase="trump_choice"],
   .game-controls-shell[data-phase="penetro_choice"] {
-    margin-bottom: -88px;
+    margin-bottom: 8px;
   }
 
   .game-controls-bar {
@@ -3509,7 +3538,7 @@
   }
 
   .game-hand-dock {
-    gap: 2px;
+    gap: 6px;
     padding-top: 0;
   }
 
@@ -3528,9 +3557,9 @@
   }
 
   .hand-row {
-    min-height: 144px;
+    min-height: 190px;
     gap: 0;
-    padding: 0 18px 0;
+    padding: 4px 18px 0;
     scroll-padding-inline: 18px;
     mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
     -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
@@ -3554,8 +3583,8 @@
   .phase-auction .hand-row,
   .phase-exchange .hand-row,
   .phase-trump .hand-row {
-    min-height: 138px;
-    padding: 0 18px 0;
+    min-height: 190px;
+    padding: 4px 18px 0;
   }
 
   .phase-play .hand-card-wrap {
@@ -3596,13 +3625,13 @@
 
 @media (max-width: 430px) and (orientation: portrait) {
   .game-stage {
-    --mobile-hand-lane-min: 172px;
+    --mobile-hand-lane-min: 214px;
   }
 
   .phase-auction .game-stage,
   .phase-exchange .game-stage,
   .phase-trump .game-stage {
-    --mobile-hand-lane-min: 148px;
+    --mobile-hand-lane-min: 198px;
   }
 
   .game-header-main {
@@ -3674,8 +3703,8 @@
   }
 
   .hand-row {
-    min-height: 136px;
-    padding: 0 14px 0;
+    min-height: 178px;
+    padding: 4px 14px 0;
     gap: 0;
   }
 
@@ -3709,8 +3738,8 @@
   .phase-auction .hand-row,
   .phase-exchange .hand-row,
   .phase-trump .hand-row {
-    min-height: 130px;
-    padding: 0 14px 0;
+    min-height: 178px;
+    padding: 4px 14px 0;
   }
 
   .volteo-reveal-wrap {

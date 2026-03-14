@@ -55,8 +55,8 @@ function roleSummaryLabel(state: ClientState, seat: SeatIndex, locale: "en" | "e
 
   if (seat === game.ombre) {
     const contract = localizedContractDisplayLabel(game.contract, game.trump, locale);
-    const playerLabel = locale === "es" ? "Jugador" : "Player";
-    return contract ? `${playerLabel} · ${contract}` : playerLabel;
+    const ombreLabel = t("game.ombreRole").toUpperCase();
+    return contract ? `${ombreLabel} · ${contract}` : ombreLabel;
   }
 
   if (game.ombre === null) return "";
