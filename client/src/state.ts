@@ -115,6 +115,7 @@ export class ClientState {
     if (contract === "contrabola") return isOmbre ? { min: 1, max: 1 } : { min: 0, max: 0 };
     if (isOmbre) {
       if (isSolo) return { min: 0, max: 0 };
+      if (contract === "volteo") return { min: g.exchange.talonSize > 0 ? 1 : 0, max: Math.min(8, g.exchange.talonSize) };
       return { min: 0, max: Math.min(isOros ? 6 : 8, g.exchange.talonSize) };
     }
     return { min: 0, max: Math.min(this.hand.length, g.exchange.talonSize) };

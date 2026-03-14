@@ -254,6 +254,7 @@ export function decideExchange(ctx: BotContext): string[] {
   const isSolo =
     ctx.contract === "solo" || ctx.contract === "solo_oros";
   const isContrabola = ctx.contract === "contrabola";
+  const isVolteo = ctx.contract === "volteo";
   const isOros =
     ctx.contract === "oros" || ctx.contract === "solo_oros";
 
@@ -291,6 +292,9 @@ export function decideExchange(ctx: BotContext): string[] {
   }
 
   desired = Math.min(desired, ctx.talonLength);
+  if (isOmbre && isVolteo && desired <= 0 && ctx.talonLength > 0) {
+    desired = 1;
+  }
   if (desired <= 0) return [];
 
   const ranked = ctx.hand

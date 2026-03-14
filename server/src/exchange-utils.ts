@@ -13,6 +13,7 @@ import type { SeatIndex, Contract } from "../../shared/types";
  * - Bola: nobody exchanges
  * - Contrabola: ombre exchanges exactly 1; others 0
  * - Solo/Solo_oros: ombre doesn't exchange; defenders exchange up to hand size or talon
+ * - Volteo: ombre must discard at least 1 card after keeping the revealed talon card
  * - Normal (entrada/oros/volteo): ombre up to 8 (or 6 if oros); defenders up to hand/talon
  */
 export function exchangeLimitsForSeat(
@@ -34,6 +35,9 @@ export function exchangeLimitsForSeat(
 
   if (isOmbre) {
     if (isSolo) return { min: 0, max: 0 };
+    if (contract === "volteo") {
+      return { min: talonLength > 0 ? 1 : 0, max: Math.min(8, talonLength) };
+    }
     return { min: 0, max: Math.min(isOros ? 6 : 8, talonLength) };
   }
 

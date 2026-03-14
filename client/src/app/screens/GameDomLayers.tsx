@@ -113,11 +113,30 @@ export function GameTrickDomLayers({
   const trickWinner = game?.table.length
     ? null
     : snapshot.trickDisplayOverlay?.winner ?? null;
+  const volteoRevealCard =
+    game?.phase === "exchange" && game.contract === "volteo"
+      ? game.exchange.revealedCard
+      : null;
 
   return (
     <div id="game-dom-layers" className="game-dom-layers" hidden={!snapshot.spriteMode}>
       <div className="trick-overlay" aria-hidden="true">
         <div className="trick-overlay-inner" id="trick-layer">
+          {volteoRevealCard ? (
+            <div className="volteo-reveal-wrap">
+              <div className="volteo-reveal-card">
+                <DomCardArt
+                  card={volteoRevealCard}
+                  skinId={settings.cardSkin}
+                  colorblind={settings.colorblindMode}
+                />
+              </div>
+              <div className="volteo-reveal-meta">
+                <div className="volteo-reveal-title">{t("game.volteoRevealTitle")}</div>
+                <div className="volteo-reveal-hint">{t("game.volteoRevealHint")}</div>
+              </div>
+            </div>
+          ) : null}
           {trickCards.map((card, index) => {
             const seat = trickOrder[index];
             const rel = seat === undefined ? "across" : state.relativePosition(seat);
@@ -316,12 +335,10 @@ export function GameHandDock({
   return (
     <div className="game-hand-dock" id="game-hand-dock" aria-label={t("game.yourHandArea")} hidden={!showHandDock}>
       <div className="hand-dock-header" aria-hidden="true">
-        <span className="hand-dock-title">
-          {snapshot.isMobilePortrait ? t("game.yourHandSwipe") : t("game.yourHand")}
+        <span className="hand-dock-title">{t("game.yourHand")}</span>
+        <span className="hand-dock-hint">
+          {snapshot.isMobilePortrait ? t("game.swipeHintMobile") : t("game.swipe")}
         </span>
-        {snapshot.isMobilePortrait ? null : (
-          <span className="hand-dock-hint">{t("game.swipe")}</span>
-        )}
       </div>
       <div
         key={snapshot.invalidShakeNonce}

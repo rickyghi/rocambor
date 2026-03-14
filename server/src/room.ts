@@ -116,7 +116,7 @@ export class Room {
       scores: { 0: 0, 1: 0, 2: 0, 3: 0 },
       tricks: { 0: 0, 1: 0, 2: 0, 3: 0 },
       auction: { currentBid: "pass", currentBidder: null, passed: [], order: [] },
-      exchange: { current: null, order: [], talonSize: 0, completed: [] },
+      exchange: { current: null, order: [], talonSize: 0, completed: [], revealedCard: null },
       players: {},
       gameTarget: config.gameTarget || 12,
       seq: 0,
@@ -1071,7 +1071,7 @@ export class Room {
     if (contract === "volteo") {
       const top = this.talon[0];
       this.state.trump = top.s;
-      this.event("TRUMP_SET", { method: "volteo", suit: this.state.trump });
+      this.event("TRUMP_SET", { method: "volteo", suit: this.state.trump, card: top });
       this.startExchange();
     } else if (contract === "contrabola") {
       this.startExchange();
@@ -1240,6 +1240,7 @@ export class Room {
       order: ex,
       talonSize: this.talon.length,
       completed: [],
+      revealedCard: this.state.contract === "volteo" ? this.talon[0] ?? null : null,
     };
 
     this.autoAdvanceExchangeTurn(this.state.exchange.current);
@@ -1633,16 +1634,18 @@ export class Room {
       );
 
       const winningConn = this.conns.find((conn) => conn.seat === winner);
+      const winnerPlayerId = winningConn?.playerId;
+      const stakeMatchRef = this.currentStakeMatchRef;
       if (
         this.state.stakes.stakeMode === "tokens" &&
-        this.currentStakeMatchRef &&
+        typeof stakeMatchRef === "string" &&
         this.state.stakes.pot > 0 &&
-        winningConn?.playerId
+        typeof winnerPlayerId === "string"
       ) {
         withRetry("settleFriendlyStakeMatch", () =>
           settleFriendlyStakeMatch(
-            winningConn.playerId,
-            this.currentStakeMatchRef,
+            winnerPlayerId,
+            stakeMatchRef,
             this.state.stakes.pot
           )
         );

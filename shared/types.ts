@@ -145,6 +145,7 @@ export interface GameState {
     order: SeatIndex[];
     talonSize: number;
     completed: SeatIndex[];
+    revealedCard: Card | null;
   };
   players: Partial<Record<number, PlayerInfo>>;
   gameTarget: number;

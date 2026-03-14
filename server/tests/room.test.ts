@@ -561,6 +561,7 @@ describe("Room - exchange", () => {
       order: [0, 1, 2] as SeatIndex[],
       talonSize: 3,
       completed: [],
+      revealedCard: null,
     };
     room.state.turn = 0;
   });
@@ -579,6 +580,29 @@ describe("Room - exchange", () => {
   it("exchange with 0 cards (pass) is valid", () => {
     room.finishExchange(0, []);
     expect(room.state.exchange.completed).toContain(0);
+  });
+
+  it("volteo reveals the top talon card and requires ombre to discard at least one", () => {
+    room.state.phase = "auction";
+    room.state.contract = "volteo";
+    room.state.ombre = 0;
+    room.talon = [
+      { s: "bastos", r: 5, id: "b5" },
+      { s: "copas", r: 6, id: "c6" },
+      { s: "copas", r: 7, id: "c7" },
+    ] as any;
+
+    (room as any).resolveContract();
+
+    expect(room.state.phase).toBe("exchange");
+    expect(room.state.trump).toBe("bastos");
+    expect(room.state.exchange.revealedCard?.id).toBe("b5");
+
+    const ws = room.conns.find((c) => c.seat === 0)?.ws as any;
+    room.finishExchange(0 as SeatIndex, []);
+    expect(room.state.exchange.completed).not.toContain(0 as SeatIndex);
+    const msgs = (ws?._sent || []).map((s: string) => JSON.parse(s));
+    expect(msgs.some((m: any) => m.type === "ERROR" && m.code === "BAD_EXCHANGE")).toBe(true);
   });
 
   it("non-ombre can exchange up to talon availability (not capped at 5)", () => {

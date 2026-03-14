@@ -629,6 +629,11 @@ export class GameScreen {
 
       case "TRUMP_SET": {
         const suit = String(payload.suit || "");
+        const method = String(payload.method || "");
+        const card = payload.card as Card | undefined;
+        if (method === "volteo" && card) {
+          this.pushArenaToast(this.t("game.announce.volteoReveal", { card: this.cardLabel(card) }), 2200);
+        }
         if (suit) {
           this.pushArenaToast(this.t("game.announce.trumpSet", { suit: this.capSuit(suit) }));
         }
