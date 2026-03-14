@@ -3,6 +3,9 @@ import { db } from "./db";
 import {
   AnimationSpeed,
   AuthUserSummary,
+  Contract,
+  MatchActivityEntry,
+  MatchActivityResponse,
   MatchHistoryResponse,
   MeResponse,
   PersistedPlayerSettings,
@@ -401,6 +404,8 @@ export async function saveMatchResult(data: {
   stakeMode: "free" | "tokens";
   ante: number;
   pot: number;
+  contract: Contract | null;
+  trump: Suit | null;
   startedAt?: string | null;
 }): Promise<void> {
   // Collect current Elos for all human players

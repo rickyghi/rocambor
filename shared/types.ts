@@ -116,6 +116,27 @@ export interface MatchHistoryResponse {
   generatedAt: string;
 }
 
+export interface MatchActivityEntry {
+  id: string;
+  matchId: string;
+  mode: Mode;
+  stakeMode: StakeMode;
+  ante: number;
+  pot: number;
+  winnerName: string;
+  winnerSeat: number | null;
+  ombreName: string | null;
+  contract: Contract | null;
+  trump: Suit | null;
+  endedAt: string;
+}
+
+export interface MatchActivityResponse {
+  activity: MatchActivityEntry[];
+  count: number;
+  generatedAt: string;
+}
+
 // ---- Game state (sent to clients) ----
 export interface GameState {
   roomId: string;
