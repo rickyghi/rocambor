@@ -12,6 +12,8 @@ export type {
   GameState,
   PlayerInfo,
   AuthUserSummary,
+  MatchActivityEntry,
+  MatchActivityResponse,
   MatchHistoryResponse,
   MeResponse,
   PersistedPlayerSettings,
