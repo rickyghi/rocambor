@@ -58,10 +58,10 @@ function trickSlotStyle(
 ): VarStyle {
   const map = isMobilePortrait
     ? {
-        left: { x: "-112px", y: "24px", r: "-7deg" },
-        across: { x: "0px", y: "-88px", r: "0deg" },
-        right: { x: "112px", y: "24px", r: "7deg" },
-        self: { x: "0px", y: "72px", r: "0deg" },
+        left: { x: "-112px", y: "8px", r: "-7deg" },
+        across: { x: "0px", y: "-104px", r: "0deg" },
+        right: { x: "112px", y: "8px", r: "7deg" },
+        self: { x: "0px", y: "44px", r: "0deg" },
       }
     : {
         left: { x: "-214px", y: "18px", r: "-10deg" },
@@ -90,57 +90,6 @@ function handFanStyle(index: number, count: number, isMobilePortrait: boolean): 
     "--fan-x": `${x.toFixed(2)}px`,
     "--fan-y": `${y.toFixed(2)}px`,
   };
-}
-
-interface MobileActionState {
-  hidden: boolean;
-  disabled: boolean;
-  label: string;
-  ready: boolean;
-}
-
-function mobileActionState(
-  state: ClientState,
-  snapshot: GameDomLayerSnapshot,
-  locale: "en" | "es"
-): MobileActionState {
-  const { t } = createTranslator(locale);
-  if (!snapshot.isMobilePortrait) {
-    return { hidden: true, disabled: true, label: t("game.selectCard"), ready: false };
-  }
-
-  const game = state.game;
-  if (!game) {
-    return { hidden: true, disabled: true, label: t("game.selectCard"), ready: false };
-  }
-
-  if (state.phase === "play" && state.isMyTurn) {
-    if (snapshot.pendingPlayCard) {
-      return {
-        hidden: false,
-        disabled: false,
-        label: t("game.playCard"),
-        ready: true,
-      };
-    }
-    return {
-      hidden: true,
-      disabled: true,
-      label: t("game.selectCard"),
-      ready: false,
-    };
-  }
-
-  if (state.phase === "exchange" && state.canExchangeNow) {
-    return {
-      hidden: true,
-      disabled: true,
-      label: t("game.exchange.trade"),
-      ready: false,
-    };
-  }
-
-  return { hidden: true, disabled: true, label: t("game.selectCard"), ready: false };
 }
 
 export function GameTrickDomLayers({
@@ -218,7 +167,6 @@ export function GameHandDock({
   const touchConfirm = detectTouchConfirm();
   const handSignature = state.hand.map((card) => card.id).join("|");
   const { t } = createTranslator(settings.locale);
-  const action = mobileActionState(state, snapshot, settings.locale);
   const usesSpriteSheet = skinUsesRocamborSprites(settings.cardSkin);
 
   useEffect(() => {
@@ -403,7 +351,7 @@ export function GameHandDock({
               disabled={illegal}
               onClick={() => {
                 if (Date.now() < dragSuppressUntilRef.current) return;
-                bridge.interactWithCard(card.id, touchConfirm);
+                bridge.interactWithCard(card.id, snapshot.isMobilePortrait ? false : touchConfirm);
               }}
             >
               <DomCardArt
@@ -415,18 +363,6 @@ export function GameHandDock({
           );
         })}
       </div>
-      <button
-        className={`hand-action-btn btn-gold-plaque${action.ready ? " ready" : ""}`}
-        id="hand-action-btn"
-        type="button"
-        hidden={action.hidden}
-        disabled={action.disabled}
-        onClick={() => {
-          bridge.triggerMobileAction();
-        }}
-      >
-        {action.label}
-      </button>
     </div>
   );
 }
