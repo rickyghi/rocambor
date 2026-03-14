@@ -119,6 +119,73 @@
   flex-direction: column;
 }
 
+.game-screen-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.game-screen-loading__copy {
+  min-width: 220px;
+  padding: 18px 22px;
+  border-radius: 26px;
+  border: 1px solid rgba(214, 166, 74, 0.26);
+  background: rgba(9, 18, 18, 0.66);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+
+.game-screen-loading__orb {
+  width: 14px;
+  height: 14px;
+  margin: 0 auto 12px;
+  border-radius: 999px;
+  background: rgba(214, 166, 74, 0.9);
+  box-shadow: 0 0 0 0 rgba(214, 166, 74, 0.32);
+  animation: game-loading-pulse 1.05s ease-in-out infinite;
+}
+
+.game-screen-loading__kicker {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(232, 212, 138, 0.9);
+}
+
+.game-screen-loading__title {
+  display: block;
+  font-size: clamp(20px, 2.2vw, 28px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(248, 246, 240, 0.96);
+}
+
+.game-screen-loading__text {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(248, 246, 240, 0.72);
+}
+
+@keyframes game-loading-pulse {
+  0%,
+  100% {
+    transform: scale(0.92);
+    box-shadow: 0 0 0 0 rgba(214, 166, 74, 0.1);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 14px rgba(214, 166, 74, 0);
+  }
+}
+
 .game-header {
   position: absolute;
   top: 8px;
@@ -1148,6 +1215,7 @@
   min-width: 0;
   padding: 0 18px calc(8px + env(safe-area-inset-bottom, 0px));
   isolation: isolate;
+  overflow: visible;
 }
 
 .game-stage-bottom::before {
@@ -1179,7 +1247,8 @@
   width: 100%;
   min-width: 0;
   pointer-events: none;
-  padding-bottom: 4px;
+  padding-bottom: 10px;
+  overflow: visible;
 }
 
 .game-hand-dock[hidden] {
@@ -1199,12 +1268,12 @@
   width: min(100%, 1440px);
   max-width: 1440px;
   min-width: 0;
-  min-height: 232px;
+  min-height: 248px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   gap: 0;
-  padding: 0 76px 0;
+  padding: 6px 76px 8px;
   overflow-x: auto;
   overflow-y: visible;
   border: none;
@@ -1229,9 +1298,9 @@
 
 /* Play phase: taller hand row for larger cards covering lower third */
 .phase-play .hand-row {
-  min-height: 232px;
-  margin-top: -18px;
-  padding: 0 76px 0;
+  min-height: 248px;
+  margin-top: -10px;
+  padding: 6px 76px 8px;
 }
 
 .phase-play .game-hand-dock {

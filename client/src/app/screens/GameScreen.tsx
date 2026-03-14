@@ -14,9 +14,13 @@ import {
   GameSelfHeroPlate,
 } from "./GamePlayerChrome";
 import { GameTopChrome } from "./GameTopChrome";
+import { useClientState } from "../hooks";
 
 export function GameScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const state = useClientState(ctx.state);
+  const pendingRoomCode = state.roomCode;
+  const game = state.game;
   const domLayerBridgeRef = useRef(
     new GameDomLayerBridge({
       spriteMode: true,
@@ -26,7 +30,8 @@ export function GameScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
   const feedbackBridgeRef = useRef(new GameFeedbackBridge());
 
   useEffect(() => {
-    if (!ctx.state.game) {
+    if (!game) {
+      if (pendingRoomCode) return;
       ctx.router.navigate("home");
       return;
     }
@@ -40,9 +45,32 @@ export function GameScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
     return () => {
       controller.unmount();
     };
-  }, [ctx]);
+  }, [ctx, game, pendingRoomCode]);
 
-  if (!ctx.state.game) return null;
+  if (!game) {
+    if (!pendingRoomCode) return null;
+    return (
+      <div ref={hostRef} className="screen game-screen felt-shell sprite-mode">
+        <div className="felt-background" aria-hidden="true">
+          <div className="felt-base"></div>
+          <div className="felt-texture"></div>
+          <div className="felt-vignette"></div>
+          <div className="felt-noise"></div>
+          <div className="felt-ellipse"></div>
+        </div>
+        <div className="game-shell">
+          <div className="game-screen-loading" role="status" aria-live="polite">
+            <div className="game-screen-loading__orb" aria-hidden="true" />
+            <div className="game-screen-loading__copy">
+              <span className="game-screen-loading__kicker">Preparing Table</span>
+              <strong className="game-screen-loading__title">{pendingRoomCode}</strong>
+              <p className="game-screen-loading__text">Dealing the first hand...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={hostRef} className="screen game-screen felt-shell sprite-mode">
