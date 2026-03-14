@@ -1,8 +1,18 @@
 import type { ReactElement } from "react";
-import { useEffect, useState } from "react";
-import { createTranslator, modeLabel, type Locale } from "../../i18n";
+import { useEffect, useRef, useState } from "react";
+import {
+  contractDisplayLabel,
+  createTranslator,
+  modeLabel,
+  type Locale,
+} from "../../i18n";
 import type { AppContext } from "../../router";
-import type { Mode, StakeMode, WalletResponse } from "../../protocol";
+import type {
+  MatchActivityEntry,
+  Mode,
+  StakeMode,
+  WalletResponse,
+} from "../../protocol";
 import {
   claimCurrentWalletRescue,
   fetchCurrentWallet,
@@ -139,6 +149,9 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
   const [queuePosition, setQueuePosition] = useState(0);
   const [wallet, setWallet] = useState<WalletResponse | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
+  const [activity, setActivity] = useState<MatchActivityEntry[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const quickGamePendingRef = useRef(false);
   const { t } = createTranslator(settings.locale);
 
   useEffect(() => {
@@ -149,18 +162,22 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
 
   useEffect(() => {
     const unsubscribes = [
-      ctx.connection.on("ROOM_JOINED", () => {
+      ctx.connection.on("ROOM_JOINED", (msg: any) => {
         setInQueue(false);
-        ctx.router.navigate("lobby");
+        const directToGame = Boolean(msg?.directToGame || quickGamePendingRef.current);
+        quickGamePendingRef.current = false;
+        ctx.router.navigate(directToGame ? "game" : "lobby");
       }),
       ctx.connection.on("QUEUE_UPDATE", (msg: any) => {
         setQueuePosition(msg.position || 0);
       }),
       ctx.connection.on("ERROR", (msg: any) => {
+        quickGamePendingRef.current = false;
         showToast(msg.message || msg.code, "error");
       }),
       ctx.connection.on("_disconnected", () => {
         setInQueue(false);
+        quickGamePendingRef.current = false;
       }),
     ];
 
@@ -382,15 +399,18 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 <button
                   className="home-action-row home-action-row--quick home-quick-btn"
                   type="button"
-                  disabled={!connected || stakedActionsDisabled}
+                  disabled={!connected}
                   onClick={() => {
+                    quickGamePendingRef.current = true;
                     ctx.connection.send({
-                      type: "QUICK_PLAY",
-                      mode: selectedMode,
-                      stakeMode,
+                      type: "CREATE_ROOM",
+                      mode: "tresillo",
+                      stakeMode: "free",
+                      quickStart: true,
+                      rules: {
+                        espadaObligatoria: ctx.settings.get("espadaObligatoria"),
+                      },
                     });
-                    setInQueue(true);
-                    setQueuePosition(0);
                   }}
                 >
                   <span className="home-action-icon">

@@ -20,6 +20,7 @@ export const C2SMessageSchema = z.discriminatedUnion("type", [
     stakeMode: StakeModeSchema.optional(),
     target: z.number().int().min(6).max(30).optional(),
     roomName: z.string().trim().max(30).optional(),
+    quickStart: z.boolean().optional(),
     rules: z
       .object({
         espadaObligatoria: z.boolean().optional(),

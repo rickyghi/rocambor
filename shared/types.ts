@@ -175,6 +175,7 @@ export type C2SMessage =
       stakeMode?: StakeMode;
       target?: number;
       roomName?: string;
+      quickStart?: boolean;
       rules?: {
         espadaObligatoria?: boolean;
       };
@@ -199,7 +200,13 @@ export type C2SMessage =
 // ---- Server-to-Client messages ----
 export type S2CMessage =
   | { type: "WELCOME"; clientId: string; playerId: string | null }
-  | { type: "ROOM_JOINED"; roomId: string; code: string; seat: SeatIndex | null }
+  | {
+      type: "ROOM_JOINED";
+      roomId: string;
+      code: string;
+      seat: SeatIndex | null;
+      directToGame?: boolean;
+    }
   | { type: "ROOM_LEFT" }
   | { type: "STATE"; state: GameState; hand: Card[] | null }
   | { type: "EVENT"; name: string; payload: Record<string, unknown> }

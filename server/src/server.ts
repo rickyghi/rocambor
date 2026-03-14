@@ -686,36 +686,50 @@ function attachPreRoomMessageHandler(
         }
 
         case "CREATE_ROOM": {
-          const stakeMode = msg.stakeMode || "free";
+          const quickStart = msg.quickStart === true;
+          const stakeMode = quickStart ? "free" : msg.stakeMode || "free";
           void (async () => {
             if (!(await ensureStakeEntryAllowed(ws, stakeMode, authUser))) {
               return;
             }
-          const { roomId, code, room } = router.createRoom(
-            msg.mode,
-            id,
-            stakeMode,
-            msg.target,
-            msg.rules,
-            msg.roomName
-          );
-          const conn = room.attach(ws, id, playerId, authUser?.id ?? null);
+            const { roomId, code, room } = router.createRoom(
+              quickStart ? "tresillo" : msg.mode,
+              id,
+              stakeMode,
+              msg.target,
+              msg.rules,
+              msg.roomName
+            );
+            const conn = room.attach(ws, id, playerId, authUser?.id ?? null);
 
-          // Auto-seat creator at seat 0
-          room.assignSeat(conn, room.allSeats()[0]);
+            // Auto-seat creator at seat 0
+            room.assignSeat(conn, room.allSeats()[0]);
 
-          ws.removeListener("message", onMessage);
-          preRoomHandlers.delete(ws);
-          connToRoom.set(ws, { conn, roomId });
-          setupWsHandlers(ws, conn, roomId);
+            ws.removeListener("message", onMessage);
+            preRoomHandlers.delete(ws);
+            connToRoom.set(ws, { conn, roomId });
+            setupWsHandlers(ws, conn, roomId);
 
-          wsSend(ws, {
-            type: "ROOM_JOINED",
-            roomId,
-            code,
-            seat: conn.seat,
-          });
-          room.broadcastState();
+            wsSend(ws, {
+              type: "ROOM_JOINED",
+              roomId,
+              code,
+              seat: conn.seat,
+              directToGame: quickStart,
+            });
+            if (quickStart) {
+              const started = await room.startGame();
+              if (!started) {
+                wsSend(ws, {
+                  type: "ERROR",
+                  code: "QUICK_GAME_FAILED",
+                  message: "Unable to start a quick game right now.",
+                });
+                room.broadcastState();
+                return;
+              }
+            }
+            room.broadcastState();
           })().catch((error) => {
             console.error("[room] create room failed:", error);
             wsSend(ws, {
