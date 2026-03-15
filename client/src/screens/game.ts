@@ -59,6 +59,7 @@ export class GameScreen {
     winner: SeatIndex;
   } | null = null;
   private trickOverlayTimer: number | null = null;
+  private volteoRevealTimer: number | null = null;
 
   attach(
     container: HTMLElement,
@@ -136,6 +137,7 @@ export class GameScreen {
     this.syncPhaseClass();
     this.domLayerBridge.setPendingPlayCard(this.pendingPlayCard);
     this.domLayerBridge.setTrickDisplayOverlay(this.trickDisplayOverlay);
+    this.syncVolteoRevealFromState();
     this.updatePhaseBanner();
     this.configureSpritesheetMode();
   }
@@ -160,6 +162,10 @@ export class GameScreen {
     if (this.trickOverlayTimer !== null) {
       clearTimeout(this.trickOverlayTimer);
       this.trickOverlayTimer = null;
+    }
+    if (this.volteoRevealTimer !== null) {
+      clearTimeout(this.volteoRevealTimer);
+      this.volteoRevealTimer = null;
     }
     this.domLayerBridge.reset();
     this.feedbackBridge.reset();
@@ -198,6 +204,7 @@ export class GameScreen {
           this.syncPhaseClass();
           this.handlePhaseTransitions();
           this.trackTrickFeedFromState();
+          this.syncVolteoRevealFromState();
           this.updatePhaseBanner();
         }
       }),
@@ -632,6 +639,7 @@ export class GameScreen {
         const method = String(payload.method || "");
         const card = payload.card as Card | undefined;
         if (method === "volteo" && card) {
+          this.showVolteoReveal(card);
           this.pushArenaToast(this.t("game.announce.volteoReveal", { card: this.cardLabel(card) }), 2200);
         }
         if (suit) {
@@ -953,6 +961,34 @@ export class GameScreen {
   private setTrickDisplayOverlay(overlay: TrickDisplayOverlaySnapshot | null): void {
     this.trickDisplayOverlay = overlay;
     this.domLayerBridge.setTrickDisplayOverlay(overlay);
+  }
+
+  private showVolteoReveal(card: Card): void {
+    this.domLayerBridge.setVolteoRevealCard(card);
+    if (this.volteoRevealTimer !== null) {
+      clearTimeout(this.volteoRevealTimer);
+    }
+    this.volteoRevealTimer = window.setTimeout(() => {
+      this.volteoRevealTimer = null;
+      this.syncVolteoRevealFromState();
+    }, 2600);
+  }
+
+  private syncVolteoRevealFromState(): void {
+    const game = this.ctx.state.game;
+    const reveal =
+      game?.phase === "exchange" && game.contract === "volteo"
+        ? game.exchange.revealedCard
+        : null;
+
+    if (reveal) {
+      this.domLayerBridge.setVolteoRevealCard(reveal);
+      return;
+    }
+
+    if (this.volteoRevealTimer === null) {
+      this.domLayerBridge.setVolteoRevealCard(null);
+    }
   }
 
   private handleDomSpriteRenderFailure(): void {

@@ -2836,7 +2836,7 @@
   .game-stage:has(.game-controls-shell[data-phase="auction"][data-actionable="true"]) .hero-self-slot,
   .game-stage:has(.game-controls-shell[data-phase="trump_choice"][data-actionable="true"]) .hero-self-slot,
   .game-stage:has(.game-controls-shell[data-phase="penetro_choice"][data-actionable="true"]) .hero-self-slot {
-    margin-top: 2px;
+    margin-top: -4px;
   }
 
   /* game-canvas-wrap is already position:absolute;inset:0 — no box overrides needed */
@@ -2935,7 +2935,7 @@
   .game-controls-shell[data-phase="trump_choice"],
   .game-controls-shell[data-phase="penetro_choice"] {
     padding-inline: 16px;
-    margin-bottom: -4px;
+    margin-bottom: -14px;
   }
 
   .game-controls-bar {
@@ -3529,7 +3529,7 @@
   .game-controls-shell[data-phase="exchange"],
   .game-controls-shell[data-phase="trump_choice"],
   .game-controls-shell[data-phase="penetro_choice"] {
-    margin-bottom: -2px;
+    margin-bottom: -12px;
   }
 
   .game-controls-bar {

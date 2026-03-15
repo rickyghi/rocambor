@@ -11,6 +11,7 @@ export interface GameDomLayerSnapshot {
   isMobilePortrait: boolean;
   pendingPlayCard: string | null;
   trickDisplayOverlay: TrickDisplayOverlaySnapshot | null;
+  volteoRevealCard: Card | null;
   invalidShakeNonce: number;
 }
 
@@ -27,8 +28,13 @@ const DEFAULT_SNAPSHOT: GameDomLayerSnapshot = {
   isMobilePortrait: false,
   pendingPlayCard: null,
   trickDisplayOverlay: null,
+  volteoRevealCard: null,
   invalidShakeNonce: 0,
 };
+
+function cloneCard(card: Card | null): Card | null {
+  return card ? { ...card } : null;
+}
 
 function cloneOverlay(
   overlay: TrickDisplayOverlaySnapshot | null
@@ -58,6 +64,7 @@ export class GameDomLayerBridge {
     return {
       ...this.snapshot,
       trickDisplayOverlay: cloneOverlay(this.snapshot.trickDisplayOverlay),
+      volteoRevealCard: cloneCard(this.snapshot.volteoRevealCard),
     };
   }
 
@@ -90,6 +97,11 @@ export class GameDomLayerBridge {
 
   setTrickDisplayOverlay(overlay: TrickDisplayOverlaySnapshot | null): void {
     this.snapshot.trickDisplayOverlay = cloneOverlay(overlay);
+    this.notify();
+  }
+
+  setVolteoRevealCard(card: Card | null): void {
+    this.snapshot.volteoRevealCard = cloneCard(card);
     this.notify();
   }
 

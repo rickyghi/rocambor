@@ -114,9 +114,9 @@ export function GameTrickDomLayers({
     ? null
     : snapshot.trickDisplayOverlay?.winner ?? null;
   const volteoRevealCard =
-    game?.phase === "exchange" && game.contract === "volteo"
+    (game?.phase === "exchange" && game.contract === "volteo"
       ? game.exchange.revealedCard
-      : null;
+      : null) ?? snapshot.volteoRevealCard;
 
   return (
     <div id="game-dom-layers" className="game-dom-layers" hidden={!snapshot.spriteMode}>
