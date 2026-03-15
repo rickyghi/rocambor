@@ -2935,7 +2935,7 @@
   .game-controls-shell[data-phase="trump_choice"],
   .game-controls-shell[data-phase="penetro_choice"] {
     padding-inline: 16px;
-    margin-bottom: 6px;
+    margin-bottom: -4px;
   }
 
   .game-controls-bar {
@@ -3522,14 +3522,14 @@
   }
 
   .game-controls-shell {
-    padding-inline: 12px;
+    padding-inline: 16px;
   }
 
   .game-controls-shell[data-phase="auction"],
   .game-controls-shell[data-phase="exchange"],
   .game-controls-shell[data-phase="trump_choice"],
   .game-controls-shell[data-phase="penetro_choice"] {
-    margin-bottom: 8px;
+    margin-bottom: -2px;
   }
 
   .game-controls-bar {
@@ -3559,10 +3559,10 @@
   .hand-row {
     min-height: 190px;
     gap: 0;
-    padding: 4px 18px 0;
-    scroll-padding-inline: 18px;
-    mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
-    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+    padding: 4px 16px 0;
+    scroll-padding-inline: 16px;
+    mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
   }
 
   .hand-card-wrap {
@@ -3577,14 +3577,14 @@
   .phase-play .hand-row {
     min-height: 168px;
     gap: 0;
-    padding: 0 18px 4px;
+    padding: 0 16px 4px;
   }
 
   .phase-auction .hand-row,
   .phase-exchange .hand-row,
   .phase-trump .hand-row {
     min-height: 190px;
-    padding: 4px 18px 0;
+    padding: 4px 16px 0;
   }
 
   .phase-play .hand-card-wrap {
@@ -3704,7 +3704,7 @@
 
   .hand-row {
     min-height: 178px;
-    padding: 4px 14px 0;
+    padding: 4px 16px 0;
     gap: 0;
   }
 
@@ -3739,7 +3739,7 @@
   .phase-exchange .hand-row,
   .phase-trump .hand-row {
     min-height: 178px;
-    padding: 4px 14px 0;
+    padding: 4px 16px 0;
   }
 
   .volteo-reveal-wrap {
