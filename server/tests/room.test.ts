@@ -67,6 +67,21 @@ describe("Room - phase transitions", () => {
     const bots = activeConns.filter((c) => c.isBot);
     expect(bots.length).toBe(2);
   });
+
+  it("assigns room bots distinct names from the persona roster", () => {
+    const room = makeRoom();
+    addHuman(room, 0);
+    room.startGame();
+
+    const names = room.conns
+      .filter((c) => c.isBot)
+      .map((c) => c.handle);
+    const allowed = new Set(["Ilse", "Juan", "Guido", "Jorge", "Rafael"]);
+
+    expect(names).toHaveLength(2);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names.every((name) => allowed.has(name))).toBe(true);
+  });
 });
 
 describe("Room - host handoff", () => {

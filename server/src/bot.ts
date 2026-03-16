@@ -10,6 +10,109 @@ import {
   isManille,
 } from "./engine";
 
+export type BotPersonaId = "ilse" | "juan" | "guido" | "jorge" | "rafael";
+
+export interface HumanLearningSignals {
+  bidAggression: number;
+  preferredTrump: Suit | null;
+  exchangePressure: number;
+}
+
+interface BotPersona {
+  id: BotPersonaId;
+  name: string;
+  bidNerve: number;
+  overcallNerve: number;
+  exchangeDepth: number;
+  leadAggression: number;
+  winRisk: number;
+  learningSensitivity: number;
+  suitBias: Partial<Record<Suit, number>>;
+}
+
+export const BOT_PERSONA_IDS: readonly BotPersonaId[] = [
+  "ilse",
+  "juan",
+  "guido",
+  "jorge",
+  "rafael",
+] as const;
+
+const DEFAULT_HUMAN_SIGNALS: HumanLearningSignals = {
+  bidAggression: 0.4,
+  preferredTrump: null,
+  exchangePressure: 0.4,
+};
+
+const BOT_PERSONAS: Record<BotPersonaId, BotPersona> = {
+  ilse: {
+    id: "ilse",
+    name: "Ilse",
+    bidNerve: 0.6,
+    overcallNerve: 0.35,
+    exchangeDepth: -1,
+    leadAggression: 0.2,
+    winRisk: 0.15,
+    learningSensitivity: 0.85,
+    suitBias: { espadas: 1.2, copas: 0.4 },
+  },
+  juan: {
+    id: "juan",
+    name: "Juan",
+    bidNerve: -0.8,
+    overcallNerve: 0.1,
+    exchangeDepth: 1,
+    leadAggression: 0.05,
+    winRisk: 0,
+    learningSensitivity: 1,
+    suitBias: { oros: 0.6, bastos: -0.4 },
+  },
+  guido: {
+    id: "guido",
+    name: "Guido",
+    bidNerve: 0,
+    overcallNerve: 0,
+    exchangeDepth: 0,
+    leadAggression: 0,
+    winRisk: 0,
+    learningSensitivity: 0.55,
+    suitBias: {},
+  },
+  jorge: {
+    id: "jorge",
+    name: "Jorge",
+    bidNerve: 0.35,
+    overcallNerve: 0.5,
+    exchangeDepth: -1,
+    leadAggression: 0.8,
+    winRisk: 0.75,
+    learningSensitivity: 0.6,
+    suitBias: { espadas: 0.7, bastos: 0.5 },
+  },
+  rafael: {
+    id: "rafael",
+    name: "Rafael",
+    bidNerve: 0.15,
+    overcallNerve: 0.25,
+    exchangeDepth: 0,
+    leadAggression: 0.45,
+    winRisk: 0.3,
+    learningSensitivity: 1.15,
+    suitBias: { oros: 0.5, copas: 0.3 },
+  },
+};
+
+export function getBotPersona(id: BotPersonaId | null | undefined): BotPersona {
+  return BOT_PERSONAS[id ?? "guido"] ?? BOT_PERSONAS.guido;
+}
+
+export function chooseBotPersona(existing: BotPersonaId[] = []): BotPersona {
+  const available = BOT_PERSONA_IDS.filter((id) => !existing.includes(id));
+  const pool = available.length ? available : BOT_PERSONA_IDS;
+  const id = pool[Math.floor(Math.random() * pool.length)] ?? "guido";
+  return getBotPersona(id);
+}
+
 export interface BotContext {
   phase: string;
   seat: SeatIndex;
@@ -29,6 +132,8 @@ export interface BotContext {
   tricks: Record<number, number>;
   table: Card[];
   talonLength: number;
+  personaId: BotPersonaId | null;
+  humanSignals: HumanLearningSignals;
 }
 
 const BID_RANK: Record<string, number> = AUCTION_RANKED_BIDS.reduce(
@@ -152,7 +257,21 @@ function countMatadors(cards: Card[], trump: Suit): number {
   return cards.filter((c) => isMatador(trump, c)).length;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getHumanSignals(ctx: BotContext): HumanLearningSignals {
+  return {
+    bidAggression: ctx.humanSignals?.bidAggression ?? DEFAULT_HUMAN_SIGNALS.bidAggression,
+    preferredTrump: ctx.humanSignals?.preferredTrump ?? DEFAULT_HUMAN_SIGNALS.preferredTrump,
+    exchangePressure: ctx.humanSignals?.exchangePressure ?? DEFAULT_HUMAN_SIGNALS.exchangePressure,
+  };
+}
+
 export function decideBid(ctx: BotContext): Bid {
+  const persona = getBotPersona(ctx.personaId);
+  const humanSignals = getHumanSignals(ctx);
   const hand0 = ctx.originalHand.length > 0 ? ctx.originalHand : ctx.hand;
   let bestSuit: Suit = "oros";
   let bestProfile: SuitStrengthProfile = {
@@ -172,7 +291,10 @@ export function decideBid(ctx: BotContext): Bid {
   const a = ctx.auction;
   const openingStage = a.currentBid === "pass";
   const qualifiedBids = BID_THRESHOLDS.filter((candidate) => {
-    if (bestProfile.strength < candidate.minStrength) return false;
+    const tablePressure = (humanSignals.bidAggression - 0.45) * 8 * persona.learningSensitivity;
+    const effectiveMinStrength =
+      candidate.minStrength - persona.bidNerve * 3 + tablePressure;
+    if (bestProfile.strength < effectiveMinStrength) return false;
     if (openingStage && !candidate.openingAllowed) return false;
     return candidate.requires ? candidate.requires(bestSuit, bestProfile) : true;
   }).map((candidate) => candidate.bid);
@@ -182,11 +304,21 @@ export function decideBid(ctx: BotContext): Bid {
     bid = qualifiedBids.length ? qualifiedBids[qualifiedBids.length - 1] : "pass";
   } else {
     const currentRank = BID_RANK[a.currentBid];
-    bid =
-      qualifiedBids.find((candidate) => {
+    const overcalls = qualifiedBids.filter((candidate) => {
         const rank = BID_RANK[candidate];
         return currentRank !== undefined && rank !== undefined && rank > currentRank;
-      }) ?? "pass";
+      });
+    if (!overcalls.length) {
+      bid = "pass";
+    } else {
+      const scaledNerve = clamp(
+        persona.overcallNerve - humanSignals.bidAggression * 0.2 * persona.learningSensitivity,
+        0,
+        1
+      );
+      const pickIndex = Math.round((overcalls.length - 1) * scaledNerve);
+      bid = overcalls[pickIndex] ?? overcalls[0];
+    }
   }
 
   // Contrabola edge case
@@ -224,6 +356,8 @@ export function decidePenetroDecision(): boolean {
 }
 
 export function decideTrump(ctx: BotContext): Suit {
+  const persona = getBotPersona(ctx.personaId);
+  const humanSignals = getHumanSignals(ctx);
   const needOros =
     ctx.contract === "oros" || ctx.contract === "solo_oros";
   if (needOros) return "oros";
@@ -231,8 +365,14 @@ export function decideTrump(ctx: BotContext): Suit {
   let bestStrength = -Infinity;
   for (const s of SUITS) {
     const profile = evaluateSuitStrength(ctx.hand, s);
-    if (profile.strength > bestStrength) {
-      bestStrength = profile.strength;
+    const learnedSuitPressure =
+      humanSignals.preferredTrump === s
+        ? persona.learningSensitivity * (persona.id === "juan" ? 0.6 : persona.id === "rafael" ? 0.25 : -0.2)
+        : 0;
+    const weightedStrength =
+      profile.strength + (persona.suitBias[s] ?? 0) + learnedSuitPressure;
+    if (weightedStrength > bestStrength) {
+      bestStrength = weightedStrength;
       bestSuit = s;
     }
   }
@@ -250,6 +390,8 @@ function keepValue(card: Card, trump: Suit): number {
 }
 
 export function decideExchange(ctx: BotContext): string[] {
+  const persona = getBotPersona(ctx.personaId);
+  const humanSignals = getHumanSignals(ctx);
   const isOmbre = ctx.seat === ctx.ombre;
   const isSolo =
     ctx.contract === "solo" || ctx.contract === "solo_oros";
@@ -291,6 +433,11 @@ export function decideExchange(ctx: BotContext): string[] {
     else desired = Math.min(max, 2);
   }
 
+  const exchangeAdjustment = Math.round(
+    persona.exchangeDepth +
+      (humanSignals.exchangePressure - 0.4) * 4 * persona.learningSensitivity
+  );
+  desired = clamp(desired + exchangeAdjustment, 0, max);
   desired = Math.min(desired, ctx.talonLength);
   if (isOmbre && isVolteo && desired <= 0 && ctx.talonLength > 0) {
     desired = 1;
@@ -304,6 +451,7 @@ export function decideExchange(ctx: BotContext): string[] {
 }
 
 function chooseLeadCard(ctx: BotContext, legal: Card[]): Card {
+  const persona = getBotPersona(ctx.personaId);
   const trumpCards = legal.filter((c) => isTrump(ctx.trump, c));
   const plainCards = legal.filter((c) => !isTrump(ctx.trump, c));
   const isOmbre = ctx.ombre !== null && ctx.seat === ctx.ombre;
@@ -329,7 +477,14 @@ function chooseLeadCard(ctx: BotContext, legal: Card[]): Card {
 
   if (bySuit.length) {
     const options = sortWeakToStrong(bySuit[0].cards, ctx.trump);
-    return isOmbre ? options[options.length - 1] : options[0];
+    if (isOmbre) {
+      return options[options.length - 1];
+    }
+    const defenderIndex = Math.min(
+      options.length - 1,
+      Math.floor((options.length - 1) * persona.leadAggression * 0.55)
+    );
+    return options[defenderIndex];
   }
 
   return pickLowest(legal, ctx.trump);
@@ -360,6 +515,7 @@ function chooseDiscard(legal: Card[], trump: Suit | null): Card {
 }
 
 export function decidePlay(ctx: BotContext): string | null {
+  const persona = getBotPersona(ctx.personaId);
   const led = ctx.table.length ? ctx.table[0] : null;
   const legal = legalPlays(ctx.trump, ctx.hand, led);
   if (!legal.length) return null;
@@ -382,7 +538,9 @@ export function decidePlay(ctx: BotContext): string | null {
   }
 
   if (winningCards.length) {
-    return pickLowest(winningCards, ctx.trump).id;
+    return (persona.winRisk > 0.6
+      ? pickHighest(winningCards, ctx.trump)
+      : pickLowest(winningCards, ctx.trump)).id;
   }
 
   return chooseDiscard(legal, ctx.trump).id;

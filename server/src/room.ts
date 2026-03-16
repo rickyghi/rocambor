@@ -15,7 +15,13 @@ import {
   AUCTION_RANKED_BIDS,
 } from "../../shared/types";
 import { makeDeck, legalPlays, trickWinner, generateSeed } from "./engine";
-import { botAct, BotContext } from "./bot";
+import {
+  botAct,
+  BotContext,
+  BotPersonaId,
+  HumanLearningSignals,
+  chooseBotPersona,
+} from "./bot";
 import {
   saveHandResult,
   saveMatchResult,
@@ -38,12 +44,29 @@ const POST_HAND_DELAY = 3000;
 const AFK_TIMEOUT_MS = 90_000;
 const AFK_WARNING_MS = 75_000;
 const AFK_BOT_REPLACE_THRESHOLD = 3;
+
+interface HumanLearningTracker {
+  bidDecisions: number;
+  assertiveBids: number;
+  trumpChoices: Record<Suit, number>;
+  exchangeSamples: number;
+  exchangePressureTotal: number;
+}
+
+const EMPTY_TRUMP_COUNTS = (): Record<Suit, number> => ({
+  oros: 0,
+  copas: 0,
+  espadas: 0,
+  bastos: 0,
+});
+
 export interface Conn {
   id: string;
   ws: WebSocket;
   seat: SeatIndex | null;
   handle: string;
   isBot: boolean;
+  botPersonaId?: BotPersonaId | null;
   playerId: string | null;
   authUserId: string | null;
   isSpectator: boolean;
@@ -87,6 +110,13 @@ export class Room {
   private currentStakeMatchRef: string | null = null;
   private currentStakeParticipants: string[] = [];
   private currentMatchStartedAt: string | null = null;
+  private humanLearning: HumanLearningTracker = {
+    bidDecisions: 0,
+    assertiveBids: 0,
+    trumpChoices: EMPTY_TRUMP_COUNTS(),
+    exchangeSamples: 0,
+    exchangePressureTotal: 0,
+  };
 
   // AFK timeout tracking
   private afkTimer: NodeJS.Timeout | null = null;
@@ -289,6 +319,7 @@ export class Room {
       seat: null,
       handle: `Player ${Math.floor(Math.random() * 999)}`,
       isBot: false,
+      botPersonaId: null,
       playerId: playerId || null,
       authUserId: authUserId || null,
       isSpectator: false,
@@ -324,7 +355,6 @@ export class Room {
 
     if (replaceWithBot) {
       const bot = this.makeBot();
-      bot.handle = conn.handle;
       bot.playerId = conn.playerId;
       bot.authUserId = conn.authUserId;
       this.conns.push(bot);
@@ -428,6 +458,7 @@ export class Room {
       seat: null,
       handle: `Spectator`,
       isBot: false,
+      botPersonaId: null,
       playerId: null,
       authUserId: null,
       isSpectator: true,
@@ -479,12 +510,18 @@ export class Room {
       removeEventListener: () => {},
     } as unknown as WebSocket;
 
+    const activeBotIds = this.conns
+      .filter((conn) => conn.isBot && conn.botPersonaId)
+      .map((conn) => conn.botPersonaId!) as BotPersonaId[];
+    const persona = chooseBotPersona(activeBotIds);
+
     return {
       id: "bot-" + Math.random().toString(36).slice(2),
       ws: fake,
       seat: null,
-      handle: "Bot",
+      handle: persona.name,
       isBot: true,
+      botPersonaId: persona.id,
       playerId: null,
       authUserId: null,
       isSpectator: false,
@@ -781,10 +818,17 @@ export class Room {
   private replaceWithBot(seat: SeatIndex): void {
     const conn = this.seatConn(seat);
     if (!conn) return;
+    const persona = chooseBotPersona(
+      this.conns
+        .filter((candidate) => candidate.isBot && candidate.botPersonaId)
+        .map((candidate) => candidate.botPersonaId!) as BotPersonaId[]
+    );
     console.log(
       `[room] Replacing seat ${seat} with bot after ${AFK_BOT_REPLACE_THRESHOLD} consecutive AFK turns`
     );
     conn.isBot = true;
+    conn.handle = persona.name;
+    conn.botPersonaId = persona.id;
     this.consecutiveAfk[seat] = 0;
     this.event("PLAYER_REPLACED_BY_BOT", { seat, handle: conn.handle });
   }
@@ -898,6 +942,7 @@ export class Room {
   }
 
   private buildBotContext(seat: SeatIndex): BotContext {
+    const conn = this.seatConn(seat);
     return {
       phase: this.state.phase,
       seat,
@@ -912,7 +957,60 @@ export class Room {
       tricks: { ...this.state.tricks },
       table: this.table,
       talonLength: this.talon.length,
+      personaId: conn?.botPersonaId ?? null,
+      humanSignals: this.getHumanLearningSignals(),
     };
+  }
+
+  private getHumanLearningSignals(): HumanLearningSignals {
+    const bidAggression =
+      this.humanLearning.bidDecisions > 0
+        ? this.humanLearning.assertiveBids / this.humanLearning.bidDecisions
+        : 0.4;
+    const exchangePressure =
+      this.humanLearning.exchangeSamples > 0
+        ? this.humanLearning.exchangePressureTotal / this.humanLearning.exchangeSamples
+        : 0.4;
+
+    let preferredTrump: Suit | null = null;
+    let preferredTrumpCount = 0;
+    for (const suit of ["oros", "copas", "espadas", "bastos"] as const) {
+      const count = this.humanLearning.trumpChoices[suit];
+      if (count > preferredTrumpCount) {
+        preferredTrump = suit;
+        preferredTrumpCount = count;
+      }
+    }
+
+    return {
+      bidAggression,
+      preferredTrump,
+      exchangePressure,
+    };
+  }
+
+  private isHumanSeat(seat: SeatIndex): boolean {
+    const conn = this.seatConn(seat);
+    return Boolean(conn && !conn.isBot && !conn.isSpectator);
+  }
+
+  private observeHumanBidDecision(seat: SeatIndex, value: Bid | "keep"): void {
+    if (!this.isHumanSeat(seat)) return;
+    this.humanLearning.bidDecisions += 1;
+    if (value !== "pass" && value !== "keep") {
+      this.humanLearning.assertiveBids += 1;
+    }
+  }
+
+  private observeHumanTrumpChoice(seat: SeatIndex, suit: Suit): void {
+    if (!this.isHumanSeat(seat)) return;
+    this.humanLearning.trumpChoices[suit] += 1;
+  }
+
+  private observeHumanExchange(seat: SeatIndex, count: number, max: number): void {
+    if (!this.isHumanSeat(seat) || max <= 0) return;
+    this.humanLearning.exchangeSamples += 1;
+    this.humanLearning.exchangePressureTotal += count / max;
   }
 
   // bidRank, isRankedBid → imported from auction-utils.ts
@@ -976,6 +1074,13 @@ export class Room {
       if (currentRank < 0 || nextRank <= currentRank) {
         return this.errorSeat(seat, "BAD_BID", "Must beat previous bid");
       }
+    }
+
+    this.observeHumanBidDecision(seat, value);
+    if (value === "oros" || value === "solo_oros") {
+      this.observeHumanTrumpChoice(seat, "oros");
+    } else if (value === "solo" && suit) {
+      this.observeHumanTrumpChoice(seat, suit);
     }
 
     if (value === "pass") {
@@ -1123,6 +1228,11 @@ export class Room {
       return this.errorSeat(seat, "NOT_OMBRE");
     }
 
+    this.observeHumanBidDecision(seat, newBid);
+    if (newBid === "oros" || newBid === "solo_oros") {
+      this.observeHumanTrumpChoice(seat, "oros");
+    }
+
     if (newBid !== "keep") {
       const currentBid = this.state.auction.currentBid;
       const currentIdx = BID_ORDER.indexOf(currentBid);
@@ -1210,6 +1320,7 @@ export class Room {
       return this.errorSeat(seat, "TRUMP_MUST_BE_OROS");
     }
 
+    this.observeHumanTrumpChoice(seat, suit);
     this.state.trump = suit;
     this.event("TRUMP_SET", { method: "choice", suit });
     this.startExchange();
@@ -1301,6 +1412,8 @@ export class Room {
       );
     }
     const count = toDiscard.length;
+
+    this.observeHumanExchange(seat, count, max);
 
     for (let i = 0; i < count; i++) {
       const k = hand.findIndex((c) => c.id === toDiscard[i].id);

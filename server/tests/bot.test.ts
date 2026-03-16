@@ -26,6 +26,12 @@ function makeCtx(overrides: Partial<BotContext> = {}): BotContext {
     tricks: { 0: 0, 1: 0, 2: 0, 3: 0 },
     table: [],
     talonLength: 13,
+    personaId: "guido",
+    humanSignals: {
+      bidAggression: 0.4,
+      preferredTrump: null,
+      exchangePressure: 0.4,
+    },
     ...overrides,
   };
 }
@@ -380,5 +386,60 @@ describe("decideExchange", () => {
     const ids = decideExchange(ctx);
     expect(ids.length).toBeGreaterThan(5);
     expect(ids.length).toBeLessThanOrEqual(8);
+  });
+
+  it("persona styles change exchange appetite", () => {
+    const weakHand = [
+      card("copas", 2),
+      card("copas", 3),
+      card("copas", 4),
+      card("bastos", 2),
+      card("bastos", 3),
+      card("bastos", 4),
+      card("espadas", 2),
+      card("espadas", 3),
+      card("espadas", 4),
+    ];
+    const base = {
+      phase: "exchange",
+      seat: 1 as SeatIndex,
+      ombre: 0 as SeatIndex,
+      contract: "entrada",
+      trump: "oros" as Suit,
+      hand: weakHand,
+      originalHand: weakHand,
+      talonLength: 8,
+    };
+
+    const cautious = decideExchange(makeCtx({ ...base, personaId: "juan" }));
+    const bold = decideExchange(makeCtx({ ...base, personaId: "jorge" }));
+    expect(cautious.length).toBeGreaterThanOrEqual(bold.length);
+  });
+});
+
+describe("bot personas", () => {
+  it("aggressive personas can press higher overcalls than cautious ones", () => {
+    const hand = [
+      card("oros", 1), card("oros", 12), card("oros", 11),
+      card("oros", 10), card("oros", 7), card("oros", 5),
+      card("copas", 12), card("espadas", 12), card("bastos", 12),
+    ];
+    const auction = {
+      currentBid: "entrada" as Bid,
+      currentBidder: 1 as SeatIndex,
+      passed: [],
+      order: [0, 1, 2] as SeatIndex[],
+    };
+
+    const cautious = decideBid(
+      makeCtx({ hand, originalHand: hand, auction, personaId: "juan" })
+    );
+    const bold = decideBid(
+      makeCtx({ hand, originalHand: hand, auction, personaId: "jorge" })
+    );
+
+    const rank = (value: Bid) =>
+      ({ pass: 0, entrada: 1, oros: 2, volteo: 3, solo: 4, solo_oros: 5, bola: -1, contrabola: 99 })[value];
+    expect(rank(bold)).toBeGreaterThanOrEqual(rank(cautious));
   });
 });

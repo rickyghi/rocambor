@@ -66,7 +66,7 @@ export async function withRetry<T>(
 const inMemoryLeaderboard = new Map<string, MemoryStats>();
 
 const DEFAULT_ACCOUNT_SETTINGS: PersistedPlayerSettings = {
-  locale: "en",
+  locale: "es",
   soundEnabled: true,
   espadaObligatoria: true,
   soundVolume: 0.7,
