@@ -546,6 +546,12 @@ export function decidePlay(ctx: BotContext): string | null {
   return chooseDiscard(legal, ctx.trump).id;
 }
 
+function decideContractUpgrade(ctx: BotContext): Bid | "keep" {
+  const choice = decideBid(ctx);
+  if ((BID_RANK[choice] ?? -1) < 0) return "keep";
+  return BID_RANK[choice] > BID_RANK[ctx.auction.currentBid] ? choice : "keep";
+}
+
 export function botAct(ctx: BotContext): {
   type: "BID" | "PENETRO_DECISION" | "CHOOSE_TRUMP" | "EXCHANGE" | "PLAY" | "UPGRADE_CONTRACT";
   payload: unknown;
@@ -554,7 +560,7 @@ export function botAct(ctx: BotContext): {
     case "auction":
       return { type: "BID", payload: decideBid(ctx) };
     case "contract_upgrade":
-      return { type: "UPGRADE_CONTRACT", payload: "keep" };
+      return { type: "UPGRADE_CONTRACT", payload: decideContractUpgrade(ctx) };
     case "penetro_choice":
       return { type: "PENETRO_DECISION", payload: decidePenetroDecision() };
     case "trump_choice":

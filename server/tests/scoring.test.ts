@@ -47,7 +47,7 @@ describe("scoring", () => {
     expect(result.deltas).toEqual({ 1: 2 });
   });
 
-  it("scores puesta to both defenders when nobody reaches five", () => {
+  it("scores sacada when ombre has the unique highest trick count below five", () => {
     const result = calculateHandScore({
       contract: "entrada",
       ombre: 0 as SeatIndex,
@@ -56,10 +56,10 @@ describe("scoring", () => {
       trickWinners: [0, 1, 2, 1, 0, 2, 1, 0, 0] as SeatIndex[],
     });
 
-    expect(result.result).toBe("puesta");
+    expect(result.result).toBe("sacada");
     expect(result.points).toBe(1);
-    expect(result.award).toEqual([1, 2]);
-    expect(result.deltas).toEqual({ 1: 1, 2: 1 });
+    expect(result.award).toEqual([0]);
+    expect(result.deltas).toEqual({ 0: 1 });
   });
 
   it("scores codille when a defender has more tricks than ombre (below 5)", () => {
@@ -75,7 +75,7 @@ describe("scoring", () => {
     expect(result.award).toEqual([1]);
   });
 
-  it("scores puesta when ombre leads individually but loses majority", () => {
+  it("scores sacada when ombre leads individually even without five tricks", () => {
     const result = calculateHandScore({
       contract: "entrada",
       ombre: 0 as SeatIndex,
@@ -83,12 +83,25 @@ describe("scoring", () => {
       tricks: { 0: 4, 1: 3, 2: 2, 3: 0 } as Record<SeatIndex, number>,
       trickWinners: [0, 1, 2, 1, 0, 2, 1, 0, 0] as SeatIndex[],
     });
+    expect(result.result).toBe("sacada");
+    expect(result.points).toBe(1);
+    expect(result.award).toEqual([0]);
+  });
+
+  it("scores puesta when ombre ties for the highest trick total", () => {
+    const result = calculateHandScore({
+      contract: "entrada",
+      ombre: 0 as SeatIndex,
+      activeSeats: [0, 1, 2] as SeatIndex[],
+      tricks: { 0: 4, 1: 4, 2: 1, 3: 0 } as Record<SeatIndex, number>,
+      trickWinners: [0, 1, 0, 1, 2, 0, 1, 0, 1] as SeatIndex[],
+    });
     expect(result.result).toBe("puesta");
     expect(result.points).toBe(1);
     expect(result.award).toEqual([1, 2]);
   });
 
-  it("scores puesta when ombre ties with defenders", () => {
+  it("scores puesta when all active players tie on tricks", () => {
     const result = calculateHandScore({
       contract: "entrada",
       ombre: 0 as SeatIndex,

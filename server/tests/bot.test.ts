@@ -442,4 +442,30 @@ describe("bot personas", () => {
       ({ pass: 0, entrada: 1, oros: 2, volteo: 3, solo: 4, solo_oros: 5, bola: -1, contrabola: 99 })[value];
     expect(rank(bold)).toBeGreaterThanOrEqual(rank(cautious));
   });
+
+  it("can upgrade an entrada instead of always keeping it", () => {
+    const hand = [
+      card("oros", 1), card("oros", 12), card("oros", 11),
+      card("oros", 10), card("oros", 7), card("oros", 5),
+      card("copas", 12), card("espadas", 12), card("bastos", 12),
+    ];
+    const action = botAct(
+      makeCtx({
+        phase: "contract_upgrade",
+        hand,
+        originalHand: hand,
+        contract: "entrada",
+        auction: {
+          currentBid: "entrada" as Bid,
+          currentBidder: 0 as SeatIndex,
+          passed: [1 as SeatIndex, 2 as SeatIndex],
+          order: [0, 1, 2] as SeatIndex[],
+        },
+        personaId: "jorge",
+      })
+    );
+
+    expect(action?.type).toBe("UPGRADE_CONTRACT");
+    expect(["oros", "volteo", "solo", "solo_oros"]).toContain(action?.payload);
+  });
 });

@@ -117,9 +117,9 @@ function scoreContrabola(
 
 /**
  * Calculate the hand score for standard contracts (entrada, oros, volteo, solo, solo_oros).
- * - Sacada: ombre ≥5 tricks → 1–4 pts (bonus for oros/solo_oros)
- * - Codille: a defender has more tricks than ombre → 2 pts to that defender
- * - Puesta: no defender beats ombre's trick count → 1 pt to each defender
+ * - Sacada: ombre has the unique highest trick total → 1–4 pts (bonus for oros/solo_oros)
+ * - Codille: a defender has the unique highest trick total → 2 pts to that defender
+ * - Puesta: the highest trick total is tied (e.g. 4-4-1 or 3-3-3) → 1 pt to each defender
  */
 function scoreStandard(
   contract: Contract,
@@ -128,7 +128,21 @@ function scoreStandard(
   defenders: SeatIndex[],
   tricks: Record<SeatIndex, number>
 ): HandScoreResult {
-  if (ombreTricks >= 5) {
+  const highest = Math.max(...defenders.map((s) => tricks[s]), ombreTricks);
+  const leaders = [ombre, ...defenders].filter((seat) => tricks[seat] === highest);
+
+  if (leaders.length > 1) {
+    const deltas: Partial<Record<SeatIndex, number>> = {};
+    for (const d of defenders) deltas[d] = 1;
+    return {
+      result: "puesta",
+      points: 1,
+      award: defenders,
+      deltas,
+    };
+  }
+
+  if (leaders[0] === ombre) {
     let points = ombreTricks === 9 ? 4 : ombreTricks >= 7 ? 2 : 1;
     if (contract === "oros") points += 1;
     if (contract === "solo_oros") points += 1;
@@ -140,24 +154,12 @@ function scoreStandard(
     };
   }
 
-  const maxDef = Math.max(...defenders.map((s) => tricks[s]));
-  if (maxDef > ombreTricks) {
-    const winner = defenders.find((s) => tricks[s] === maxDef)!;
-    return {
-      result: "codille",
-      points: 2,
-      award: [winner],
-      deltas: { [winner]: 2 },
-    };
-  }
-
-  const deltas: Partial<Record<SeatIndex, number>> = {};
-  for (const d of defenders) deltas[d] = 1;
+  const winner = leaders[0];
   return {
-    result: "puesta",
-    points: 1,
-    award: defenders,
-    deltas,
+    result: "codille",
+    points: 2,
+    award: [winner],
+    deltas: { [winner]: 2 },
   };
 }
 
