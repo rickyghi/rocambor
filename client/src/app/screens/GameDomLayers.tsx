@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactElement } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createTranslator, positionLabel } from "../../i18n";
 import { DomCardArt, skinUsesRocamborSprites } from "../../lib/dom-card-art";
 import type { SeatIndex } from "../../protocol";
@@ -104,19 +104,44 @@ export function GameTrickDomLayers({
   const snapshot = useGameDomLayerSnapshot(bridge);
   const { t } = createTranslator(settings.locale);
   const game = state.game;
+
+  // Sticky overlay: the bridge overlay can be briefly null during React batched
+  // re-renders (state update clears table before overlay snapshot propagates).
+  // We hold the overlay in local state and only clear it via a timed effect.
+  const [stickyOverlay, setStickyOverlay] = useState(snapshot.trickDisplayOverlay);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (snapshot.trickDisplayOverlay) {
+      setStickyOverlay(snapshot.trickDisplayOverlay);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        setStickyOverlay(null);
+        timerRef.current = null;
+      }, 3200);
+    }
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [snapshot.trickDisplayOverlay]);
+  const overlay = snapshot.trickDisplayOverlay ?? stickyOverlay;
+
   const trickCards = game?.table.length
     ? game.table
-    : snapshot.trickDisplayOverlay?.cards ?? [];
+    : overlay?.cards ?? [];
   const trickOrder = game?.table.length
     ? game.playOrder
-    : snapshot.trickDisplayOverlay?.playOrder ?? [];
+    : overlay?.playOrder ?? [];
   const trickWinner = game?.table.length
     ? null
-    : snapshot.trickDisplayOverlay?.winner ?? null;
+    : overlay?.winner ?? null;
+  const isVolteoActive =
+    game?.contract === "volteo" &&
+    game.phase !== "play" &&
+    game.phase !== "scoring" &&
+    game.phase !== "lobby";
   const volteoRevealCard =
-    (game?.phase === "exchange" && game.contract === "volteo"
-      ? game.exchange.revealedCard
-      : null) ?? snapshot.volteoRevealCard;
+    (isVolteoActive ? game?.exchange?.revealedCard : null) ??
+    (isVolteoActive ? snapshot.volteoRevealCard : null);
 
   return (
     <div id="game-dom-layers" className="game-dom-layers" hidden={!snapshot.spriteMode}>
@@ -124,16 +149,15 @@ export function GameTrickDomLayers({
         <div className="trick-overlay-inner" id="trick-layer">
           {volteoRevealCard ? (
             <div className="volteo-reveal-wrap">
+              <div className="volteo-reveal-meta">
+                <div className="volteo-reveal-title">{t("game.volteoRevealTitle")}</div>
+              </div>
               <div className="volteo-reveal-card">
                 <DomCardArt
                   card={volteoRevealCard}
                   skinId={settings.cardSkin}
                   colorblind={settings.colorblindMode}
                 />
-              </div>
-              <div className="volteo-reveal-meta">
-                <div className="volteo-reveal-title">{t("game.volteoRevealTitle")}</div>
-                <div className="volteo-reveal-hint">{t("game.volteoRevealHint")}</div>
               </div>
             </div>
           ) : null}

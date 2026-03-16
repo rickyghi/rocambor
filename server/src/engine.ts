@@ -98,7 +98,16 @@ export function legalPlays(
     const trumps = hand.filter((c) => isTrump(tr, c));
     if (isMatador(tr, led)) {
       const lowerTrumps = trumps.filter((c) => trumpOrderValue(tr, c) < ledTrumpValue);
-      return lowerTrumps.length ? lowerTrumps : hand.slice();
+      if (!lowerTrumps.length) return hand.slice();
+      // Spadille and basto are always playable (matador privilege)
+      const spadilleAndBasto = hand.filter(
+        (c) => (c.s === "espadas" && c.r === 1) || (c.s === "bastos" && c.r === 1)
+      );
+      const combined = [...lowerTrumps];
+      for (const m of spadilleAndBasto) {
+        if (!combined.find((c) => c.id === m.id)) combined.push(m);
+      }
+      return combined;
     }
     const nonMatadorTrumps = trumps.filter((c) => !isMatador(tr, c));
     if (nonMatadorTrumps.length > 0) {

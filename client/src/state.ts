@@ -1,5 +1,34 @@
 import type { GameState, Card, SeatIndex } from "./protocol";
 
+const SUIT_ORDER: Record<string, number> = { oros: 0, copas: 1, bastos: 2, espadas: 3 };
+
+function plainValue(s: string, r: number): number {
+  const isBlack = s === "espadas" || s === "bastos";
+  const map: Record<number, number> = isBlack
+    ? { 12: 10, 11: 9, 10: 8, 7: 7, 6: 6, 5: 5, 4: 4, 3: 3, 2: 2, 1: 1 }
+    : { 12: 10, 11: 9, 10: 8, 1: 7, 2: 6, 3: 5, 4: 4, 5: 3, 6: 2, 7: 1 };
+  return map[r] || 0;
+}
+
+function sortHand(hand: Card[]): Card[] {
+  const matadors: Card[] = [];
+  const rest: Card[] = [];
+  for (const c of hand) {
+    if ((c.s === "espadas" && c.r === 1) || (c.s === "bastos" && c.r === 1)) {
+      matadors.push(c);
+    } else {
+      rest.push(c);
+    }
+  }
+  matadors.sort((a, b) => (a.s === "espadas" ? -1 : 1));
+  rest.sort((a, b) => {
+    const suitDiff = SUIT_ORDER[a.s] - SUIT_ORDER[b.s];
+    if (suitDiff !== 0) return suitDiff;
+    return plainValue(b.s, b.r) - plainValue(a.s, a.r);
+  });
+  return [...matadors, ...rest];
+}
+
 export type StateListener = (state: ClientState) => void;
 
 export class ClientState {
@@ -22,7 +51,7 @@ export class ClientState {
     this.game = shouldHideTurnDeadline
       ? { ...gameState, turnDeadline: undefined }
       : gameState;
-    this.hand = hand ?? [];
+    this.hand = sortHand(hand ?? []);
     if (this.selectedCards.size > 0) {
       const validIds = new Set(this.hand.map((card) => card.id));
       this.selectedCards.forEach((cardId) => {

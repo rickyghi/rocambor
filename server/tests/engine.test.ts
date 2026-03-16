@@ -338,16 +338,16 @@ describe("legalPlays - matador leads", () => {
     expect(legal.map((c) => c.id).sort()).toEqual(["b1", "o5"]);
   });
 
-  it("manille lead forces only trumps ranked below it", () => {
+  it("manille lead forces lower trumps but spadille/basto always playable", () => {
     const hand = [card("espadas", 1), card("bastos", 1), card("oros", 5), card("copas", 12)];
     const legal = legalPlays("oros", hand, card("oros", 7));
-    expect(legal.map((c) => c.id).sort()).toEqual(["b1", "o5"]);
+    expect(legal.map((c) => c.id).sort()).toEqual(["b1", "e1", "o5"]);
   });
 
-  it("basto lead does not force higher matadors", () => {
+  it("basto lead: lower trumps required, spadille always playable", () => {
     const hand = [card("espadas", 1), card("oros", 7), card("oros", 5), card("copas", 12)];
     const legal = legalPlays("oros", hand, card("bastos", 1));
-    expect(legal.map((c) => c.id)).toEqual(["o5"]);
+    expect(legal.map((c) => c.id).sort()).toEqual(["e1", "o5"]);
   });
 
   it("a player with only higher matadors against a matador lead may discard freely", () => {
@@ -468,5 +468,28 @@ describe("plainSuitValue - direct unit tests", () => {
     expect(plainSuitValue("copas", 1)).toBe(7);
     expect(plainSuitValue("copas", 2)).toBe(6);
     expect(plainSuitValue("copas", 1)).toBeGreaterThan(plainSuitValue("copas", 2));
+  });
+});
+
+describe("legalPlays - matador privilege (spadille/basto always playable)", () => {
+  it("spadille is legal when manille leads and hand has spadille + regular trump", () => {
+    const hand = [card("espadas", 1), card("oros", 5)];
+    const led = card("oros", 7); // manille for red trump
+    const legal = legalPlays("oros", hand, led);
+    expect(legal.some((c) => c.s === "espadas" && c.r === 1)).toBe(true);
+  });
+
+  it("spadille is legal when basto leads and hand has spadille + regular trump", () => {
+    const hand = [card("espadas", 1), card("oros", 5)];
+    const led = card("bastos", 1); // basto
+    const legal = legalPlays("oros", hand, led);
+    expect(legal.some((c) => c.s === "espadas" && c.r === 1)).toBe(true);
+  });
+
+  it("basto is legal when manille leads and hand has basto + regular trump", () => {
+    const hand = [card("bastos", 1), card("oros", 5)];
+    const led = card("oros", 7); // manille for red trump
+    const legal = legalPlays("oros", hand, led);
+    expect(legal.some((c) => c.s === "bastos" && c.r === 1)).toBe(true);
   });
 });

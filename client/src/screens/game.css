@@ -2760,6 +2760,18 @@
     padding: 1px 6px;
   }
 
+  /* Opponent trick dots: 20% bigger on mobile */
+  .hero-trick-dots {
+    gap: 5px;
+    min-height: 16px;
+  }
+
+  .hero-trick-dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+  }
+
   .hero-self-slot .hero-trick-dots {
     margin-left: auto;
     gap: 4px;

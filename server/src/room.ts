@@ -1017,6 +1017,16 @@ export class Room {
       );
 
       if (hasUpgrades) {
+        // Reveal volteo card early so ombre can decide whether to upgrade
+        if (this.state.contract === "volteo") {
+          const top = this.talon[0];
+          this.state.trump = top.s;
+          this.state.exchange = {
+            ...this.state.exchange,
+            revealedCard: top,
+          };
+          this.event("TRUMP_SET", { method: "volteo", suit: this.state.trump, card: top });
+        }
         // Enter contract upgrade phase
         this.state.phase = "contract_upgrade";
         this.state.turn = this.state.ombre;
@@ -1070,8 +1080,11 @@ export class Room {
 
     if (contract === "volteo") {
       const top = this.talon[0];
-      this.state.trump = top.s;
-      this.event("TRUMP_SET", { method: "volteo", suit: this.state.trump, card: top });
+      // Trump may already be set if volteo was revealed during contract_upgrade
+      if (this.state.trump !== top.s) {
+        this.state.trump = top.s;
+        this.event("TRUMP_SET", { method: "volteo", suit: this.state.trump, card: top });
+      }
       this.startExchange();
     } else if (contract === "contrabola") {
       this.startExchange();
@@ -1235,12 +1248,20 @@ export class Room {
     }
     const ex = computeExchangeOrder(this.state.contract, ombre, activeOrderFromOmbre);
 
+    // In volteo, ombre takes the revealed talon card into their hand before exchanging
+    const isVolteo = this.state.contract === "volteo";
+    const volteoCard = isVolteo && this.talon.length ? this.talon[0] : null;
+    if (isVolteo && volteoCard) {
+      this.hands[ombre].push(this.talon.shift()!);
+      this.state.handsCount[ombre] = this.hands[ombre].length;
+    }
+
     this.state.exchange = {
       current: ex[0] ?? null,
       order: ex,
       talonSize: this.talon.length,
       completed: [],
-      revealedCard: this.state.contract === "volteo" ? this.talon[0] ?? null : null,
+      revealedCard: volteoCard,
     };
 
     this.autoAdvanceExchangeTurn(this.state.exchange.current);
@@ -1480,6 +1501,9 @@ export class Room {
     const needed = this.state.contract === "penetro" ? 4 : 3;
 
     if (this.table.length === needed) {
+      // Broadcast state with all cards on table so clients see the full trick
+      this.broadcastState();
+
       const winIdx = trickWinner(this.state.trump, this.table[0].s, this.table);
       const winner = this.playOrder[winIdx];
       this.state.tricks[winner]++;

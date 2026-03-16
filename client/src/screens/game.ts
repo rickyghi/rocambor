@@ -515,7 +515,7 @@ export class GameScreen {
           this.locale() === "es"
             ? `${label} gana la baza${reason ? ` (${reason})` : ""}`
             : `${label} wins the trick${reason ? ` (${reason})` : ""}`;
-        this.pushArenaToast(trickToast, 1900);
+        this.pushArenaToast(trickToast, 3000);
         const trickCards = Array.isArray(payload.cards) ? (payload.cards as Card[]) : [];
         const trickPlayOrder = Array.isArray(payload.playOrder) ? (payload.playOrder as number[]) : [];
         const winIdx = trickPlayOrder.indexOf(winner);
@@ -920,7 +920,7 @@ export class GameScreen {
       cards,
       playOrder,
       winner,
-      expiresAt: Date.now() + 1500,
+      expiresAt: Date.now() + 3000,
     });
 
     if (this.trickOverlayTimer !== null) {
@@ -931,7 +931,7 @@ export class GameScreen {
       this.setTrickDisplayOverlay(null);
       this.renderer.setResolvedTrickOverlay(null);
       this.trickOverlayTimer = null;
-    }, 1500);
+    }, 3000);
   }
 
   private handleResize = (): void => {
@@ -976,15 +976,21 @@ export class GameScreen {
 
   private syncVolteoRevealFromState(): void {
     const game = this.ctx.state.game;
-    const reveal =
-      game?.phase === "exchange" && game.contract === "volteo"
-        ? game.exchange.revealedCard
-        : null;
+    // Show volteo card from trump_set until exchange ends
+    const isVolteoActive =
+      game?.contract === "volteo" &&
+      game.phase !== "play" &&
+      game.phase !== "scoring" &&
+      game.phase !== "lobby";
+    const reveal = isVolteoActive ? game?.exchange?.revealedCard : null;
 
     if (reveal) {
       this.domLayerBridge.setVolteoRevealCard(reveal);
       return;
     }
+
+    // During contract_upgrade/trump_choice, keep the snapshot card alive
+    if (isVolteoActive) return;
 
     if (this.volteoRevealTimer === null) {
       this.domLayerBridge.setVolteoRevealCard(null);
