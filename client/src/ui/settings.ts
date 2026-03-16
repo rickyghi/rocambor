@@ -17,7 +17,7 @@ const STORAGE_KEY = "rocambor_settings";
 const DEFAULT_CARD_SKIN = "clasica";
 
 const DEFAULTS: Settings = {
-  locale: "es",
+  locale: "en",
   soundEnabled: true,
   espadaObligatoria: true,
   soundVolume: 0.7,

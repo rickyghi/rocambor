@@ -1103,25 +1103,18 @@
 }
 
 .trick-card-wrap.winner {
-  box-shadow: none;
-}
-
-.trick-card-wrap.winner .game-dom-card {
-  filter:
-    drop-shadow(0 0 10px rgba(214, 166, 74, 0.42))
-    drop-shadow(0 10px 20px rgba(0, 0, 0, 0.28));
+  box-shadow: 0 0 0 2px rgba(200, 166, 81, 0.85), 0 0 24px rgba(200, 166, 81, 0.35), 0 12px 24px rgba(0, 0, 0, 0.3);
 }
 
 .volteo-reveal-wrap {
   position: absolute;
   left: 50%;
-  top: 39%;
-  transform: translate(-50%, -50%);
+  top: 50%;
+  transform: translate(-50%, -56%);
   display: grid;
   justify-items: center;
   gap: 10px;
-  z-index: 14;
-  pointer-events: none;
+  z-index: 1;
 }
 
 .volteo-reveal-card {
@@ -2919,6 +2912,7 @@
 
   .trick-card-wrap.winner {
     width: 96px;
+    z-index: 2;
     box-shadow: none;
   }
 
@@ -3403,7 +3397,7 @@
   }
 
   .volteo-reveal-wrap {
-    top: 40%;
+    top: 44%;
     transform: translate(-50%, -50%);
     gap: 8px;
   }
@@ -3761,7 +3755,7 @@
   }
 
   .volteo-reveal-wrap {
-    top: 38%;
+    top: 42%;
   }
 
   .volteo-reveal-card {
