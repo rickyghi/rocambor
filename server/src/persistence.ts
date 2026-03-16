@@ -66,7 +66,7 @@ export async function withRetry<T>(
 const inMemoryLeaderboard = new Map<string, MemoryStats>();
 
 const DEFAULT_ACCOUNT_SETTINGS: PersistedPlayerSettings = {
-  locale: "en",
+  locale: "es",
   soundEnabled: true,
   espadaObligatoria: true,
   soundVolume: 0.7,
@@ -460,11 +460,17 @@ export async function saveMatchResult(data: {
 
   if (!db) return;
   try {
-    const [hasLegacyMatchPlayers, hasMatchesTable, hasMatchParticipantsTable] =
+    const [
+      hasLegacyMatchPlayers,
+      hasMatchesTable,
+      hasMatchParticipantsTable,
+      hasMatchActivityTable,
+    ] =
       await Promise.all([
         tableExists("match_players"),
         tableExists("matches"),
         tableExists("match_participants"),
+        tableExists("match_activity"),
       ]);
 
     if (!hasLegacyMatchPlayers && (!hasMatchesTable || !hasMatchParticipantsTable)) {
@@ -553,6 +559,14 @@ export async function saveMatchResult(data: {
 
       if (matchId && matchNo !== null) {
         const winnerPlayerId = data.playerIds[data.winner] || null;
+        const winnerHandle =
+          data.playerHandles[data.winner] || `Seat ${data.winner + 1}`;
+        const ombrePlayerId =
+          data.ombre !== null ? data.playerIds[data.ombre] || null : null;
+        const ombreHandle =
+          data.ombre !== null
+            ? data.playerHandles[data.ombre] || `Seat ${data.ombre + 1}`
+            : null;
         await db.query(
           `INSERT INTO matches (
              id,
@@ -663,6 +677,59 @@ export async function saveMatchResult(data: {
               role,
               isWinner ? "win" : "loss",
               stakeDelta,
+            ]
+          );
+        }
+
+        if (hasMatchActivityTable) {
+          await db.query(
+            `INSERT INTO match_activity (
+               match_id,
+               room_id,
+               mode,
+               stake_mode,
+               ante,
+               pot,
+               winner_player_id,
+               winner_handle,
+               winner_seat,
+               ombre_player_id,
+               ombre_handle,
+               contract,
+               trump,
+               ended_at
+             ) VALUES (
+               $1::uuid,
+               $2,
+               $3,
+               $4,
+               $5,
+               $6,
+               $7::uuid,
+               $8,
+               $9,
+               $10::uuid,
+               $11,
+               $12,
+               $13,
+               $14::timestamptz
+             )
+             ON CONFLICT (match_id) DO NOTHING`,
+            [
+              matchId,
+              data.roomId,
+              data.mode,
+              data.stakeMode,
+              data.ante,
+              data.pot,
+              winnerPlayerId,
+              winnerHandle,
+              data.winner,
+              ombrePlayerId,
+              ombreHandle,
+              data.contract,
+              data.trump,
+              endedAt,
             ]
           );
         }
@@ -1103,6 +1170,99 @@ export async function getMatchHistoryForAuthUser(
   } catch (e) {
     console.error("[persistence] getMatchHistoryForAuthUser failed:", e);
     return null;
+  }
+}
+
+export async function getRecentMatchActivity(
+  limit = 6
+): Promise<MatchActivityResponse> {
+  const safeLimit = Number.isFinite(limit)
+    ? Math.max(1, Math.min(20, Math.floor(limit)))
+    : 6;
+
+  if (!db) {
+    return {
+      activity: [],
+      count: 0,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  try {
+    const hasMatchActivityTable = await tableExists("match_activity");
+    if (!hasMatchActivityTable) {
+      return {
+        activity: [],
+        count: 0,
+        generatedAt: new Date().toISOString(),
+      };
+    }
+
+    const result = await db.query(
+      `SELECT
+         id::text AS id,
+         match_id::text AS match_id,
+         mode,
+         stake_mode,
+         ante,
+         pot,
+         winner_handle,
+         winner_seat,
+         ombre_handle,
+         contract,
+         trump,
+         ended_at
+       FROM match_activity
+       ORDER BY ended_at DESC NULLS LAST, id DESC
+       LIMIT $1`,
+      [safeLimit]
+    );
+
+    const activity: MatchActivityEntry[] = result.rows.map((row) => ({
+      id: String(row.id),
+      matchId: String(row.match_id),
+      mode: row.mode === "quadrille" ? "quadrille" : "tresillo",
+      stakeMode: row.stake_mode === "tokens" ? "tokens" : "free",
+      ante: Number(row.ante) || 0,
+      pot: Number(row.pot) || 0,
+      winnerName:
+        typeof row.winner_handle === "string" && row.winner_handle.trim()
+          ? row.winner_handle
+          : "Player",
+      winnerSeat:
+        row.winner_seat === null || row.winner_seat === undefined
+          ? null
+          : Number(row.winner_seat),
+      ombreName:
+        typeof row.ombre_handle === "string" && row.ombre_handle.trim()
+          ? row.ombre_handle
+          : null,
+      contract:
+        typeof row.contract === "string" && row.contract.trim()
+          ? (row.contract as Contract)
+          : null,
+      trump:
+        row.trump === "oros" ||
+        row.trump === "copas" ||
+        row.trump === "espadas" ||
+        row.trump === "bastos"
+          ? (row.trump as Suit)
+          : null,
+      endedAt: row.ended_at ? String(row.ended_at) : new Date().toISOString(),
+    }));
+
+    return {
+      activity,
+      count: activity.length,
+      generatedAt: new Date().toISOString(),
+    };
+  } catch (e) {
+    console.error("[persistence] getRecentMatchActivity failed:", e);
+    return {
+      activity: [],
+      count: 0,
+      generatedAt: new Date().toISOString(),
+    };
   }
 }
 
