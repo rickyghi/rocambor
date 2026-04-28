@@ -7,7 +7,7 @@ import { GameFeedbackOverlays } from "./GameFeedbackOverlays";
 import { GameDomLayerBridge } from "./game-dom-layer-bridge";
 import { GameFeedbackBridge } from "./game-feedback-bridge";
 import { detectGameMobilePortrait } from "./game-viewport";
-import { GameHandDock, GameTrickDomLayers } from "./GameDomLayers";
+import { GameHandDock, GameTrickDomLayers, GameVolteoReveal } from "./GameDomLayers";
 import {
   GameHeroPlates,
   GameOpponentsStrip,
@@ -93,6 +93,7 @@ export function GameScreen({ ctx }: { ctx: AppContext }): ReactElement | null {
           </div>
           <GameHeroPlates ctx={ctx} />
           <GameTrickDomLayers ctx={ctx} bridge={domLayerBridgeRef.current} />
+          <GameVolteoReveal ctx={ctx} bridge={domLayerBridgeRef.current} />
           <GameControlsBar ctx={ctx} />
           <div className="game-stage-bottom">
             <GameSelfHeroPlate ctx={ctx} />

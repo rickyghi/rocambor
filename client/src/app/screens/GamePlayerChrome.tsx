@@ -15,6 +15,7 @@ import type { AppContext } from "../../router";
 import type { ClientState } from "../../state";
 import { useClientState, useProfile, useSettings } from "../hooks";
 import type { GameDomLayerBridge } from "./game-dom-layer-bridge";
+import { seatAccentVars } from "./player-accent";
 import { useGameDomLayerSnapshot } from "./useGameDomLayerSnapshot";
 
 function activeSeatsForRole(state: ClientState): SeatIndex[] {
@@ -34,6 +35,13 @@ function nextActiveSeat(state: ClientState, seat: SeatIndex): SeatIndex {
 }
 
 type PlatePosition = "self" | "left" | "across" | "right";
+
+function opponentPositionsForState(state: ClientState): PlatePosition[] {
+  const game = state.game;
+  if (!game || state.mySeat === null) return ["left", "right"];
+  const activeSeats = activeSeatsForRole(state).filter((seat) => seat !== state.mySeat);
+  return activeSeats.length <= 2 ? ["left", "right"] : ["left", "across", "right"];
+}
 
 function tablePositionLabel(position: PlatePosition, locale: "en" | "es"): string {
   return positionLabel(position, locale);
@@ -164,6 +172,7 @@ function HeroPlate({
       <section
         className={`hero-plate hero-self${active}${resting}${disconnected}`}
         aria-label={ariaText}
+        style={seatAccentVars(seat)}
       >
         <div className="hero-header">
           <span className="hero-avatar-wrap">
@@ -197,6 +206,7 @@ function HeroPlate({
     <section
       className={`hero-plate hero-${position}${sideClass}${active}${resting}${disconnected}`}
       aria-label={ariaText}
+      style={seatAccentVars(seat)}
     >
       <div className="hero-header">
         <span className="hero-avatar-wrap">
@@ -239,6 +249,7 @@ export function GameOpponentsStrip({
   const { t } = createTranslator(locale);
 
   const game = state.game;
+  const opponentPositions = game && state.mySeat !== null ? opponentPositionsForState(state) : [];
 
   return (
     <div
@@ -246,9 +257,14 @@ export function GameOpponentsStrip({
       id="game-opponents-strip"
       role="list"
       aria-label={t("game.opponents")}
+      style={
+        snapshot.isMobilePortrait && opponentPositions.length > 0
+          ? { gridTemplateColumns: `repeat(${opponentPositions.length}, minmax(0, 1fr))` }
+          : undefined
+      }
     >
       {snapshot.isMobilePortrait && game && state.mySeat !== null
-        ? (["left", "across", "right"] as const).map((position) => {
+        ? opponentPositions.map((position) => {
             const seat = state.seatAtPosition(position);
             if (seat === null) return null;
             const player = game.players[seat];
@@ -287,6 +303,7 @@ export function GameOpponentsStrip({
                 className={`mobile-opponent${active}${disconnected}`}
                 role="listitem"
                 aria-label={aria}
+                style={seatAccentVars(seat)}
               >
                 <div className="mob-opp-top">
                   <img
@@ -339,7 +356,7 @@ export function GameHeroPlates({ ctx }: { ctx: AppContext }): ReactElement {
   return (
     <div className="hero-plates-layer" id="hero-plates-layer" aria-hidden="true">
       {state.game && state.mySeat !== null
-        ? (["left", "across", "right"] as const).map((position) => (
+        ? opponentPositionsForState(state).map((position) => (
             <HeroPlate
               key={position}
               ctx={ctx}

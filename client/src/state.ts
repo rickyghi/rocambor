@@ -39,6 +39,14 @@ export class ClientState {
   roomCode: string | null = null;
   private listeners = new Set<StateListener>();
 
+  private activeSeats(): SeatIndex[] {
+    const game = this.game;
+    if (!game) return [0, 1, 2];
+    if (game.contract === "penetro") return [0, 1, 2, 3];
+    if (game.mode === "tresillo") return [0, 1, 2];
+    return ([0, 1, 2, 3] as SeatIndex[]).filter((seat) => seat !== game.resting);
+  }
+
   update(gameState: GameState, hand: Card[] | null): void {
     const turnPlayer =
       gameState.turn !== null ? gameState.players[gameState.turn] : undefined;
@@ -103,20 +111,43 @@ export class ClientState {
     seat: SeatIndex
   ): "self" | "left" | "across" | "right" {
     if (this.mySeat === null) return "across";
-    const diff = ((seat - this.mySeat + 4) % 4) as 0 | 1 | 2 | 3;
+    const active = this.activeSeats();
+    const myIndex = active.indexOf(this.mySeat);
+    const seatIndex = active.indexOf(seat);
+    if (myIndex === -1 || seatIndex === -1) {
+      const diff = ((seat - this.mySeat + 4) % 4) as 0 | 1 | 2 | 3;
+      return (["self", "left", "across", "right"] as const)[diff];
+    }
+    const diff = (seatIndex - myIndex + active.length) % active.length;
+    if (active.length === 3) {
+      return (["self", "left", "right"] as const)[diff];
+    }
     return (["self", "left", "across", "right"] as const)[diff];
   }
 
   // Get which absolute seat is at a given relative position
   seatAtPosition(pos: "self" | "left" | "across" | "right"): SeatIndex | null {
     if (this.mySeat === null) return null;
+    const active = this.activeSeats();
+    const myIndex = active.indexOf(this.mySeat);
+    if (myIndex === -1) return null;
+    if (active.length === 3) {
+      const offsets: Record<string, number | null> = {
+        self: 0,
+        left: 1,
+        across: null,
+        right: 2,
+      };
+      const offset = offsets[pos];
+      return offset === null ? null : active[(myIndex + offset) % active.length];
+    }
     const offsets: Record<string, number> = {
       self: 0,
       left: 1,
       across: 2,
       right: 3,
     };
-    return ((this.mySeat + offsets[pos]) % 4) as SeatIndex;
+    return active[(myIndex + offsets[pos]) % active.length];
   }
 
   toggleCardSelection(cardId: string): void {

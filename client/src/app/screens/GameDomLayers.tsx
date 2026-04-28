@@ -2,11 +2,12 @@ import type { CSSProperties, ReactElement } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createTranslator, positionLabel } from "../../i18n";
 import { DomCardArt, skinUsesRocamborSprites } from "../../lib/dom-card-art";
-import type { SeatIndex } from "../../protocol";
+import type { Card, SeatIndex } from "../../protocol";
 import type { AppContext } from "../../router";
 import type { ClientState } from "../../state";
 import { useClientState, useSettings } from "../hooks";
 import type { GameDomLayerBridge, GameDomLayerSnapshot } from "./game-dom-layer-bridge";
+import { seatAccentVars } from "./player-accent";
 import { useGameDomLayerSnapshot } from "./useGameDomLayerSnapshot";
 
 type VarStyle = CSSProperties & Record<string, string>;
@@ -119,10 +120,14 @@ export function GameTrickDomLayers({
         timerRef.current = null;
       }, 3200);
     }
+    // Don't cancel the timer when overlay goes null — that's exactly when
+    // we need the sticky state to hold. Only cancel on unmount.
+  }, [snapshot.trickDisplayOverlay]);
+  useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [snapshot.trickDisplayOverlay]);
+  }, []);
   const overlay = snapshot.trickDisplayOverlay ?? stickyOverlay;
 
   const trickCards = game?.table.length
@@ -134,33 +139,10 @@ export function GameTrickDomLayers({
   const trickWinner = game?.table.length
     ? null
     : overlay?.winner ?? null;
-  const isVolteoActive =
-    game?.contract === "volteo" &&
-    game.phase !== "play" &&
-    game.phase !== "scoring" &&
-    game.phase !== "lobby";
-  const volteoRevealCard =
-    (isVolteoActive ? game?.exchange?.revealedCard : null) ??
-    (isVolteoActive ? snapshot.volteoRevealCard : null);
-
   return (
     <div id="game-dom-layers" className="game-dom-layers" hidden={!snapshot.spriteMode}>
       <div className="trick-overlay" aria-hidden="true">
         <div className="trick-overlay-inner" id="trick-layer">
-          {volteoRevealCard ? (
-            <div className="volteo-reveal-wrap">
-              <div className="volteo-reveal-meta">
-                <div className="volteo-reveal-title">{t("game.volteoRevealTitle")}</div>
-              </div>
-              <div className="volteo-reveal-card">
-                <DomCardArt
-                  card={volteoRevealCard}
-                  skinId={settings.cardSkin}
-                  colorblind={settings.colorblindMode}
-                />
-              </div>
-            </div>
-          ) : null}
           {trickCards.map((card, index) => {
             const seat = trickOrder[index];
             const rel = seat === undefined ? "across" : state.relativePosition(seat);
@@ -169,7 +151,10 @@ export function GameTrickDomLayers({
               <div
                 key={`${card.id}-${index}`}
                 className={`trick-card-wrap${isWinner ? " winner" : ""}`}
-                style={trickSlotStyle(rel, snapshot.isMobilePortrait)}
+                style={{
+                  ...trickSlotStyle(rel, snapshot.isMobilePortrait),
+                  ...(seat !== undefined ? seatAccentVars(seat as SeatIndex) : {}),
+                }}
               >
                 {isWinner ? <div className="trick-winner-badge">{t("game.winner")}</div> : null}
                 <DomCardArt
@@ -184,6 +169,53 @@ export function GameTrickDomLayers({
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function resolveVolteoRevealCard(
+  state: ClientState,
+  snapshot: GameDomLayerSnapshot
+): Card | null {
+  const game = state.game;
+  const canShowVolteoReveal =
+    game?.phase !== "play" &&
+    game?.phase !== "scoring" &&
+    game?.phase !== "lobby";
+  return (
+    (canShowVolteoReveal ? game?.exchange?.revealedCard : null) ??
+    (canShowVolteoReveal ? snapshot.volteoRevealCard : null) ??
+    null
+  );
+}
+
+export function GameVolteoReveal({
+  ctx,
+  bridge,
+}: {
+  ctx: AppContext;
+  bridge: GameDomLayerBridge;
+}): ReactElement | null {
+  const state = useClientState(ctx.state);
+  const settings = useSettings(ctx.settings);
+  const snapshot = useGameDomLayerSnapshot(bridge);
+  const { t } = createTranslator(settings.locale);
+  const volteoRevealCard = resolveVolteoRevealCard(state, snapshot);
+
+  if (!volteoRevealCard) return null;
+
+  return (
+    <div className="volteo-reveal-wrap" aria-hidden="true">
+      <div className="volteo-reveal-meta">
+        <div className="volteo-reveal-title">{t("game.volteoRevealTitle")}</div>
+      </div>
+      <div className="volteo-reveal-card">
+        <DomCardArt
+          card={volteoRevealCard}
+          skinId={settings.cardSkin}
+          colorblind={settings.colorblindMode}
+        />
       </div>
     </div>
   );
