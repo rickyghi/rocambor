@@ -1108,13 +1108,35 @@
   transform: translate(-50%, -50%) translate(var(--slot-x, 0px), var(--slot-y, 0px)) rotate(var(--slot-rot, 0deg));
   transition: transform 180ms var(--easeLuxe), box-shadow 180ms var(--easeLuxe);
   overflow: visible;
+  isolation: isolate;
+  --played-card-ring: var(--player-accent, rgba(214, 166, 74, 0.92));
+  --played-card-ring-soft: var(--player-accent-glow, rgba(214, 166, 74, 0.36));
+}
+
+.trick-card-wrap::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  z-index: -1;
+  border-radius: 15px;
+  border: 2px solid var(--played-card-ring);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 46%);
+  box-shadow:
+    0 0 0 1px rgba(248, 246, 240, 0.1),
+    0 0 10px var(--played-card-ring-soft),
+    0 0 22px var(--played-card-ring-soft),
+    0 14px 28px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  opacity: 0.96;
 }
 
 .trick-card-wrap .game-dom-card {
+  position: relative;
+  z-index: 1;
   transform: scale(var(--trick-card-scale, 1.458333));
   transform-origin: top left;
   filter:
-    drop-shadow(0 0 10px var(--player-accent-glow, rgba(214, 166, 74, 0.18)))
+    drop-shadow(0 0 5px var(--player-accent-glow, rgba(214, 166, 74, 0.18)))
     drop-shadow(0 18px 30px rgba(0, 0, 0, 0.24));
 }
 
@@ -1124,8 +1146,18 @@
 
 .trick-card-wrap.winner .game-dom-card {
   filter:
-    drop-shadow(0 0 14px var(--player-accent-glow, rgba(214, 166, 74, 0.42)))
+    drop-shadow(0 0 7px var(--player-accent-glow, rgba(214, 166, 74, 0.42)))
     drop-shadow(0 10px 20px rgba(0, 0, 0, 0.28));
+}
+
+.trick-card-wrap.winner::before {
+  inset: -7px;
+  border-width: 3px;
+  box-shadow:
+    0 0 0 1px rgba(248, 246, 240, 0.14),
+    0 0 14px var(--played-card-ring-soft),
+    0 0 30px var(--played-card-ring-soft),
+    0 16px 30px rgba(0, 0, 0, 0.3);
 }
 
 .volteo-reveal-wrap {
@@ -2927,11 +2959,22 @@
     box-shadow: none;
   }
 
+  .trick-card-wrap::before {
+    inset: -4px;
+    border-width: 2px;
+    border-radius: 12px;
+    box-shadow:
+      0 0 0 1px rgba(248, 246, 240, 0.08),
+      0 0 9px var(--played-card-ring-soft),
+      0 0 18px var(--played-card-ring-soft),
+      0 10px 20px rgba(0, 0, 0, 0.26);
+  }
+
   .trick-card-wrap .game-dom-card {
     transform: scale(0.875); /* 84/96 */
     transform-origin: top left;
     filter:
-      drop-shadow(0 0 12px var(--player-accent-glow, rgba(214, 166, 74, 0.18)))
+      drop-shadow(0 0 5px var(--player-accent-glow, rgba(214, 166, 74, 0.18)))
       drop-shadow(0 12px 22px rgba(0, 0, 0, 0.24));
   }
 
@@ -2943,8 +2986,13 @@
   .trick-card-wrap.winner .game-dom-card {
     transform: scale(1);
     filter:
-      drop-shadow(0 0 16px var(--player-accent-glow, rgba(214, 166, 74, 0.36)))
+      drop-shadow(0 0 7px var(--player-accent-glow, rgba(214, 166, 74, 0.36)))
       drop-shadow(0 12px 22px rgba(0, 0, 0, 0.26));
+  }
+
+  .trick-card-wrap.winner::before {
+    inset: -6px;
+    border-width: 3px;
   }
 
   .trick-card-label {
