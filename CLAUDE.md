@@ -23,7 +23,7 @@ cd server && npm start
 ```bash
 cd server && npx vitest run
 ```
-All 152 tests should pass. Simulation tests use `vi.useFakeTimers()` from Vitest to control the Room's internal timer-driven bot flow.
+All 199 tests should pass. Simulation tests use `vi.useFakeTimers()` from Vitest to control the Room's internal timer-driven bot flow.
 
 ## Key Architecture Decisions
 
@@ -39,7 +39,22 @@ It is called from `server.ts` (not just internally in `room.ts`). Do not make it
 In bola and contrabola contracts, `state.trump` is `null`. The `legalPlays()` function has an early guard: if `tr` is null, use simple follow-suit logic without trump checks. Never use `tr!` assertions without checking for null first.
 
 ### Matador renounce rule
-When trump is led, players with non-matador trumps must play a trump. But players holding **only** matadors (no regular trumps) may play **any** card — this is the matador privilege. Implemented in `legalPlays()` in engine.ts. The three matadors are: espadilla (espadas-1), manilla (trump-suit rank 7 for red, rank 2 for black), basto (bastos-1).
+When trump is led, players with non-matador trumps must play a trump. But players holding **only** matadors (no regular trumps) may play **any** card — this is the matador privilege. Additionally, **spadille (espadas-1) and basto (bastos-1) are always playable** when trump is led, even if lower trumps exist (matador privilege extends to all matador leads). Implemented in `legalPlays()` in engine.ts. The three matadors are: espadilla (espadas-1), manilla (trump-suit rank 7 for red, rank 2 for black), basto (bastos-1).
+
+### Volteo contract flow
+In volteo, the top talon card is flipped to determine trump. The flow is:
+1. **Auction** → winner bids volteo
+2. **Contract upgrade** (if applicable) → volteo card revealed early so ombre can decide to upgrade. Card is visible on table via `state.exchange.revealedCard`.
+3. **Exchange** → Ombre takes the volteo card into their hand, must discard at least 1. The revealed card persists on screen until exchange ends.
+4. **Play** → normal trick play
+
+Server sets `state.trump` and fires `TRUMP_SET` during contract_upgrade (or exchange if no upgrade). The client shows the volteo card during all pre-play phases via `isVolteoActive` checks in both `game.ts` and `GameDomLayers.tsx`.
+
+### Trick display and overlay timing
+When the 3rd card is played, the server broadcasts a STATE with all 3 cards on table (via `broadcastState()` before trick resolution), then sends `TRICK_TAKEN` event, then broadcasts STATE with empty table. The client uses a **sticky overlay** in `GameDomLayers.tsx` to hold the 3 trick cards visible for 3 seconds, working around React batched re-render timing issues where the overlay snapshot can be briefly null between state updates.
+
+### Hand card sorting
+Client-side `sortHand()` in `state.ts` orders cards: spadille (espadas-1) first, then basto (bastos-1), then remaining cards by suit (oros → copas → bastos → espadas) with descending rank within each suit. Red suits use reversed rank ordering (ace strongest).
 
 ## Spanish Card Ranking (Critical for Tests)
 
@@ -144,7 +159,7 @@ Use these file keys with the Figma MCP `get_screenshot` tool to compare against 
 - **Full-viewport layout**: `.game-stage` fills entire viewport (`position: absolute; inset: 0`). No bounded box — the viewport IS the table.
 - Hybrid Canvas + DOM: in sprite mode, canvas is transparent (animations only); `FeltBackground.ts` provides CSS felt + `.felt-ellipse` decorative outline
 - `GameScreen.spriteMode` flag controls which layer is active
-- `game.css` is ~2560 lines with responsive breakpoints at 1060px, 920px (portrait), 430px (portrait), 360px (portrait)
+- `game.css` is ~2580 lines with responsive breakpoints at 1060px, 920px (portrait), 430px (portrait), 360px (portrait)
 - Mobile uses `isMobilePortrait` flag set by `handleResize()` (width ≤ 900px + portrait orientation)
 - Controls rendered by `GameControls` class (`controls.ts`) into `#game-controls` slot inside `.game-controls-shell`
 - `.game-controls-shell` is a **direct child of `.game-stage`** (not inside `.game-stage-bottom`)
@@ -256,13 +271,13 @@ railway up -d --service rocambor-server
 
 ### CI/CD
 GitHub Actions (`.github/workflows/ci.yml`) runs on push to `main`:
-- Server job: install → type-check → test (152 tests) → build
+- Server job: install → type-check → test (199 tests) → build
 - Client job: install → type-check → build
 
 ## File Structure
 ```
 server/src/
-  room.ts      — Core game state machine (~1400 lines), handles all game phases
+  room.ts      — Core game state machine (~1500 lines), handles all game phases
   server.ts    — HTTP/WebSocket entry point, room creation/joining
   engine.ts    — Card logic: legal plays, trick winner, deck generation
   bot.ts       — Bot AI: bidding, trump choice, exchange, play decisions
@@ -278,7 +293,7 @@ server/src/
 client/src/
   main.ts       — App bootstrap
   connection.ts — WebSocket client
-  state.ts      — Client-side state management
+  state.ts      — Client-side state management (includes sortHand for card ordering)
   router.ts     — Screen navigation
   screens/      — UI screens (home, lobby, game, post-hand, match-summary, leaderboard)
     game.ts       — Game screen (~1770 lines): hero plates, hand dock, trick overlay, HUD, phase logic

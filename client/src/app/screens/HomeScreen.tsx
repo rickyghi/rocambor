@@ -15,6 +15,7 @@ import type {
 } from "../../protocol";
 import {
   claimCurrentWalletRescue,
+  fetchRecentMatchActivity,
   fetchCurrentWallet,
 } from "../../lib/account-api";
 import {
@@ -33,6 +34,17 @@ const ICON_SETTINGS = `<svg width="20" height="20" viewBox="0 0 24 24" fill="non
 const ICON_PLUS = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
 const ICON_PLAY = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>`;
 const ICON_KEY = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+
+function formatActivityTime(value: string, locale: Locale): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(locale === "es" ? "es-ES" : "en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
 
 function Icon({ markup }: { markup: string }): ReactElement {
   return <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: markup }} />;
@@ -275,6 +287,28 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
     };
   }, [auth.user?.id, ctx.auth, settings.locale]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setActivityLoading(true);
+
+    void fetchRecentMatchActivity(4)
+      .then((payload) => {
+        if (cancelled) return;
+        setActivity(payload.activity);
+        setActivityLoading(false);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("[home] Failed to load recent activity:", error);
+        setActivity([]);
+        setActivityLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const claimRescue = async (): Promise<void> => {
     try {
       const nextWallet = await claimCurrentWalletRescue(ctx.auth);
@@ -291,6 +325,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
   };
 
   const stakedActionsDisabled = stakeMode === "tokens" && !auth.user;
+  const activityEntries = activity.slice(0, 4);
 
   return (
     <div className="screen home-screen">
@@ -559,6 +594,54 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 </div>
               </div>
             ) : null}
+
+            <div className="home-activity-card" aria-live="polite">
+              <div className="home-activity-header">
+                <span className="home-auth-label">{t("home.activityTitle")}</span>
+                {activityLoading ? (
+                  <span className="home-activity-status">{t("home.activityLoading")}</span>
+                ) : null}
+              </div>
+              {activityEntries.length > 0 ? (
+                <div className="home-activity-list">
+                  {activityEntries.map((entry) => {
+                    const contract = contractDisplayLabel(
+                      entry.contract,
+                      entry.trump,
+                      settings.locale
+                    );
+                    return (
+                      <article className="home-activity-item" key={entry.id}>
+                        <div className="home-activity-top">
+                          <span className="home-activity-winner">{entry.winnerName}</span>
+                          <span className="home-activity-time">
+                            {formatActivityTime(entry.endedAt, settings.locale)}
+                          </span>
+                        </div>
+                        <div className="home-activity-meta">
+                          <span>{contract || modeLabel(entry.mode, settings.locale)}</span>
+                          {entry.ombreName ? <span>{entry.ombreName}</span> : null}
+                        </div>
+                        <div className="home-activity-foot">
+                          <span>{modeLabel(entry.mode, settings.locale)}</span>
+                          <span>
+                            {entry.stakeMode === "tokens"
+                              ? t("home.activityPot", {
+                                  amount: entry.pot.toLocaleString(),
+                                })
+                              : t("home.playStyleFree")}
+                          </span>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="home-activity-empty">
+                  {activityLoading ? t("home.activityLoading") : t("home.activityEmpty")}
+                </p>
+              )}
+            </div>
 
             <div className="home-locale-row">
               <span className="home-locale-label">{t("common.language")}</span>

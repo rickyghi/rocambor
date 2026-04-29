@@ -1184,6 +1184,10 @@ export class Room {
     const ombre = this.state.ombre!;
 
     if (contract === "volteo") {
+      if (!this.talon.length) {
+        console.error("[room] volteo resolveContract: talon is empty");
+        return;
+      }
       const top = this.talon[0];
       // Trump may already be set if volteo was revealed during contract_upgrade
       if (this.state.trump !== top.s) {
@@ -1634,7 +1638,6 @@ export class Room {
       this.state.playOrder = [];
       this.state.turn = winner;
       this.patch(this.state);
-      this.armTimer();
 
       const everyone =
         this.state.contract === "penetro"
@@ -1645,6 +1648,7 @@ export class Room {
       if (empty) {
         this.finishHand();
       } else {
+        this.armTimer();
         this.botMaybeAct();
       }
     } else {

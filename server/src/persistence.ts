@@ -1106,6 +1106,86 @@ export async function getMatchHistoryForAuthUser(
   }
 }
 
+export async function getRecentMatchActivity(
+  limit = 6
+): Promise<MatchActivityResponse> {
+  const emptyResponse = {
+    activity: [],
+    count: 0,
+    generatedAt: new Date().toISOString(),
+  };
+
+  if (!db) return emptyResponse;
+
+  try {
+    const hasMatchActivityTable = await tableExists("match_activity");
+    if (!hasMatchActivityTable) return emptyResponse;
+
+    const safeLimit = Number.isFinite(limit)
+      ? Math.max(1, Math.min(24, Math.floor(limit)))
+      : 6;
+
+    const result = await db.query(
+      `SELECT
+         id::text,
+         match_id::text,
+         mode,
+         stake_mode,
+         ante,
+         pot,
+         winner_handle,
+         winner_seat,
+         ombre_handle,
+         contract,
+         trump,
+         ended_at
+       FROM match_activity
+       ORDER BY ended_at DESC, id DESC
+       LIMIT $1`,
+      [safeLimit]
+    );
+
+    const activity: MatchActivityEntry[] = result.rows.map((row) => ({
+      id: String(row.id),
+      matchId: String(row.match_id),
+      mode: row.mode === "quadrille" ? "quadrille" : "tresillo",
+      stakeMode: row.stake_mode === "tokens" ? "tokens" : "free",
+      ante: Number(row.ante) || 0,
+      pot: Number(row.pot) || 0,
+      winnerName:
+        typeof row.winner_handle === "string" && row.winner_handle.trim()
+          ? row.winner_handle.trim()
+          : "Unknown",
+      winnerSeat:
+        row.winner_seat === null || row.winner_seat === undefined
+          ? null
+          : Number(row.winner_seat),
+      ombreName:
+        typeof row.ombre_handle === "string" && row.ombre_handle.trim()
+          ? row.ombre_handle.trim()
+          : null,
+      contract: typeof row.contract === "string" ? (row.contract as Contract) : null,
+      trump:
+        row.trump === "oros" ||
+        row.trump === "copas" ||
+        row.trump === "espadas" ||
+        row.trump === "bastos"
+          ? row.trump
+          : null,
+      endedAt: row.ended_at ? String(row.ended_at) : new Date().toISOString(),
+    }));
+
+    return {
+      activity,
+      count: activity.length,
+      generatedAt: new Date().toISOString(),
+    };
+  } catch (e) {
+    console.error("[persistence] getRecentMatchActivity failed:", e);
+    return emptyResponse;
+  }
+}
+
 export async function fundFriendlyStakeMatch(
   playerIds: string[],
   matchRef: string,

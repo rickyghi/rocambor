@@ -15,6 +15,7 @@ import {
   getLeaderboard,
   getMatchHistoryForAuthUser,
   getOrCreateAuthenticatedProfile,
+  getRecentMatchActivity,
   getPlayerStats,
   getWalletForAuthUser,
   hasEnoughFriendlyTokens,
@@ -222,6 +223,21 @@ function handleApi(
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(result.wallet));
     })();
+    return;
+  }
+
+  if (url.pathname === "/api/activity" && req.method === "GET") {
+    const limitRaw = Number(url.searchParams.get("limit") || "6");
+    getRecentMatchActivity(limitRaw)
+      .then((activity) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(activity));
+      })
+      .catch((error) => {
+        console.error("[api] activity error:", error);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to load recent activity" }));
+      });
     return;
   }
 

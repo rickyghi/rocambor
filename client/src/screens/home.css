@@ -141,6 +141,77 @@
   color: var(--home-gold);
 }
 
+.home-activity-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid rgba(214, 166, 74, 0.14);
+  border-radius: 16px;
+  background: rgba(11, 15, 20, 0.3);
+}
+
+.home-activity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.home-activity-status,
+.home-activity-time {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(248, 246, 240, 0.48);
+}
+
+.home-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-activity-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(214, 166, 74, 0.12);
+  border-radius: 14px;
+  background: rgba(248, 246, 240, 0.03);
+}
+
+.home-activity-top,
+.home-activity-meta,
+.home-activity-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.home-activity-winner {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--home-text-light);
+}
+
+.home-activity-meta,
+.home-activity-foot,
+.home-activity-empty {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--home-text-muted);
+}
+
+.home-activity-empty {
+  margin: 0;
+}
+
 .home-bottom-bar {
   width: 100%;
   display: grid;

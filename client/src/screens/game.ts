@@ -976,21 +976,21 @@ export class GameScreen {
 
   private syncVolteoRevealFromState(): void {
     const game = this.ctx.state.game;
-    // Show volteo card from trump_set until exchange ends
-    const isVolteoActive =
-      game?.contract === "volteo" &&
-      game.phase !== "play" &&
-      game.phase !== "scoring" &&
-      game.phase !== "lobby";
-    const reveal = isVolteoActive ? game?.exchange?.revealedCard : null;
+    // Keep the volteo reveal visible from the trump-set event through exchange,
+    // even if the contract/state patch arrives a tick later than the event.
+    const canShowVolteoReveal =
+      game?.phase !== "play" &&
+      game?.phase !== "scoring" &&
+      game?.phase !== "lobby";
+    const reveal = canShowVolteoReveal ? game?.exchange?.revealedCard : null;
 
     if (reveal) {
       this.domLayerBridge.setVolteoRevealCard(reveal);
       return;
     }
 
-    // During contract_upgrade/trump_choice, keep the snapshot card alive
-    if (isVolteoActive) return;
+    // During contract_upgrade/trump_choice/exchange, keep the snapshot card alive.
+    if (canShowVolteoReveal) return;
 
     if (this.volteoRevealTimer === null) {
       this.domLayerBridge.setVolteoRevealCard(null);

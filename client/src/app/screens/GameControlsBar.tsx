@@ -177,6 +177,24 @@ function CrossIcon({ size = 14 }: { size?: number }): ReactElement {
   );
 }
 
+function CheckIcon(): ReactElement {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 function DiceIcon(): ReactElement {
   return (
     <svg
@@ -406,6 +424,78 @@ function renderAuctionControls(
             <span className="auction-bid-name">{bidDisplayLabel("pass", locale)}</span>
             <span className="auction-bid-desc">{t("game.auction.yieldCall")}</span>
           </button>
+      </div>
+    </AuctionPanel>
+  );
+}
+
+function renderContractUpgradeControls(
+  locale: Locale,
+  currentBid: Bid,
+  actionLocked: boolean,
+  onUpgrade: (bid: Bid | "keep") => void
+): ReactElement {
+  const { t } = createTranslator(locale);
+  const bidRank = (bid: Bid): number =>
+    ({ entrada: 0, oros: 1, volteo: 2, solo: 3, solo_oros: 4 } as Partial<Record<Bid, number>>)[
+      bid
+    ] ?? -1;
+  const upgradeChoices: BidChoice[] = [
+    {
+      value: "oros",
+      label: bidDisplayLabel("oros", locale),
+      icon: <CoinIcon />,
+      desc: t("game.auction.callOros"),
+    },
+    { value: "volteo", label: "Volteo", icon: <BoltIcon />, desc: t("game.auction.flipTalon") },
+    { value: "solo", label: "Solo", icon: <SoloIcon />, desc: t("game.auction.playAlone") },
+    { value: "solo_oros", label: "Solo Oros", icon: <SoloIcon />, desc: t("game.auction.aloneOros") },
+  ];
+  const choices = upgradeChoices.filter((bid) => bidRank(bid.value) > bidRank(currentBid));
+  const actionCount = choices.length + 1;
+  const keepDesc =
+    currentBid === "entrada" || currentBid === "solo"
+      ? t("game.keepBidDescChooseTrump")
+      : t("game.keepBidDescProceed");
+
+  return (
+    <AuctionPanel
+      icon={<GavelIcon />}
+      title={t("game.upgradePanelTitle")}
+      status={t("game.upgradePanelStatus", { bid: bidDisplayLabel(currentBid, locale) })}
+      kind="auction"
+      showFooter={false}
+    >
+      <div className="auction-bid-grid auction-bid-grid-auction" data-count={String(actionCount)}>
+        <button
+          className="auction-bid upgrade-btn keep-btn"
+          data-bid={currentBid}
+          type="button"
+          disabled={actionLocked}
+          onClick={() => onUpgrade("keep")}
+        >
+          <span className="auction-bid-icon">
+            <CheckIcon />
+          </span>
+          <span className="auction-bid-name">
+            {t("game.keepBid", { bid: bidDisplayLabel(currentBid, locale) })}
+          </span>
+          <span className="auction-bid-desc">{keepDesc}</span>
+        </button>
+        {choices.map((bid) => (
+          <button
+            key={bid.value}
+            className="auction-bid upgrade-btn"
+            data-bid={bid.value}
+            type="button"
+            disabled={actionLocked}
+            onClick={() => onUpgrade(bid.value)}
+          >
+            <span className="auction-bid-icon">{bid.icon}</span>
+            <span className="auction-bid-name">{bid.label}</span>
+            <span className="auction-bid-desc">{bid.desc}</span>
+          </button>
+        ))}
       </div>
     </AuctionPanel>
   );
@@ -684,6 +774,12 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
 
       return renderAuctionControls(settings.locale, game.auction.currentBid, showContrabola, actionLocked, (bid) => {
         lockAndSend({ type: "BID", value: bid });
+      });
+    }
+
+    if (game.phase === "contract_upgrade" && state.isMyTurn) {
+      return renderContractUpgradeControls(settings.locale, game.auction.currentBid, actionLocked, (upgrade) => {
+        lockAndSend({ type: "UPGRADE_CONTRACT", value: upgrade });
       });
     }
 

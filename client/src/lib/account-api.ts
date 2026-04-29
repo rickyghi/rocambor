@@ -1,5 +1,6 @@
 import type { AuthManager } from "../auth/supabase-auth";
 import type {
+  MatchActivityResponse,
   MatchHistoryResponse,
   MeResponse,
   UpdateMeProfileRequest,
@@ -102,4 +103,19 @@ export async function fetchCurrentMatchHistory(
     throw new Error(`Failed to load match history (${response.status})`);
   }
   return (await response.json()) as MatchHistoryResponse;
+}
+
+export async function fetchRecentMatchActivity(
+  limit = 6
+): Promise<MatchActivityResponse> {
+  const response = await fetch(
+    `${getApiBaseUrl()}/api/activity?limit=${encodeURIComponent(String(limit))}`,
+    {
+      method: "GET",
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to load activity (${response.status})`);
+  }
+  return (await response.json()) as MatchActivityResponse;
 }

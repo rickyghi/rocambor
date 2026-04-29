@@ -20,7 +20,15 @@ async function migrate(): Promise<void> {
   try {
     await client.connect();
 
-    const migrationsDir = path.join(__dirname, "..", "migrations");
+    const migrationsDirCandidates = [
+      path.join(__dirname, "..", "migrations"),
+      path.resolve(__dirname, "..", "..", "..", "migrations"),
+    ];
+    const migrationsDir = migrationsDirCandidates.find((candidate) => fs.existsSync(candidate));
+    if (!migrationsDir) {
+      throw new Error(`No migrations directory found. Checked: ${migrationsDirCandidates.join(", ")}`);
+    }
+
     const files = fs
       .readdirSync(migrationsDir)
       .filter((f) => f.endsWith(".sql"))

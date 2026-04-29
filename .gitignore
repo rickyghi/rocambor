@@ -12,3 +12,6 @@ client/dist/
 
 # Local Netlify folder
 .netlify
+
+# Local Supabase CLI metadata
+supabase/.temp/
