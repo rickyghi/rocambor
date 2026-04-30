@@ -221,7 +221,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
     ctx.settings.set("locale", locale);
   };
 
-  const signInWithProvider = async (provider: "google" | "apple"): Promise<void> => {
+  const signInWithProvider = async (provider: "google"): Promise<void> => {
     try {
       await ctx.auth.signInWithProvider(provider);
     } catch (error) {
@@ -568,28 +568,16 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                       {t("home.signOut")}
                     </button>
                   ) : (
-                    <>
-                      <button
-                        className="home-auth-btn home-auth-btn--google"
-                        type="button"
-                        disabled={auth.loading}
-                        onClick={() => {
-                          void signInWithProvider("google");
-                        }}
-                      >
-                        {t("home.signInGoogle")}
-                      </button>
-                      <button
-                        className="home-auth-btn home-auth-btn--apple"
-                        type="button"
-                        disabled={auth.loading}
-                        onClick={() => {
-                          void signInWithProvider("apple");
-                        }}
-                      >
-                        {t("home.signInApple")}
-                      </button>
-                    </>
+                    <button
+                      className="home-auth-btn home-auth-btn--google"
+                      type="button"
+                      disabled={auth.loading}
+                      onClick={() => {
+                        void signInWithProvider("google");
+                      }}
+                    >
+                      {t("home.signInGoogle")}
+                    </button>
                   )}
                 </div>
               </div>

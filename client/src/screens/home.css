@@ -127,10 +127,6 @@
   border-color: rgba(89, 126, 255, 0.22);
 }
 
-.home-auth-btn--apple {
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
 .home-auth-btn--signout {
   border-color: rgba(214, 166, 74, 0.22);
 }

@@ -64,11 +64,8 @@ DATABASE_URL="your-supabase-postgres-url" npm run migrate
 
 ## 4. Auth providers
 
-Enable the auth providers you want inside Supabase Auth:
-
-- Google
-- Apple
-- Magic Link / Email
+Enable Google inside Supabase Auth. Rocambor currently exposes Google as the
+only social sign-in option in the client.
 
 Make sure the allowed redirect URLs include your local and production app URLs.
 

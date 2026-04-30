@@ -1,6 +1,6 @@
 import { createClient, type Session, type SupabaseClient, type User } from "@supabase/supabase-js";
 
-export type OAuthProvider = "google" | "apple";
+export type OAuthProvider = "google";
 
 export interface AuthUserSnapshot {
   id: string;
