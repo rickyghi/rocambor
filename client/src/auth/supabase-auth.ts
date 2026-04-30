@@ -28,6 +28,10 @@ function normalizeBaseUrl(value: string | undefined): string | null {
   return trimmed.replace(/\/+$/, "");
 }
 
+function authRedirectUrl(): string {
+  return `${window.location.origin}/`;
+}
+
 function mapUser(user: User | null): AuthUserSnapshot | null {
   if (!user) return null;
   const identities = Array.isArray(user.identities) ? user.identities : [];
@@ -137,7 +141,7 @@ export class AuthManager {
     const { error } = await this.client.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: window.location.href,
+        redirectTo: authRedirectUrl(),
       },
     });
     if (error) {
