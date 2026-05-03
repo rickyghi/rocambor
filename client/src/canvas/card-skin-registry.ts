@@ -73,6 +73,49 @@ export interface CardSkinImportInput {
 
 const STORAGE_KEY = "rocambor_custom_card_skins_v1";
 
+const SPANISH_IMAGE_SKIN_BASE = {
+  faceColor: "#F8F6F0",
+  faceBorderColor: "#C8A651",
+  backColor: "#2A4D41",
+  backBorderColor: "#C8A651",
+  backPatternColor: "rgba(200,166,81,0.18)",
+  backPattern: "ornate" as CardBackPattern,
+  emblem: "R",
+  emblemColor: "rgba(200,166,81,0.6)",
+  emblemFont: '700 27px "Playfair Display", Georgia, serif',
+  cornerFont: '700 14px "Inter", system-ui, sans-serif',
+  suitFont: '12px "Inter", system-ui, sans-serif',
+  centerFont: '700 34px "Inter", system-ui, sans-serif',
+  courtFont: '700 12px "Inter", system-ui, sans-serif',
+  selectionBorderColor: "#C8A651",
+  hoverBorderColor: "#C8A651",
+  suitOverrides: {
+    oros: { primary: "#C8A651", secondary: "#8a6a24" },
+    copas: { primary: "#B02E2E", secondary: "#7a1f1f" },
+    espadas: { primary: "#0D0D0D", secondary: "#3f3f3f" },
+    bastos: { primary: "#2A4D41", secondary: "#1f3627" },
+  },
+};
+
+function createSpanishImageSkin(input: {
+  id: string;
+  label: string;
+  description: string;
+  author: string;
+  imagePath: string;
+  theme?: SkinTheme;
+  rarity?: SkinRarity;
+}): CardSkinDefinition {
+  return {
+    ...SPANISH_IMAGE_SKIN_BASE,
+    ...input,
+    theme: input.theme ?? "classic",
+    rarity: input.rarity ?? "rare",
+    imageMode: true,
+    imageExtension: "png",
+  };
+}
+
 const BUILTIN_SKINS: CardSkinDefinition[] = [
   {
     id: "rocambor",
@@ -214,6 +257,51 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
       bastos: { primary: "#2A4D41", secondary: "#1f3627" },
     },
   },
+  createSpanishImageSkin({
+    id: "heraclio_fournier_vitoria",
+    label: "Heraclio Fournier Vitoria",
+    description: "Historic Vitoria Spanish deck artwork with classic Fournier linework",
+    author: "Heraclio Fournier / local import",
+    imagePath: "/cards/heraclio_fournier_vitoria",
+    theme: "classic",
+    rarity: "legendary",
+  }),
+  createSpanishImageSkin({
+    id: "maestros_naiperos_espanoles",
+    label: "Maestros Naiperos Españoles",
+    description: "Bold Spanish deck artwork from the Maestros Naiperos Españoles set",
+    author: "Maestros Naiperos Españoles / local import",
+    imagePath: "/cards/maestros_naiperos_espanoles",
+    theme: "ornate",
+    rarity: "legendary",
+  }),
+  createSpanishImageSkin({
+    id: "heraclio_fournier",
+    label: "Heraclio Fournier",
+    description: "Traditional Heraclio Fournier Spanish card artwork",
+    author: "Heraclio Fournier / local import",
+    imagePath: "/cards/heraclio_fournier",
+    theme: "classic",
+    rarity: "legendary",
+  }),
+  createSpanishImageSkin({
+    id: "cartes_catalanes",
+    label: "Cartes Catalanes",
+    description: "Catalan-style Spanish deck artwork with regional character",
+    author: "Cartes Catalanes / local import",
+    imagePath: "/cards/cartes_catalanes",
+    theme: "ornate",
+    rarity: "rare",
+  }),
+  createSpanishImageSkin({
+    id: "mazoka_baraja_espanola",
+    label: "Mazoka Baraja Española",
+    description: "Modern Spanish deck artwork from the Mazoka Baraja Española set",
+    author: "Mazoka / local import",
+    imagePath: "/cards/mazoka_baraja_espanola",
+    theme: "modern",
+    rarity: "rare",
+  }),
 ];
 
 const BUILTIN_IDS = new Set(BUILTIN_SKINS.map((skin) => skin.id));
