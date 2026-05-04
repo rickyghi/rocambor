@@ -5,8 +5,6 @@ import type { Bid, Suit } from "../../protocol";
 import type { AppContext } from "../../router";
 import { useClientState, useSettings } from "../hooks";
 
-const AUCTION_QUOTE = "\u201CFortune favors the bold\u201D";
-
 interface BidChoice {
   value: Bid;
   label: string;
@@ -35,7 +33,6 @@ function AuctionPanel({
   status,
   kind = "auction",
   compact = false,
-  showFooter = true,
   children,
 }: {
   icon: ReactElement;
@@ -43,7 +40,6 @@ function AuctionPanel({
   status?: string;
   kind?: "auction" | "exchange" | "trump" | "penetro";
   compact?: boolean;
-  showFooter?: boolean;
   children: ReactNode;
 }): ReactElement {
   return (
@@ -53,12 +49,6 @@ function AuctionPanel({
       <AuctionHeader icon={icon} title={title} />
       {status ? <div className="auction-panel-status">{status}</div> : null}
       {children}
-      {showFooter ? (
-        <>
-          <div className="auction-panel-divider"></div>
-          <div className="auction-panel-quote">{AUCTION_QUOTE}</div>
-        </>
-      ) : null}
     </div>
   );
 }
@@ -236,9 +226,9 @@ function SwordIcon({
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M14.5 2.5L18 6l-9 9-3.5-3.5 9-9z" />
-      <path d="M4 20l3.5-3.5" />
-      <path d="M2 22l2-2" />
+      <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" />
+      <line x1="13" y1="19" x2="19" y2="13" />
+      <line x1="16" y1="16" x2="20" y2="20" />
     </svg>
   );
 }
@@ -379,7 +369,7 @@ function renderAuctionControls(
       title={t("game.auctionPanelTitle")}
       status={statusText}
       kind="auction"
-      showFooter={false}
+
     >
       <div className="auction-bid-grid auction-bid-grid-auction" data-count={String(actionCount)}>
         {legal.map((bid) => (
@@ -464,7 +454,7 @@ function renderContractUpgradeControls(
       title={t("game.upgradePanelTitle")}
       status={t("game.upgradePanelStatus", { bid: bidDisplayLabel(currentBid, locale) })}
       kind="auction"
-      showFooter={false}
+
     >
       <div className="auction-bid-grid auction-bid-grid-auction" data-count={String(actionCount)}>
         <button
@@ -513,7 +503,7 @@ function renderPenetroControls(
       title={t("game.penetro")}
       status={t("game.penetroPrompt")}
       kind="penetro"
-      showFooter={false}
+
     >
       <div className="auction-bid-grid auction-bid-grid-penetro" data-count="2">
         <button
@@ -568,7 +558,7 @@ function renderTrumpControls(
       title={t("game.chooseTrump")}
       status={t("game.trumpPrompt")}
       kind="trump"
-      showFooter={false}
+
     >
       <div className="auction-trump-grid">
         {suits.map((suit) => (
@@ -645,7 +635,7 @@ function renderExchangeControls({
       status={hintText}
       kind="exchange"
       compact
-      showFooter={false}
+
     >
       <div className="auction-bid-grid auction-bid-grid-exchange" data-count={String(actionCount)}>
         <button

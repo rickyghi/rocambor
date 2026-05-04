@@ -738,8 +738,8 @@ export class GameScreen {
     } else if (game.phase === "contract_upgrade") {
       sub =
         game.turn === this.ctx.state.mySeat
-          ? "You won the auction! Upgrade your contract?"
-          : "Declarer is considering an upgrade\u2026";
+          ? this.t("game.phaseBanner.contractUpgradeOwn")
+          : this.t("game.phaseBanner.contractUpgradeWait");
     } else if (game.phase === "trump_choice") {
       sub =
         game.turn === this.ctx.state.mySeat

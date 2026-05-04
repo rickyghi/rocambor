@@ -1111,15 +1111,19 @@
   isolation: isolate;
   --played-card-ring: var(--player-accent, rgba(214, 166, 74, 0.92));
   --played-card-ring-soft: var(--player-accent-glow, rgba(214, 166, 74, 0.36));
+  --played-card-ring-offset: 5px;
+  --played-card-ring-width: 3px;
+  --played-card-corner-radius: 14.6px;
+  --played-card-ring-radius: calc(var(--played-card-corner-radius) + var(--played-card-ring-offset));
 }
 
 .trick-card-wrap::before {
   content: "";
   position: absolute;
-  inset: -5px;
+  inset: calc(-1 * var(--played-card-ring-offset));
   z-index: -1;
-  border-radius: 15px;
-  border: 2px solid var(--played-card-ring);
+  border-radius: var(--played-card-ring-radius);
+  border: var(--played-card-ring-width) solid var(--played-card-ring);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 46%);
   box-shadow:
     0 0 0 1px rgba(248, 246, 240, 0.1),
@@ -1151,8 +1155,8 @@
 }
 
 .trick-card-wrap.winner::before {
-  inset: -7px;
-  border-width: 3px;
+  --played-card-ring-offset: 7px;
+  --played-card-ring-width: 4.5px;
   box-shadow:
     0 0 0 1px rgba(248, 246, 240, 0.14),
     0 0 14px var(--played-card-ring-soft),
@@ -2956,12 +2960,12 @@
     height: auto;
     aspect-ratio: 96 / 138;
     box-shadow: none;
+    --played-card-ring-offset: 4px;
+    --played-card-ring-width: 3px;
+    --played-card-corner-radius: 8.8px;
   }
 
   .trick-card-wrap::before {
-    inset: -4px;
-    border-width: 2px;
-    border-radius: 12px;
     box-shadow:
       0 0 0 1px rgba(248, 246, 240, 0.08),
       0 0 9px var(--played-card-ring-soft),
@@ -2980,6 +2984,7 @@
   .trick-card-wrap.winner {
     width: 96px;
     box-shadow: none;
+    --played-card-corner-radius: 10px;
   }
 
   .trick-card-wrap.winner .game-dom-card {
@@ -2990,8 +2995,8 @@
   }
 
   .trick-card-wrap.winner::before {
-    inset: -6px;
-    border-width: 3px;
+    --played-card-ring-offset: 6px;
+    --played-card-ring-width: 4.5px;
   }
 
   .trick-card-label {
@@ -3581,6 +3586,7 @@
 
   .trick-card-wrap {
     width: 88px;
+    --played-card-corner-radius: 9.2px;
   }
 
   .trick-card-wrap .game-dom-card {
@@ -3589,6 +3595,7 @@
 
   .trick-card-wrap.winner {
     width: 100px;
+    --played-card-corner-radius: 10.4px;
   }
 
   .trick-card-wrap.winner .game-dom-card {

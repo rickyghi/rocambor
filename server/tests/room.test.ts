@@ -665,6 +665,18 @@ describe("Room - exchange", () => {
     room.state.phase = "auction";
     room.state.contract = "volteo";
     room.state.ombre = 0;
+    room.hands[0] = [
+      { s: "oros", r: 1, id: "o1" },
+      { s: "oros", r: 2, id: "o2" },
+      { s: "oros", r: 3, id: "o3" },
+      { s: "copas", r: 1, id: "c1" },
+      { s: "copas", r: 2, id: "c2" },
+      { s: "espadas", r: 1, id: "e1" },
+      { s: "espadas", r: 2, id: "e2" },
+      { s: "bastos", r: 1, id: "b1" },
+      { s: "bastos", r: 2, id: "b2" },
+    ] as any;
+    room.state.handsCount[0] = room.hands[0].length;
     room.talon = [
       { s: "bastos", r: 5, id: "b5" },
       { s: "copas", r: 6, id: "c6" },

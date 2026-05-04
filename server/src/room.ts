@@ -65,6 +65,8 @@ export interface Conn {
   ws: WebSocket;
   seat: SeatIndex | null;
   handle: string;
+  /** Saved handle before AFK bot-replacement; used to restore on reconnect. */
+  originalHandle?: string;
   isBot: boolean;
   botPersonaId?: BotPersonaId | null;
   playerId: string | null;
@@ -434,9 +436,10 @@ export class Room {
       return existing;
     }
 
-    // Check if seat has a bot we can replace
+    // Check if seat has a bot we can replace (player returned after AFK replacement)
     const botConn = this.conns.find((c) => c.seat === seat && c.isBot);
     if (botConn) {
+      const restoredHandle = botConn.originalHandle;
       this.conns = this.conns.filter((c) => c !== botConn);
       const conn = this.attach(
         ws,
@@ -444,7 +447,12 @@ export class Room {
         playerId || null,
         authUserId || null
       );
+      if (restoredHandle) {
+        conn.handle = restoredHandle;
+      }
       this.seatPlayer(conn, seat);
+      this.event("PLAYER_RECONNECTED", { seat, handle: conn.handle });
+      console.log(`[room] Client ${clientId} reclaimed bot-held seat ${seat} as "${conn.handle}"`);
       return conn;
     }
 
@@ -826,6 +834,7 @@ export class Room {
     console.log(
       `[room] Replacing seat ${seat} with bot after ${AFK_BOT_REPLACE_THRESHOLD} consecutive AFK turns`
     );
+    conn.originalHandle = conn.originalHandle ?? conn.handle;
     conn.isBot = true;
     conn.handle = persona.name;
     conn.botPersonaId = persona.id;

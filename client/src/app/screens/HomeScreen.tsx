@@ -543,9 +543,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                       </button>
                     ) : wallet ? (
                       <span className="home-wallet-status">
-                        {wallet?.canClaimRescue
-                          ? t("home.walletRescueReady")
-                          : t("home.walletRescueCooldown")}
+                        {t("home.walletRescueCooldown")}
                       </span>
                     ) : null}
                   </div>
