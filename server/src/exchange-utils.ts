@@ -36,7 +36,8 @@ export function exchangeLimitsForSeat(
   if (isOmbre) {
     if (isSolo) return { min: 0, max: 0 };
     if (contract === "volteo") {
-      return { min: 1, max: Math.min(8, handLength, talonLength + 1) };
+      const VOLTEO_DRAWN = 1; // ombre draws 1 face-up card from the talon before discarding
+      return { min: 1, max: Math.min(8, handLength, talonLength + VOLTEO_DRAWN) };
     }
     return { min: 0, max: Math.min(isOros ? 6 : 8, talonLength) };
   }

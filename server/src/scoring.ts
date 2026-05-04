@@ -148,6 +148,11 @@ function scoreStandard(
     };
   }
 
+  if (leaders.length > 1) {
+    console.warn('[scoring] tie in leaders array, using first:', leaders);
+    // fall through to leaders[0]
+  }
+
   if (leaders[0] === ombre) {
     let points = ombreTricks === 9 ? 4 : ombreTricks >= 7 ? 2 : 1;
     if (contract === "oros") points += 1;

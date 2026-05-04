@@ -228,7 +228,8 @@ function handleApi(
 
   if (url.pathname === "/api/activity" && req.method === "GET") {
     const limitRaw = Number(url.searchParams.get("limit") || "6");
-    getRecentMatchActivity(limitRaw)
+    const limit = Math.min(100, Math.max(1, Math.floor(limitRaw) || 6));
+    getRecentMatchActivity(limit)
       .then((activity) => {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(activity));
@@ -282,7 +283,8 @@ function handleApi(
   // GET /api/leaderboard?limit=25
   if (url.pathname === "/api/leaderboard" && req.method === "GET") {
     const limitRaw = Number(url.searchParams.get("limit") || "25");
-    getLeaderboard(limitRaw)
+    const limit = Math.min(100, Math.max(1, Math.floor(limitRaw) || 25));
+    getLeaderboard(limit)
       .then((leaderboard) => {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(
@@ -708,11 +710,15 @@ function attachPreRoomMessageHandler(
             if (!(await ensureStakeEntryAllowed(ws, stakeMode, authUser))) {
               return;
             }
+            const rawTarget = typeof msg.target === "number" ? msg.target : undefined;
+            const gameTarget = rawTarget !== undefined
+              ? Math.min(100, Math.max(6, rawTarget))
+              : undefined;
             const { roomId, code, room } = router.createRoom(
               msg.mode,
               id,
               stakeMode,
-              msg.target,
+              gameTarget,
               msg.rules,
               msg.roomName
             );
@@ -928,6 +934,7 @@ function setupWsHandlers(
   roomId: string
 ): void {
   const cleanup = () => {
+    connToRoom.delete(ws);
     const room = router.getById(roomId);
     if (room && conn.seat !== null) {
       // Reserve seat for reconnection
@@ -993,9 +1000,7 @@ function setupWsHandlers(
           ws,
           conn.id,
           resolvedPlayerId,
-          conn.authUserId
-            ? { id: conn.authUserId, email: null }
-            : null
+          null  // authUser not available after LEAVE_ROOM; client must re-auth via ticket
         );
       }
     } catch (error) {

@@ -344,7 +344,8 @@ export class GameScreen {
 
     if (state.phase === "exchange" && state.canExchangeNow) {
       const selected = Array.from(state.selectedCards);
-      const { min, max } = state.getExchangeLimits();
+      const { min: rawMin, max } = state.getExchangeLimits();
+      const min = Math.max(0, rawMin); // B6: guard against negative min on mobile
       if (selected.length < min || selected.length > max) {
         this.showInvalidAction(
           min === 1 && max === 1
@@ -504,8 +505,7 @@ export class GameScreen {
 
   private handleEvent(name: string, payload: Record<string, unknown>): void {
     switch (name) {
-      case "TRICK_TAKEN":
-      case "TRICK_WON": {
+      case "TRICK_TAKEN": {
         this.ctx.sounds.trickWin();
         const winner = payload.winner as number;
         const rel = this.ctx.state.relativePosition(winner as any);
@@ -615,10 +615,11 @@ export class GameScreen {
         const award = Array.isArray(payload.award) ? (payload.award as number[]) : [];
         const mySeat = this.ctx.state.mySeat;
         if (mySeat !== null && award.includes(mySeat) && points > 0) {
+          const pointWord = points === 1 ? this.t("game.announce.point") : this.t("game.announce.points");
           this.pushArenaToast(
             this.t("game.announce.roundResultSelf", {
               points,
-              pointWord: this.locale() === "es" ? (points === 1 ? "punto" : "puntos") : points === 1 ? "point" : "points",
+              pointWord,
             }),
             2200
           );
@@ -677,6 +678,7 @@ export class GameScreen {
       }
 
       default:
+        console.warn(`[game] Unhandled event: ${name}`);
         break;
     }
   }
@@ -813,18 +815,25 @@ export class GameScreen {
     return this.ctx.settings.get("locale");
   }
 
+  private _translator: ReturnType<typeof createTranslator> | null = null;
+  private _translatorLocale: string = "";
+
   private t(key: string, params?: Record<string, string | number>): string {
-    return createTranslator(this.locale()).t(key, params);
+    const locale = this.locale();
+    if (!this._translator || this._translatorLocale !== locale) {
+      this._translator = createTranslator(locale);
+      this._translatorLocale = locale;
+    }
+    return this._translator.t(key, params);
   }
 
   private seatLabelForAnnouncements(seat: number): string {
-    const locale = this.locale();
-    if (this.ctx.state.mySeat === seat) return locale === "es" ? "Tú" : "You";
+    if (this.ctx.state.mySeat === seat) return this.t("game.role.you");
     const handle = this.ctx.state.game?.players[seat]?.handle;
     const game = this.ctx.state.game;
-    const playerLabel = locale === "es" ? "Jugador" : "Player";
-    const firstOppLabel = locale === "es" ? "Primer contra" : "First opponent";
-    const secondOppLabel = locale === "es" ? "Segundo contra" : "Second opponent";
+    const playerLabel = this.t("game.role.ombre");
+    const firstOppLabel = this.t("game.role.firstOpponent");
+    const secondOppLabel = this.t("game.role.secondOpponent");
     if (game?.ombre === seat) return handle ? `${playerLabel} (${handle})` : playerLabel;
     if (game?.ombre !== null && game?.ombre !== undefined) {
       const primer = this.nextActiveSeat(game.ombre);
@@ -835,7 +844,7 @@ export class GameScreen {
     if (handle) {
       return handle;
     }
-    return locale === "es" ? `Asiento ${seat}` : `Seat ${seat}`;
+    return this.t("game.role.seat", { n: seat });
   }
 
   private cardLabel(card: Card): string {
@@ -853,14 +862,12 @@ export class GameScreen {
     const winning = cards[winIdx];
     const trump = this.ctx.state.game?.trump;
 
-    if (trump && winning.s === trump && lead.s !== trump) {
+    // Trump always wins over any non-trump lead (or same trump suit — still trump priority).
+    if (trump && winning.s === trump) {
       return this.t("game.trickReason.trump");
     }
     if (winning.s === lead.s) {
       return this.t("game.trickReason.highestSuit", { suit: this.capSuit(lead.s) });
-    }
-    if (trump && winning.s === trump) {
-      return this.t("game.trickReason.trump");
     }
     return this.t("game.trickReason.highestCard");
   }
@@ -981,6 +988,7 @@ export class GameScreen {
     // Keep the volteo reveal visible from the trump-set event through exchange,
     // even if the contract/state patch arrives a tick later than the event.
     const canShowVolteoReveal =
+      game?.phase !== "play" &&
       game?.phase !== "scoring" &&
       game?.phase !== "post_hand" &&
       game?.phase !== "match_end" &&
@@ -992,7 +1000,12 @@ export class GameScreen {
       return;
     }
 
-    // During contract_upgrade/trump_choice/exchange, keep the snapshot card alive.
+    if (game?.phase === "exchange") {
+      this.domLayerBridge.setVolteoRevealCard(null);
+      return;
+    }
+
+    // Before exchange starts, keep the event snapshot alive briefly.
     if (canShowVolteoReveal) return;
 
     if (this.volteoRevealTimer === null) {
@@ -1005,12 +1018,7 @@ export class GameScreen {
     this.spriteMode = false;
     this.renderer.setCanvasCardLayers({ hand: true, table: true });
     this.syncCardPresentationMode();
-    showToast(
-      this.locale() === "es"
-        ? "Usando el renderizador alternativo de cartas."
-        : "Using fallback card renderer.",
-      "info",
-      1200
-    );
+    // P4: use i18n key instead of hardcoded strings; key "error.generic" added in i18n.ts by parallel agent
+    showToast(this.t("error.generic"), "info", 1200);
   }
 }

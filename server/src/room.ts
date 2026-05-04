@@ -201,7 +201,7 @@ export class Room {
         : { ...this.state, turnDeadline: undefined };
       let stateToSend = baseState;
 
-      // Send legal play hints to the player whose turn it is
+      // Send legal play hints and canCloseHand to the player whose turn it is
       if (
         this.state.phase === "play" &&
         c.seat === this.state.turn &&
@@ -209,7 +209,12 @@ export class Room {
       ) {
         const ledCard = this.table.length > 0 ? this.table[0] : null;
         const legal = legalPlays(this.state.trump, hand, ledCard);
-        stateToSend = { ...baseState, legalIds: legal.map((card) => card.id) };
+        const canClose = c.seat !== null ? this.canCloseHandNow(c.seat) : false;
+        stateToSend = {
+          ...baseState,
+          legalIds: legal.map((card) => card.id),
+          canCloseHand: canClose,
+        };
       }
 
       this.send(c, { type: "STATE", state: stateToSend, hand });
@@ -371,6 +376,7 @@ export class Room {
       this.hostSeat = nextHuman?.seat ?? null;
     }
     this.lastActivity = Date.now();
+    this.broadcastState();
   }
 
   markDisconnected(conn: Conn): void {
@@ -452,6 +458,8 @@ export class Room {
       }
       this.seatPlayer(conn, seat);
       this.event("PLAYER_RECONNECTED", { seat, handle: conn.handle });
+      const hand = this.hands[seat] || null;
+      this.send(conn, { type: "STATE", state: this.state, hand });
       console.log(`[room] Client ${clientId} reclaimed bot-held seat ${seat} as "${conn.handle}"`);
       return conn;
     }
@@ -1455,6 +1463,9 @@ export class Room {
 
     this.state.handsCount[seat] = hand.length;
     this.state.exchange.completed.push(seat);
+    if (this.state.contract === "volteo" && seat === this.state.ombre) {
+      this.state.exchange.revealedCard = null;
+    }
     this.state.exchange.talonSize = this.talon.length;
 
     const next = ex.order.find((s) => !ex.completed.includes(s)) ?? null;
@@ -1560,38 +1571,21 @@ export class Room {
     this.botMaybeAct();
   }
 
-  private canCloseHandNow(seat: SeatIndex): boolean {
+  private fiveConsecutiveTricksBySeat(seat: SeatIndex): boolean {
     if (this.state.phase !== "play" || this.state.turn !== seat) return false;
     if (this.table.length !== 0) return false;
     if (!this.state.contract) return false;
-    if (
-      this.state.contract === "bola" ||
-      this.state.contract === "contrabola" ||
-      this.state.contract === "penetro"
-    ) {
-      return false;
-    }
+    if (["bola", "contrabola", "penetro"].includes(this.state.contract)) return false;
     if (this.trickWinners.length !== 5) return false;
     return this.trickWinners.every((w) => w === seat);
   }
 
-  private canImplyBolaByContinuation(seat: SeatIndex): boolean {
-    if (this.state.phase !== "play" || this.state.turn !== seat) return false;
-    if (this.table.length !== 0) return false;
-    if (!this.state.contract) return false;
-    if (
-      this.state.contract === "bola" ||
-      this.state.contract === "contrabola" ||
-      this.state.contract === "penetro"
-    ) {
-      return false;
-    }
+  private canCloseHandNow(seat: SeatIndex): boolean {
+    return this.fiveConsecutiveTricksBySeat(seat);
+  }
 
-    // Implicit bola only happens by continuing into trick 6:
-    // the first five completed tricks must all be won by the same player.
-    if (this.trickWinners.length !== 5) return false;
-    const firstFiveWinners = this.trickWinners.slice(0, 5);
-    return firstFiveWinners.every((w) => w === seat);
+  private canImplyBolaByContinuation(seat: SeatIndex): boolean {
+    return this.fiveConsecutiveTricksBySeat(seat);
   }
 
   closeHand(seat: SeatIndex): void {
@@ -1752,11 +1746,28 @@ export class Room {
     const target = this.state.gameTarget;
     let winner: SeatIndex | null = null;
 
-    for (const s of ALL_SEATS) {
-      if (this.state.scores[s] >= target) {
-        winner = s as SeatIndex;
-        break;
+    const atTarget = ALL_SEATS.filter((s) => this.state.scores[s] >= target);
+    if (atTarget.length > 1) {
+      // Multiple players hit the target — pick the highest scorer
+      const maxScore = Math.max(...atTarget.map((s) => this.state.scores[s]));
+      const leaders = atTarget.filter((s) => this.state.scores[s] === maxScore) as SeatIndex[];
+      if (leaders.length > 1) {
+        console.warn('[room] tie in match leaders, using most-recent hand winner as tiebreaker:', leaders);
+        // Tiebreaker: last trick winner (last entry in trickWinners) who is among the leaders
+        const tiedSet = new Set(leaders);
+        let tiebreakerWinner: SeatIndex | null = null;
+        for (let i = this.trickWinners.length - 1; i >= 0; i--) {
+          if (tiedSet.has(this.trickWinners[i])) {
+            tiebreakerWinner = this.trickWinners[i];
+            break;
+          }
+        }
+        winner = tiebreakerWinner ?? leaders[0];
+      } else {
+        winner = leaders[0];
       }
+    } else if (atTarget.length === 1) {
+      winner = atTarget[0] as SeatIndex;
     }
 
     if (winner !== null) {
@@ -1948,7 +1959,6 @@ export class Room {
         case "LEAVE_ROOM": {
           this.detach(conn);
           this.send(conn, { type: "ROOM_LEFT" });
-          this.broadcastState();
           if (this.state.phase !== "lobby") {
             this.botMaybeAct();
           }

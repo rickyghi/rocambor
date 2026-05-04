@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactElement, ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { bidDisplayLabel, createTranslator, suitLabel, type Locale } from "../../i18n";
 import type { Bid, Suit } from "../../protocol";
 import type { AppContext } from "../../router";
@@ -137,13 +137,13 @@ function SoloIcon(): ReactElement {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2.5"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-      <circle cx="12" cy="12" r="3" />
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
     </svg>
   );
 }
@@ -336,12 +336,12 @@ function useActionLock(seq: number | undefined): [boolean, (value: boolean) => v
 
 function renderAuctionControls(
   locale: Locale,
+  t: ReturnType<typeof createTranslator>["t"],
   currentBid: Bid,
   showContrabola: boolean,
   actionLocked: boolean,
   onBid: (bid: Bid) => void
 ): ReactElement {
-  const { t } = createTranslator(locale);
   const bidRank = (bid: Bid): number =>
     ({ entrada: 0, oros: 1, volteo: 2, solo: 3, solo_oros: 4 } as Partial<Record<Bid, number>>)[
       bid
@@ -407,13 +407,13 @@ function renderAuctionControls(
           type="button"
           disabled={actionLocked}
           onClick={() => onBid("pass")}
-          >
-            <span className="auction-bid-icon">
-              <CrossIcon />
-            </span>
-            <span className="auction-bid-name">{bidDisplayLabel("pass", locale)}</span>
-            <span className="auction-bid-desc">{t("game.auction.yieldCall")}</span>
-          </button>
+        >
+          <span className="auction-bid-icon">
+            <CrossIcon />
+          </span>
+          <span className="auction-bid-name">{bidDisplayLabel("pass", locale)}</span>
+          <span className="auction-bid-desc">{t("game.auction.yieldCall")}</span>
+        </button>
       </div>
     </AuctionPanel>
   );
@@ -421,11 +421,11 @@ function renderAuctionControls(
 
 function renderContractUpgradeControls(
   locale: Locale,
+  t: ReturnType<typeof createTranslator>["t"],
   currentBid: Bid,
   actionLocked: boolean,
   onUpgrade: (bid: Bid | "keep") => void
 ): ReactElement {
-  const { t } = createTranslator(locale);
   const bidRank = (bid: Bid): number =>
     ({ entrada: 0, oros: 1, volteo: 2, solo: 3, solo_oros: 4 } as Partial<Record<Bid, number>>)[
       bid
@@ -493,10 +493,10 @@ function renderContractUpgradeControls(
 
 function renderPenetroControls(
   locale: Locale,
+  t: ReturnType<typeof createTranslator>["t"],
   actionLocked: boolean,
   onDecision: (accept: boolean) => void
 ): ReactElement {
-  const { t } = createTranslator(locale);
   return (
     <AuctionPanel
       icon={<GavelIcon />}
@@ -539,11 +539,11 @@ function renderPenetroControls(
 
 function renderTrumpControls(
   locale: Locale,
+  t: ReturnType<typeof createTranslator>["t"],
   contract: string | null,
   actionLocked: boolean,
   onChooseTrump: (suit: Suit) => void
 ): ReactElement {
-  const { t } = createTranslator(locale);
   const orosOnly = contract === "oros" || contract === "solo_oros";
   const suits: Array<{ value: Suit; label: string; symbol: string; color: string }> = [
     { value: "oros", label: suitLabel("oros", locale), symbol: "\u2666", color: "#C8A651" },
@@ -584,6 +584,7 @@ function renderTrumpControls(
 
 function renderExchangeControls({
   locale,
+  t,
   selected,
   min,
   max,
@@ -596,6 +597,7 @@ function renderExchangeControls({
   onDefer,
 }: {
   locale: Locale;
+  t: ReturnType<typeof createTranslator>["t"];
   selected: number;
   min: number;
   max: number;
@@ -607,7 +609,6 @@ function renderExchangeControls({
   onSkip: () => void;
   onDefer: () => void;
 }): ReactElement {
-  const { t } = createTranslator(locale);
   const maxExchange = Math.min(max, handSize);
   const requireExactOne = min === 1 && maxExchange === 1;
   const canConfirm = requireExactOne ? selected === 1 : selected > 0 && selected <= maxExchange;
@@ -648,7 +649,12 @@ function renderExchangeControls({
           <span className="auction-bid-icon">
             <SwapIcon />
           </span>
-          <span className="auction-bid-name">{confirmLabel}</span>
+          <span
+            className="auction-bid-name"
+            style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}
+          >
+            {confirmLabel}
+          </span>
         </button>
         {min > 0 ? null : (
           <button
@@ -685,10 +691,10 @@ function renderExchangeControls({
 
 function renderPlayControls(
   locale: Locale,
+  t: ReturnType<typeof createTranslator>["t"],
   actionLocked: boolean,
   onCloseHand: () => void
 ): ReactElement {
-  const { t } = createTranslator(locale);
   return (
     <div className="control-group">
       <span className="control-label">{t("game.closeHandTitle")}</span>
@@ -708,10 +714,10 @@ function renderPlayControls(
 
 function renderMatchEndControls(
   locale: Locale,
+  t: ReturnType<typeof createTranslator>["t"],
   actionLocked: boolean,
   onRematch: () => void
 ): ReactElement {
-  const { t } = createTranslator(locale);
   return (
     <div className="control-group">
       <span className="control-label">{t("game.matchComplete")}!</span>
@@ -730,10 +736,10 @@ function renderMatchEndControls(
 
 function renderLobbyControls(
   locale: Locale,
+  t: ReturnType<typeof createTranslator>["t"],
   actionLocked: boolean,
   onStart: () => void
 ): ReactElement {
-  const { t } = createTranslator(locale);
   return (
     <div className="control-group">
       <button
@@ -754,6 +760,7 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
   const settings = useSettings(ctx.settings);
   const game = state.game;
   const [actionLocked, setActionLocked] = useActionLock(game?.seq);
+  const { t } = useMemo(() => createTranslator(settings.locale), [settings.locale]);
 
   if (!game) return null;
 
@@ -772,25 +779,25 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
         game.auction.passed.length === game.auction.order.length - 1;
       const showContrabola = isLast && allOthersPassed;
 
-      return renderAuctionControls(settings.locale, game.auction.currentBid, showContrabola, actionLocked, (bid) => {
+      return renderAuctionControls(settings.locale, t, game.auction.currentBid, showContrabola, actionLocked, (bid) => {
         lockAndSend({ type: "BID", value: bid });
       });
     }
 
     if (game.phase === "contract_upgrade" && (state.isMyTurn || game.ombre === state.mySeat)) {
-      return renderContractUpgradeControls(settings.locale, game.auction.currentBid, actionLocked, (upgrade) => {
+      return renderContractUpgradeControls(settings.locale, t, game.auction.currentBid, actionLocked, (upgrade) => {
         lockAndSend({ type: "UPGRADE_CONTRACT", value: upgrade });
       });
     }
 
     if (game.phase === "penetro_choice" && state.isMyTurn) {
-      return renderPenetroControls(settings.locale, actionLocked, (accept) => {
+      return renderPenetroControls(settings.locale, t, actionLocked, (accept) => {
         lockAndSend({ type: "PENETRO_DECISION", accept });
       });
     }
 
     if (game.phase === "trump_choice" && state.isMyTurn) {
-      return renderTrumpControls(settings.locale, game.contract, actionLocked, (suit) => {
+      return renderTrumpControls(settings.locale, t, game.contract, actionLocked, (suit) => {
         lockAndSend({ type: "CHOOSE_TRUMP", suit });
       });
     }
@@ -799,6 +806,7 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
       const { min, max } = state.getExchangeLimits();
       return renderExchangeControls({
         locale: settings.locale,
+        t,
         selected: state.selectedCards.size,
         min,
         max,
@@ -828,19 +836,19 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
     }
 
     if (game.phase === "play" && state.isMyTurn && state.canCloseHandNow) {
-      return renderPlayControls(settings.locale, actionLocked, () => {
+      return renderPlayControls(settings.locale, t, actionLocked, () => {
         lockAndSend({ type: "CLOSE_HAND" });
       });
     }
 
     if (game.phase === "match_end") {
-      return renderMatchEndControls(settings.locale, actionLocked, () => {
+      return renderMatchEndControls(settings.locale, t, actionLocked, () => {
         lockAndSend({ type: "REMATCH" });
       });
     }
 
     if (game.phase === "lobby") {
-      return renderLobbyControls(settings.locale, actionLocked, () => {
+      return renderLobbyControls(settings.locale, t, actionLocked, () => {
         lockAndSend({ type: "START_GAME" });
       });
     }

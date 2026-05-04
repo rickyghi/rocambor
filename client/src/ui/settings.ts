@@ -1,6 +1,6 @@
 import type { TableTheme } from "../styles/design-tokens";
 import type { Locale } from "../i18n";
-import { DEFAULT_BUILTIN_CARD_SKIN, getCardSkinDefinition } from "../canvas/card-skin-registry";
+import { DEFAULT_BUILTIN_CARD_SKIN, getCardSkinDefinition, normalizeCardSkinId } from "../canvas/card-skin-registry";
 
 export interface Settings {
   locale: Locale;
@@ -84,6 +84,8 @@ export class SettingsManager {
         ) {
           // Migrate removed/legacy deck ids to the new default.
           merged.cardSkin = DEFAULT_CARD_SKIN;
+        } else {
+          merged.cardSkin = normalizeCardSkinId(merged.cardSkin);
         }
         if (typeof merged.reduceMotion !== "boolean") {
           merged.reduceMotion = DEFAULTS.reduceMotion;

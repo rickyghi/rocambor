@@ -72,7 +72,7 @@ export function plainSuitValue(s: Suit, r: Rank): number {
   return map[r] || 0;
 }
 
-function trumpOrderValue(tr: Suit, c: Card): number {
+export function trumpOrderValue(tr: Suit, c: Card): number {
   if (c.s === "espadas" && c.r === 1) return 100; // spadille
   if (isManille(tr, c)) return 99;
   if (c.s === "bastos" && c.r === 1) return 98; // basto ace
@@ -157,7 +157,7 @@ export function trumpCardPoints(card: Card, trump: Suit): number {
   // Manille (#2 trump) — rank depends on suit color
   if (isManille(trump, card)) return 9;
   // Basto (bastos ace) is always #3 trump (unless bastos is trump, then it's already manille)
-  if (card.s === "bastos" && card.r === 1 && trump !== "bastos") return 8;
+  if (card.s === "bastos" && card.r === 1) return 8;
   // In-suit trump cards (remaining non-matador trumps)
   if (card.s === trump) {
     if (card.r === 12) return 6; // King

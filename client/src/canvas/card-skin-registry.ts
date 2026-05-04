@@ -121,8 +121,8 @@ function createSpanishImageSkin(input: {
 const BUILTIN_SKINS: CardSkinDefinition[] = [
   createSpanishImageSkin({
     id: "heraclio_fournier_vitoria",
-    label: "Heraclio Fournier Vitoria",
-    description: "Historic Vitoria Spanish deck artwork with classic Fournier linework",
+    label: "Fournier Kids",
+    description: "Playful Fournier-inspired Spanish deck artwork with classic linework",
     author: "Heraclio Fournier / local import",
     imagePath: "/cards/heraclio_fournier_vitoria",
     imageExtension: "webp",
@@ -230,10 +230,78 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     theme: "modern",
     rarity: "rare",
   }),
+  createSpanishImageSkin({
+    id: "cartes_espagnoles",
+    label: "Cartes Espagnoles",
+    description: "Classic French-published Spanish deck artwork with elegant historic linework",
+    author: "Cartes Espagnoles / local import",
+    imagePath: "/cards/cartes_espagnoles",
+    imageExtension: "webp",
+    theme: "classic",
+    rarity: "rare",
+  }),
+  createSpanishImageSkin({
+    id: "fournier_cocina",
+    label: "Fournier Cocina",
+    description: "Warm kitchen-inspired Fournier Spanish deck artwork",
+    author: "Fournier Cocina / local import",
+    imagePath: "/cards/fournier_cocina",
+    imageExtension: "webp",
+    theme: "ornate",
+    rarity: "rare",
+  }),
+  createSpanishImageSkin({
+    id: "azahar",
+    label: "Azahar",
+    description: "Bright floral Spanish deck artwork with orange blossom character",
+    author: "Azahar / local import",
+    imagePath: "/cards/azahar",
+    imageExtension: "webp",
+    theme: "ornate",
+    rarity: "legendary",
+  }),
+  createSpanishImageSkin({
+    id: "fournier_france",
+    label: "Fournier France",
+    description: "French Fournier-style Spanish deck artwork with crisp court illustrations",
+    author: "Fournier France / local import",
+    imagePath: "/cards/fournier_france",
+    imageExtension: "webp",
+    theme: "classic",
+    rarity: "legendary",
+  }),
+  createSpanishImageSkin({
+    id: "fournier_vitoria",
+    label: "Fournier Vitoria",
+    description: "Historic Fournier Vitoria Spanish deck artwork",
+    author: "Fournier Vitoria / local import",
+    imagePath: "/cards/fournier_vitoria",
+    imageExtension: "webp",
+    theme: "classic",
+    rarity: "legendary",
+  }),
+  createSpanishImageSkin({
+    id: "baraja_virreynal",
+    label: "Baraja Virreynal",
+    description: "Decorative viceregal Spanish deck artwork with rich period character",
+    author: "Baraja Virreynal / local import",
+    imagePath: "/cards/baraja_virreynal",
+    imageExtension: "webp",
+    theme: "ornate",
+    rarity: "legendary",
+  }),
 ];
 
 const BUILTIN_IDS = new Set(BUILTIN_SKINS.map((skin) => skin.id));
 const BUILTIN_MAP = new Map(BUILTIN_SKINS.map((skin) => [skin.id, skin]));
+const BUILTIN_ALIASES = new Map<string, string>([
+  ["fournier_kids", "heraclio_fournier_vitoria"],
+  ["fournier-kids", "heraclio_fournier_vitoria"],
+  ["fournier kids", "heraclio_fournier_vitoria"],
+  ["Fournier Kids", "heraclio_fournier_vitoria"],
+  ["heraclio fournier vitoria", "heraclio_fournier_vitoria"],
+  ["Heraclio Fournier Vitoria", "heraclio_fournier_vitoria"],
+]);
 
 let loaded = false;
 let customSkins: CardSkinDefinition[] = [];
@@ -331,8 +399,13 @@ export function listCardSkins(): CardSkinDefinition[] {
 export function getCardSkinDefinition(id: CardSkin | undefined): CardSkinDefinition {
   ensureLoaded();
   if (id && customMap.has(id)) return customMap.get(id)!;
-  if (id && BUILTIN_MAP.has(id)) return BUILTIN_MAP.get(id)!;
+  const canonicalId = id && (BUILTIN_ALIASES.get(id) ?? BUILTIN_ALIASES.get(id.toLowerCase()) ?? id);
+  if (canonicalId && BUILTIN_MAP.has(canonicalId)) return BUILTIN_MAP.get(canonicalId)!;
   return BUILTIN_MAP.get(DEFAULT_BUILTIN_CARD_SKIN) ?? BUILTIN_MAP.get("rocambor")!;
+}
+
+export function normalizeCardSkinId(id: CardSkin | undefined): CardSkin {
+  return getCardSkinDefinition(id).id;
 }
 
 export function isCustomCardSkin(id: string): boolean {

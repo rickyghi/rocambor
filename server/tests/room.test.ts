@@ -692,6 +692,7 @@ describe("Room - exchange", () => {
 
     expect(room.hands[0]).toHaveLength(9);
     expect(room.hands[0].some((card) => card.id === "b5")).toBe(false);
+    expect(room.state.exchange.revealedCard).toBeNull();
     expect(room.state.exchange.talonSize).toBe(2);
     expect(room.state.exchange.completed).toContain(0 as SeatIndex);
   });

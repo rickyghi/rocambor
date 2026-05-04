@@ -179,8 +179,12 @@ function resolveVolteoRevealCard(
   snapshot: GameDomLayerSnapshot
 ): Card | null {
   const game = state.game;
+  if (game?.phase === "exchange" && !game.exchange.revealedCard) {
+    return null;
+  }
   const canShowVolteoReveal =
     game?.contract === "volteo" &&
+    game?.phase !== "play" &&
     game?.phase !== "scoring" &&
     game?.phase !== "post_hand" &&
     game?.phase !== "match_end" &&

@@ -30,10 +30,40 @@ import { openProfileModal } from "../../components/profile/ProfileModal";
 import { useAuthSnapshot, useConnectionSnapshot, useProfile, useSettings } from "../hooks";
 import "../../screens/home.css";
 
-const ICON_SETTINGS = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
-const ICON_PLUS = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
-const ICON_PLAY = `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>`;
-const ICON_KEY = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+function IconSettings(): ReactElement {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function IconPlus(): ReactElement {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function IconPlay(): ReactElement {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <polygon points="6 3 20 12 6 21 6 3" />
+    </svg>
+  );
+}
+
+function IconKey(): ReactElement {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  );
+}
 
 function formatActivityTime(value: string, locale: Locale): string {
   const date = new Date(value);
@@ -46,34 +76,68 @@ function formatActivityTime(value: string, locale: Locale): string {
   }).format(date);
 }
 
-function Icon({ markup }: { markup: string }): ReactElement {
-  return <span aria-hidden="true" dangerouslySetInnerHTML={{ __html: markup }} />;
-}
-
 function openCreateRoomModal(
   ctx: AppContext,
   selectedMode: Mode,
   stakeMode: StakeMode
 ): void {
-  const { t } = createTranslator(ctx.settings.get("locale"));
+  const locale = ctx.settings.get("locale");
+  const { t } = createTranslator(locale);
   const content = document.createElement("div");
-  content.innerHTML = `
-    <div class="modal-form-group">
-      <label class="room-name-label" style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:rgba(248,246,240,0.6);margin-bottom:4px;display:block;">${t("home.roomNameOptional")}</label>
-      <input type="text" class="room-name-input" id="create-room-name" placeholder="${t("home.roomNamePlaceholder")}" maxlength="30" />
-    </div>
-    <div class="modal-form-group">
-      <label for="create-mode">${t("common.mode")}</label>
-      <select id="create-mode">
-        <option value="tresillo" ${selectedMode === "tresillo" ? "selected" : ""}>${modeLabel("tresillo", ctx.settings.get("locale"), true)}</option>
-        <option value="quadrille" ${selectedMode === "quadrille" ? "selected" : ""}>${modeLabel("quadrille", ctx.settings.get("locale"), true)}</option>
-      </select>
-    </div>
-    <div class="modal-form-group">
-      <label for="create-target">${t("home.pointsToWin")}</label>
-      <input id="create-target" type="number" value="12" min="6" max="30" />
-    </div>
-  `;
+
+  const nameGroup = document.createElement("div");
+  nameGroup.className = "modal-form-group";
+  const nameLabel = document.createElement("label");
+  nameLabel.className = "room-name-label";
+  nameLabel.setAttribute("for", "create-room-name");
+  nameLabel.style.cssText = "font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:rgba(248,246,240,0.6);margin-bottom:4px;display:block;";
+  nameLabel.textContent = t("home.roomNameOptional");
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.className = "room-name-input";
+  nameInput.id = "create-room-name";
+  nameInput.placeholder = t("home.roomNamePlaceholder");
+  nameInput.maxLength = 30;
+  nameGroup.appendChild(nameLabel);
+  nameGroup.appendChild(nameInput);
+
+  const modeGroup = document.createElement("div");
+  modeGroup.className = "modal-form-group";
+  const modeLabel_ = document.createElement("label");
+  modeLabel_.setAttribute("for", "create-mode");
+  modeLabel_.textContent = t("common.mode");
+  const modeSelect = document.createElement("select");
+  modeSelect.id = "create-mode";
+  const optTresillo = document.createElement("option");
+  optTresillo.value = "tresillo";
+  optTresillo.textContent = modeLabel("tresillo", locale, true);
+  optTresillo.selected = selectedMode === "tresillo";
+  const optQuadrille = document.createElement("option");
+  optQuadrille.value = "quadrille";
+  optQuadrille.textContent = modeLabel("quadrille", locale, true);
+  optQuadrille.selected = selectedMode === "quadrille";
+  modeSelect.appendChild(optTresillo);
+  modeSelect.appendChild(optQuadrille);
+  modeGroup.appendChild(modeLabel_);
+  modeGroup.appendChild(modeSelect);
+
+  const targetGroup = document.createElement("div");
+  targetGroup.className = "modal-form-group";
+  const targetLabel = document.createElement("label");
+  targetLabel.setAttribute("for", "create-target");
+  targetLabel.textContent = t("home.pointsToWin");
+  const targetInput = document.createElement("input");
+  targetInput.id = "create-target";
+  targetInput.type = "number";
+  targetInput.value = "12";
+  targetInput.min = "6";
+  targetInput.max = "30";
+  targetGroup.appendChild(targetLabel);
+  targetGroup.appendChild(targetInput);
+
+  content.appendChild(nameGroup);
+  content.appendChild(modeGroup);
+  content.appendChild(targetGroup);
 
   showModal({
     title: t("home.createRoomTitle"),
@@ -113,12 +177,21 @@ function openCreateRoomModal(
 function openJoinRoomModal(ctx: AppContext): void {
   const { t } = createTranslator(ctx.settings.get("locale"));
   const content = document.createElement("div");
-  content.innerHTML = `
-    <div class="modal-form-group">
-      <label for="join-code">${t("home.roomCode")}</label>
-      <input id="join-code" type="text" maxlength="6" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:4px;text-align:center;" />
-    </div>
-  `;
+
+  const codeGroup = document.createElement("div");
+  codeGroup.className = "modal-form-group";
+  const codeLabel = document.createElement("label");
+  codeLabel.setAttribute("for", "join-code");
+  codeLabel.textContent = t("home.roomCode");
+  const codeInput = document.createElement("input");
+  codeInput.id = "join-code";
+  codeInput.type = "text";
+  codeInput.maxLength = 6;
+  codeInput.placeholder = "ABC123";
+  codeInput.style.cssText = "text-transform:uppercase;letter-spacing:4px;text-align:center;";
+  codeGroup.appendChild(codeLabel);
+  codeGroup.appendChild(codeInput);
+  content.appendChild(codeGroup);
 
   showModal({
     title: t("home.joinByCodeTitle"),
@@ -145,9 +218,9 @@ function openJoinRoomModal(ctx: AppContext): void {
     ],
   });
 
-  window.setTimeout(() => {
+  requestAnimationFrame(() => {
     (content.querySelector("#join-code") as HTMLInputElement)?.focus();
-  }, 40);
+  });
 }
 
 export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
@@ -164,6 +237,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
   const [activity, setActivity] = useState<MatchActivityEntry[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const quickGamePendingRef = useRef(false);
+  const walletLastFetchedAt = useRef<number>(0);
   const { t } = createTranslator(settings.locale);
 
   useEffect(() => {
@@ -199,7 +273,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
     };
   }, [ctx]);
 
-  const firstName = profile.name.split(" ")[0] || "Player";
+  const firstName = profile.name.split(" ")[0] || t("player.unknown");
   const fallbackAvatar = ctx.profile.getFallbackAvatar();
   const setLocale = (locale: Locale): void => {
     ctx.settings.set("locale", locale);
@@ -235,16 +309,18 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
       }
 
       const cachedWallet = loadAccountWallet(auth.user.id);
+      const isStale = Date.now() - walletLastFetchedAt.current > 60_000;
       setWallet(cachedWallet);
       setWalletLoading(!cachedWallet);
 
-      if (cachedWallet) {
+      if (cachedWallet && !isStale) {
         return;
       }
 
       try {
         const nextWallet = await fetchCurrentWallet(ctx.auth);
         if (!cancelled) {
+          walletLastFetchedAt.current = Date.now();
           saveAccountWallet(auth.user.id, nextWallet);
         }
       } catch {
@@ -408,7 +484,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                   onClick={() => openCreateRoomModal(ctx, selectedMode, stakeMode)}
                 >
                   <span className="home-action-icon">
-                    <Icon markup={ICON_PLUS} />
+                    <IconPlus />
                   </span>
                   <div className="home-action-text">
                     <span className="home-action-title">{t("home.createRoom")}</span>
@@ -443,7 +519,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                   }}
                 >
                   <span className="home-action-icon">
-                    <Icon markup={ICON_PLAY} />
+                    <IconPlay />
                   </span>
                   <div className="home-action-text">
                     <span className="home-action-title">{t("home.quickPlay")}</span>
@@ -457,7 +533,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                   onClick={() => openJoinRoomModal(ctx)}
                 >
                   <span className="home-action-icon">
-                    <Icon markup={ICON_KEY} />
+                    <IconKey />
                   </span>
                   <div className="home-action-text">
                     <span className="home-action-title">{t("home.joinByCode")}</span>
@@ -481,7 +557,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 aria-label={t("common.settings")}
                 onClick={() => openSettingsModal(ctx.settings)}
               >
-                <Icon markup={ICON_SETTINGS} />
+                <IconSettings />
                 <span className="home-bottom-btn-label">{t("common.settings")}</span>
               </button>
               <button
@@ -527,7 +603,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                         {walletLoading
                           ? t("home.walletLoading")
                           : wallet
-                            ? `${wallet.balance.toLocaleString()}`
+                            ? `${wallet.balance.toLocaleString()} ${settings.locale === "es" ? "fichas" : "tokens"}`
                             : "—"}
                       </span>
                     </div>
@@ -599,7 +675,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                           </span>
                         </div>
                         <div className="home-activity-meta">
-                          <span>{contract || modeLabel(entry.mode, settings.locale)}</span>
+                          {contract ? <span>{contract}</span> : null}
                           {entry.ombreName ? <span>{entry.ombreName}</span> : null}
                         </div>
                         <div className="home-activity-foot">
@@ -618,7 +694,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 </div>
               ) : (
                 <p className="home-activity-empty">
-                  {activityLoading ? t("home.activityLoading") : t("home.activityEmpty")}
+                  {t("home.activityEmpty")}
                 </p>
               )}
             </div>

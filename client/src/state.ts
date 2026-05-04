@@ -115,8 +115,7 @@ export class ClientState {
     const myIndex = active.indexOf(this.mySeat);
     const seatIndex = active.indexOf(seat);
     if (myIndex === -1 || seatIndex === -1) {
-      const diff = ((seat - this.mySeat + 4) % 4) as 0 | 1 | 2 | 3;
-      return (["self", "left", "across", "right"] as const)[diff];
+      return "across";
     }
     const diff = (seatIndex - myIndex + active.length) % active.length;
     if (active.length === 3) {
@@ -233,25 +232,8 @@ export class ClientState {
   }
 
   get canCloseHandNow(): boolean {
-    if (!this.game || this.mySeat === null) return false;
-    if (this.game.phase !== "play") return false;
-    if (this.game.turn !== this.mySeat) return false;
-    if (this.game.table.length !== 0) return false;
-
-    const contract = this.game.contract;
-    if (!contract) return false;
-    if (contract === "bola" || contract === "contrabola" || contract === "penetro") {
-      return false;
-    }
-
-    const myTricks = this.game.tricks[this.mySeat] || 0;
-    if (myTricks !== 5) return false;
-
-    const otherTricks = [0, 1, 2, 3]
-      .filter((s) => s !== this.mySeat)
-      .reduce((sum, s) => sum + (this.game!.tricks[s] || 0), 0);
-
-    return otherTricks === 0;
+    // The server computes this authoritatively and sends it as canCloseHand on GameState.
+    return this.game?.canCloseHand ?? false;
   }
 
   get phase(): string {

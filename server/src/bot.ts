@@ -8,6 +8,7 @@ import {
   plainSuitValue,
   trickWinner,
   isManille,
+  trumpOrderValue,
 } from "./engine";
 
 export type BotPersonaId = "ilse" | "juan" | "guido" | "jorge" | "rafael";
@@ -27,6 +28,7 @@ interface BotPersona {
   leadAggression: number;
   winRisk: number;
   learningSensitivity: number;
+  trumpFollowing: number;
   suitBias: Partial<Record<Suit, number>>;
 }
 
@@ -54,6 +56,7 @@ const BOT_PERSONAS: Record<BotPersonaId, BotPersona> = {
     leadAggression: 0.2,
     winRisk: 0.15,
     learningSensitivity: 0.85,
+    trumpFollowing: -0.2,
     suitBias: { espadas: 1.2, copas: 0.4 },
   },
   juan: {
@@ -65,6 +68,7 @@ const BOT_PERSONAS: Record<BotPersonaId, BotPersona> = {
     leadAggression: 0.05,
     winRisk: 0,
     learningSensitivity: 1,
+    trumpFollowing: 0.6,
     suitBias: { oros: 0.6, bastos: -0.4 },
   },
   guido: {
@@ -76,6 +80,7 @@ const BOT_PERSONAS: Record<BotPersonaId, BotPersona> = {
     leadAggression: 0,
     winRisk: 0,
     learningSensitivity: 0.55,
+    trumpFollowing: -0.2,
     suitBias: {},
   },
   jorge: {
@@ -87,6 +92,7 @@ const BOT_PERSONAS: Record<BotPersonaId, BotPersona> = {
     leadAggression: 0.8,
     winRisk: 0.75,
     learningSensitivity: 0.6,
+    trumpFollowing: -0.2,
     suitBias: { espadas: 0.7, bastos: 0.5 },
   },
   rafael: {
@@ -98,6 +104,7 @@ const BOT_PERSONAS: Record<BotPersonaId, BotPersona> = {
     leadAggression: 0.45,
     winRisk: 0.3,
     learningSensitivity: 1.15,
+    trumpFollowing: 0.25,
     suitBias: { oros: 0.5, copas: 0.3 },
   },
 };
@@ -191,21 +198,13 @@ export function evaluateHand(hand: Card[]): { bestSuit: Suit; points: number } {
   return { bestSuit, points: bestPts };
 }
 
-function trumpOrderValue(card: Card, trump: Suit): number {
-  if (card.s === "espadas" && card.r === 1) return 100;
-  if (isManille(trump, card)) return 99;
-  if (card.s === "bastos" && card.r === 1) return 98;
-  if (card.s !== trump) return 0;
-  return 80 + plainSuitValue(trump, card.r);
-}
-
 function plainOrderValue(card: Card): number {
   return plainSuitValue(card.s, card.r);
 }
 
 function cardPower(card: Card, trump: Suit | null): number {
   if (trump) {
-    const tv = trumpOrderValue(card, trump);
+    const tv = trumpOrderValue(trump, card);
     if (tv > 0) return 1000 + tv;
   }
   return plainOrderValue(card);
@@ -350,9 +349,12 @@ export function decideBid(ctx: BotContext): Bid {
   return bid;
 }
 
-export function decidePenetroDecision(): boolean {
-  // Conservative policy for resting bot: decline explicit penetro.
-  return false;
+export function decidePenetroDecision(ctx: BotContext): boolean {
+  const persona = getBotPersona(ctx.personaId);
+  const { bestSuit } = evaluateHand(ctx.hand);
+  const profile = evaluateSuitStrength(ctx.hand, bestSuit);
+  const threshold = 38 - persona.bidNerve * 4;
+  return profile.strength >= threshold && Math.random() < 0.6;
 }
 
 export function decideTrump(ctx: BotContext): Suit {
@@ -367,7 +369,7 @@ export function decideTrump(ctx: BotContext): Suit {
     const profile = evaluateSuitStrength(ctx.hand, s);
     const learnedSuitPressure =
       humanSignals.preferredTrump === s
-        ? persona.learningSensitivity * (persona.id === "juan" ? 0.6 : persona.id === "rafael" ? 0.25 : -0.2)
+        ? persona.learningSensitivity * persona.trumpFollowing
         : 0;
     const weightedStrength =
       profile.strength + (persona.suitBias[s] ?? 0) + learnedSuitPressure;
@@ -382,7 +384,7 @@ export function decideTrump(ctx: BotContext): Suit {
 function keepValue(card: Card, trump: Suit): number {
   let score = 0;
   if (isMatador(trump, card)) score += 100;
-  if (isTrump(trump, card)) score += 40 + trumpOrderValue(card, trump);
+  if (isTrump(trump, card)) score += 40 + trumpOrderValue(trump, card);
   if (card.r === 12) score += 8;
   if (card.r === 11 || card.r === 10) score += 4;
   if (!isTrump(trump, card) && card.r <= 4) score -= 4;
@@ -461,12 +463,12 @@ function chooseLeadCard(ctx: BotContext, legal: Card[]): Card {
 
   if (trump && isOmbre && trumpCards.length >= 4 && countMatadors(trumpCards, trump) >= 2) {
     const strongestTrump = pickHighest(trumpCards, trump);
-    if (trumpOrderValue(strongestTrump, trump) >= 98) return strongestTrump;
+    if (trumpOrderValue(trump, strongestTrump) >= 98) return strongestTrump;
   }
 
   if (trump && !isOmbre && trumpCards.length >= 5 && countMatadors(trumpCards, trump) >= 2) {
     const strongestTrump = pickHighest(trumpCards, trump);
-    if (trumpOrderValue(strongestTrump, trump) >= 99) return strongestTrump;
+    if (trumpOrderValue(trump, strongestTrump) >= 99) return strongestTrump;
   }
 
   const pool = plainCards.length ? plainCards : legal;
@@ -501,15 +503,12 @@ function chooseDiscard(legal: Card[], trump: Suit | null): Card {
     }
 
     const sorted = nonTrump.slice().sort((a, b) => {
+      // Primary: discard lowest keep-value cards first
       const keepA = trump ? keepValue(a, trump) : cardPower(a, trump);
       const keepB = trump ? keepValue(b, trump) : cardPower(b, trump);
       if (keepA !== keepB) return keepA - keepB;
-
-      const lenA = suitCounts.get(a.s) ?? 0;
-      const lenB = suitCounts.get(b.s) ?? 0;
-      if (lenA !== lenB) return lenA - lenB;
-
-      return cardPower(a, trump) - cardPower(b, trump);
+      // Tiebreak: prefer discarding from the shortest suit (fastest voiding)
+      return (suitCounts.get(a.s) ?? 0) - (suitCounts.get(b.s) ?? 0);
     });
     return sorted[0];
   }
@@ -564,7 +563,7 @@ export function botAct(ctx: BotContext): {
     case "contract_upgrade":
       return { type: "UPGRADE_CONTRACT", payload: decideContractUpgrade(ctx) };
     case "penetro_choice":
-      return { type: "PENETRO_DECISION", payload: decidePenetroDecision() };
+      return { type: "PENETRO_DECISION", payload: decidePenetroDecision(ctx) };
     case "trump_choice":
       return { type: "CHOOSE_TRUMP", payload: decideTrump(ctx) };
     case "exchange":

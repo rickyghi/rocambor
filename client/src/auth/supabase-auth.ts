@@ -22,6 +22,8 @@ interface AccountRealtimeHandlers {
 
 type AuthListener = (snapshot: AuthSnapshot) => void;
 
+const PRODUCTION_AUTH_ORIGIN = "https://rocambor.app";
+
 function normalizeBaseUrl(value: string | undefined): string | null {
   const trimmed = value?.trim();
   if (!trimmed) return null;
@@ -30,7 +32,11 @@ function normalizeBaseUrl(value: string | undefined): string | null {
 
 function authRedirectUrl(): string {
   const configured = normalizeBaseUrl(import.meta.env.VITE_AUTH_REDIRECT_URL);
-  const origin = configured || window.location.origin;
+  if (configured) return `${configured}/`;
+
+  const hostname = window.location.hostname.toLowerCase();
+  const isProductionHost = hostname === "rocambor.app" || hostname.endsWith(".netlify.app");
+  const origin = isProductionHost ? PRODUCTION_AUTH_ORIGIN : window.location.origin;
   return `${origin}/`;
 }
 
@@ -67,7 +73,10 @@ export class AuthManager {
 
   constructor() {
     const supabaseUrl = normalizeBaseUrl(import.meta.env.VITE_SUPABASE_URL);
-    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() || "";
+    const anonKey =
+      import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ||
+      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+      "";
 
     if (supabaseUrl && anonKey) {
       this.client = createClient(supabaseUrl, anonKey, {

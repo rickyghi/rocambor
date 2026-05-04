@@ -105,6 +105,12 @@ export class RoomRouter {
     return this.rooms.size;
   }
 
+  cleanAllDisconnected(): void {
+    for (const room of this.rooms.values()) {
+      room.cleanDisconnected();
+    }
+  }
+
   private cleanStaleRooms(): void {
     const now = Date.now();
     for (const [id, room] of this.rooms) {

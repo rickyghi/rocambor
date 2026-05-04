@@ -44,6 +44,7 @@ const PHASE_LABELS: Record<string, Record<Locale, string>> = {
   scoring: { en: "Scoring", es: "Puntuación" },
   match_end: { en: "Match End", es: "Fin de partida" },
   lobby: { en: "Lobby", es: "Sala" },
+  contract_upgrade: { en: "Contract Upgrade", es: "Mejora de contrato" },
 };
 
 const POSITION_LABELS: Record<"self" | "left" | "across" | "right", Record<Locale, string>> = {
@@ -93,6 +94,7 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "common.playAgain": "Play Again",
     "common.closeHand": "Close Hand",
     "common.closeModal": "Close modal",
+    "player.unknown": "Player",
     "home.heroTag": "The Salon is Waiting",
     "home.welcome": "Welcome, {name}",
     "home.heroSubtitle": "Select your table and claim your glory.",
@@ -121,7 +123,6 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "home.walletBalance": "Token Balance",
     "home.walletLoading": "Loading wallet...",
     "home.walletRescue": "Claim Rescue",
-    "home.walletRescueReady": "Rescue available",
     "home.walletRescueCooldown": "Rescue on cooldown",
     "home.walletRefreshFailed": "Unable to refresh wallet right now.",
     "home.walletRescueSuccess": "Rescue tokens claimed.",
@@ -225,11 +226,18 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "game.opponents": "Opponents",
     "game.passed": "Passed",
     "game.resting": "Resting",
+    "game.role.you": "You",
+    "game.role.ombre": "Player",
+    "game.role.firstOpponent": "First opponent",
+    "game.role.secondOpponent": "Second opponent",
+    "game.role.seat": "Seat {n}",
     "game.announce.pass": "{actor} passes",
     "game.announce.bid": "{actor} bids {bid}",
     "game.announce.auctionWin": "{actor} wins auction with {bid}",
     "game.announce.winWith": "{actor} wins with {bid}",
     "game.announce.cardPlayed": "{actor} played {card}",
+    "game.announce.point": "point",
+    "game.announce.points": "points",
     "game.announce.roundResultSelf": "Round result: +{points} {pointWord}",
     "game.announce.roundResultOthers": "Round result: {names} +{points}",
     "game.announce.roundComplete": "Round complete",
@@ -292,7 +300,6 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "game.exchange.volteoConfirm": "Discard / Exchange",
     "game.exchange.selectedSingle": "{selected}/1 selected",
     "game.exchange.selectedMany": "{selected}/{max} selected",
-    "game.exchange.discard": "Discard",
     "game.exchange.trade": "Trade",
     "game.exchange.defer": "Defer",
     "game.volteoRevealTitle": "Volteo card",
@@ -335,7 +342,7 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "leaderboard.refreshFailed": "Could not refresh leaderboard",
     "leaderboard.back": "Back",
     "leaderboard.refreshing": "Refreshing...",
-    "leaderboard.season": "Season 4: The Golden Age",
+    "leaderboard.season": "Season {n}",
     "leaderboard.title": "The Grand Ledger",
     "leaderboard.subtitle": "A definitive record of the most esteemed Grandees across the Spanish realms.",
     "leaderboard.filterAll": "All players",
@@ -448,6 +455,7 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "profile.selectedAvatar": "Selected avatar",
     "profile.locked": "Locked",
     "profile.forceTitle": "Choose Name & Avatar",
+    "error.generic": "Something went wrong",
   },
   es: {
     "common.english": "English",
@@ -481,6 +489,7 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "common.playAgain": "Jugar otra vez",
     "common.closeHand": "Cerrar mano",
     "common.closeModal": "Cerrar ventana",
+    "player.unknown": "Jugador",
     "home.heroTag": "El salón espera",
     "home.welcome": "Bienvenido, {name}",
     "home.heroSubtitle": "Elige tu mesa y reclama tu gloria.",
@@ -509,7 +518,6 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "home.walletBalance": "Saldo de fichas",
     "home.walletLoading": "Cargando saldo...",
     "home.walletRescue": "Pedir rescate",
-    "home.walletRescueReady": "Rescate disponible",
     "home.walletRescueCooldown": "Rescate en espera",
     "home.walletRefreshFailed": "No se ha podido actualizar el saldo ahora mismo.",
     "home.walletRescueSuccess": "Has recibido las fichas de rescate.",
@@ -613,11 +621,18 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "game.opponents": "Oponentes",
     "game.passed": "Pasó",
     "game.resting": "Descansa",
+    "game.role.you": "Tú",
+    "game.role.ombre": "Jugador",
+    "game.role.firstOpponent": "Primer contra",
+    "game.role.secondOpponent": "Segundo contra",
+    "game.role.seat": "Asiento {n}",
     "game.announce.pass": "{actor} pasa",
     "game.announce.bid": "{actor} canta {bid}",
     "game.announce.auctionWin": "{actor} gana la subasta con {bid}",
     "game.announce.winWith": "{actor} gana con {bid}",
     "game.announce.cardPlayed": "{actor} jugó {card}",
+    "game.announce.point": "punto",
+    "game.announce.points": "puntos",
     "game.announce.roundResultSelf": "Resultado de la ronda: +{points} {pointWord}",
     "game.announce.roundResultOthers": "Resultado de la ronda: {names} +{points}",
     "game.announce.roundComplete": "Ronda terminada",
@@ -680,7 +695,6 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "game.exchange.volteoConfirm": "Descartar / Cambiar",
     "game.exchange.selectedSingle": "{selected}/1 seleccionada",
     "game.exchange.selectedMany": "{selected}/{max} seleccionadas",
-    "game.exchange.discard": "Descartar",
     "game.exchange.trade": "Cambiar",
     "game.exchange.defer": "Ceder turno",
     "game.volteoRevealTitle": "Carta de volteo",
@@ -723,7 +737,7 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "leaderboard.refreshFailed": "No se pudo actualizar la clasificación",
     "leaderboard.back": "Volver",
     "leaderboard.refreshing": "Actualizando...",
-    "leaderboard.season": "Temporada 4: La Edad Dorada",
+    "leaderboard.season": "Temporada {n}",
     "leaderboard.title": "El Gran Libro",
     "leaderboard.subtitle": "Un registro definitivo de los grandes más ilustres a través de los reinos españoles.",
     "leaderboard.filterAll": "Todos",
@@ -836,6 +850,7 @@ const MESSAGES: Record<Locale, Record<string, string>> = {
     "profile.selectedAvatar": "Avatar seleccionado",
     "profile.locked": "Bloqueado",
     "profile.forceTitle": "Elige nombre y avatar",
+    "error.generic": "Algo salió mal",
   },
 };
 
@@ -851,14 +866,25 @@ export function localeTag(locale: Locale): string {
   return locale === "es" ? "es-ES" : "en-US";
 }
 
-export function createTranslator(locale: Locale) {
-  return {
+export interface Translator {
+  locale: Locale;
+  t(key: string, params?: Params): string;
+}
+
+const _translatorCache = new Map<Locale, Translator>();
+
+export function createTranslator(locale: Locale): Translator {
+  const cached = _translatorCache.get(locale);
+  if (cached) return cached;
+  const instance: Translator = {
     locale,
     t(key: string, params?: Params): string {
       const message = MESSAGES[locale][key] ?? MESSAGES.en[key] ?? key;
       return interpolate(message, params);
     },
   };
+  _translatorCache.set(locale, instance);
+  return instance;
 }
 
 export function modeLabel(mode: "tresillo" | "quadrille", locale: Locale, compact = false): string {

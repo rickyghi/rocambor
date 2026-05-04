@@ -25,7 +25,7 @@ export class Lobby {
   };
 
   constructor(
-    private redis: MaybeRedis,
+    private redis: MaybeRedis, // reserved for future Redis-backed queue persistence
     private router: RoomRouter
   ) {}
 

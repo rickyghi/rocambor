@@ -185,6 +185,7 @@ export interface GameState {
   hostSeat?: SeatIndex | null;
   turnDeadline?: number;
   legalIds?: string[];
+  canCloseHand?: boolean;
 }
 
 // ---- Client-to-Server messages ----

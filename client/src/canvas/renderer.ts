@@ -138,11 +138,11 @@ export class GameRenderer {
 
   private preloadCurrentSkin(): void {
     const skinId = this.settings.get("cardSkin");
-    if (skinId === this.currentSkin) return;
-    this.currentSkin = skinId;
     const skin = getCardSkinDefinition(skinId);
+    if (skin.id === this.currentSkin) return;
+    this.currentSkin = skin.id;
     if (skin.imageMode && skin.imagePath) {
-      preloadSkinImages(skinId, skin.imagePath).then(() => {
+      preloadSkinImages(skin.id, skin.imagePath).then(() => {
         this.dirty = true;
       });
     }
@@ -152,7 +152,8 @@ export class GameRenderer {
     const loop = () => {
       // Check if skin changed
       const skinId = this.settings.get("cardSkin");
-      if (skinId !== this.currentSkin) {
+      const skin = getCardSkinDefinition(skinId);
+      if (skin.id !== this.currentSkin) {
         this.preloadCurrentSkin();
         this.dirty = true;
       }
