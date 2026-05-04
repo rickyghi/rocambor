@@ -40,7 +40,7 @@ export interface CardSkinDefinition {
   // Image-based skin support
   imageMode?: boolean;
   imagePath?: string;
-  imageExtension?: "png" | "svg";
+  imageExtension?: "png" | "svg" | "webp" | "jpg" | "jpeg";
   // Metadata
   author?: string;
   theme?: SkinTheme;
@@ -68,10 +68,11 @@ export interface CardSkinImportInput {
   hoverBorderColor?: string;
   suitOverrides?: Partial<Record<Suit, SuitPalette>>;
   suitOverridesColorblind?: Partial<Record<Suit, SuitPalette>>;
-  imageExtension?: "png" | "svg";
+  imageExtension?: "png" | "svg" | "webp" | "jpg" | "jpeg";
 }
 
 const STORAGE_KEY = "rocambor_custom_card_skins_v1";
+export const DEFAULT_BUILTIN_CARD_SKIN = "heraclio_fournier_vitoria";
 
 const SPANISH_IMAGE_SKIN_BASE = {
   faceColor: "#F8F6F0",
@@ -103,6 +104,7 @@ function createSpanishImageSkin(input: {
   description: string;
   author: string;
   imagePath: string;
+  imageExtension?: CardSkinDefinition["imageExtension"];
   theme?: SkinTheme;
   rarity?: SkinRarity;
 }): CardSkinDefinition {
@@ -112,14 +114,24 @@ function createSpanishImageSkin(input: {
     theme: input.theme ?? "classic",
     rarity: input.rarity ?? "rare",
     imageMode: true,
-    imageExtension: "png",
+    imageExtension: input.imageExtension ?? "png",
   };
 }
 
 const BUILTIN_SKINS: CardSkinDefinition[] = [
+  createSpanishImageSkin({
+    id: "heraclio_fournier_vitoria",
+    label: "Heraclio Fournier Vitoria",
+    description: "Historic Vitoria Spanish deck artwork with classic Fournier linework",
+    author: "Heraclio Fournier / local import",
+    imagePath: "/cards/heraclio_fournier_vitoria",
+    imageExtension: "webp",
+    theme: "classic",
+    rarity: "legendary",
+  }),
   {
     id: "rocambor",
-    label: "Rocambor",
+    label: "Fournier 8-Bit",
     description: "Ivory, gold, forest green, and deep crimson",
     author: "Rocambor",
     theme: "ornate",
@@ -153,52 +165,6 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     },
   },
   {
-    id: "classic",
-    label: "Classic",
-    description: "High-contrast traditional deck",
-    author: "Rocambor",
-    theme: "classic",
-    rarity: "common",
-    faceColor: "#fefefe",
-    faceBorderColor: "#cccccc",
-    backColor: "#2d1b4a",
-    backBorderColor: "#ffd700",
-    backPatternColor: "rgba(255,215,0,0.15)",
-    backPattern: "diamond",
-    emblem: "R",
-    emblemColor: "rgba(255,215,0,0.4)",
-    emblemFont: '700 28px "Playfair Display", Georgia, serif',
-    cornerFont: '700 14px "Inter", system-ui, sans-serif',
-    suitFont: '12px "Inter", system-ui, sans-serif',
-    centerFont: '700 36px "Inter", system-ui, sans-serif',
-    courtFont: '700 12px "Inter", system-ui, sans-serif',
-    selectionBorderColor: "#C8A651",
-    hoverBorderColor: "#C8A651",
-  },
-  {
-    id: "minimal",
-    label: "Minimal",
-    description: "Modern flat style",
-    author: "Rocambor",
-    theme: "modern",
-    rarity: "common",
-    faceColor: "#f7f8fa",
-    faceBorderColor: "#d1d5db",
-    backColor: "#1f2937",
-    backBorderColor: "#d1d5db",
-    backPatternColor: "rgba(209,213,219,0.35)",
-    backPattern: "vertical",
-    emblem: "R",
-    emblemColor: "rgba(209,213,219,0.6)",
-    emblemFont: '700 24px "Inter", system-ui, sans-serif',
-    cornerFont: '600 14px "Inter", system-ui, sans-serif',
-    suitFont: '12px "Inter", system-ui, sans-serif',
-    centerFont: '700 34px "Inter", system-ui, sans-serif',
-    courtFont: '700 12px "Inter", system-ui, sans-serif',
-    selectionBorderColor: "#C8A651",
-    hoverBorderColor: "#C8A651",
-  },
-  {
     id: "parchment",
     label: "Ronda Morocco",
     description: "Traditional Spanish vector deck with ornate Moroccan-inspired artwork",
@@ -224,54 +190,13 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     selectionBorderColor: "#C8A651",
     hoverBorderColor: "#C8A651",
   },
-  {
-    id: "clasica",
-    label: "Spanish Deck",
-    description: "Classic Spanish deck artwork imported from local PNG assets",
-    author: "gjenkins20 / local import",
-    theme: "classic",
-    rarity: "legendary",
-    imageMode: true,
-    imagePath: "/cards/spanish_deck",
-    imageExtension: "png",
-    // Procedural fallback properties (used for cards without images)
-    faceColor: "#F8F6F0",
-    faceBorderColor: "#C8A651",
-    backColor: "#2A4D41",
-    backBorderColor: "#C8A651",
-    backPatternColor: "rgba(200,166,81,0.18)",
-    backPattern: "ornate",
-    emblem: "R",
-    emblemColor: "rgba(200,166,81,0.6)",
-    emblemFont: '700 27px "Playfair Display", Georgia, serif',
-    cornerFont: '700 14px "Inter", system-ui, sans-serif',
-    suitFont: '12px "Inter", system-ui, sans-serif',
-    centerFont: '700 34px "Inter", system-ui, sans-serif',
-    courtFont: '700 12px "Inter", system-ui, sans-serif',
-    selectionBorderColor: "#C8A651",
-    hoverBorderColor: "#C8A651",
-    suitOverrides: {
-      oros: { primary: "#C8A651", secondary: "#8a6a24" },
-      copas: { primary: "#B02E2E", secondary: "#7a1f1f" },
-      espadas: { primary: "#0D0D0D", secondary: "#3f3f3f" },
-      bastos: { primary: "#2A4D41", secondary: "#1f3627" },
-    },
-  },
-  createSpanishImageSkin({
-    id: "heraclio_fournier_vitoria",
-    label: "Heraclio Fournier Vitoria",
-    description: "Historic Vitoria Spanish deck artwork with classic Fournier linework",
-    author: "Heraclio Fournier / local import",
-    imagePath: "/cards/heraclio_fournier_vitoria",
-    theme: "classic",
-    rarity: "legendary",
-  }),
   createSpanishImageSkin({
     id: "maestros_naiperos_espanoles",
     label: "Maestros Naiperos Españoles",
     description: "Bold Spanish deck artwork from the Maestros Naiperos Españoles set",
     author: "Maestros Naiperos Españoles / local import",
     imagePath: "/cards/maestros_naiperos_espanoles",
+    imageExtension: "webp",
     theme: "ornate",
     rarity: "legendary",
   }),
@@ -281,6 +206,7 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     description: "Traditional Heraclio Fournier Spanish card artwork",
     author: "Heraclio Fournier / local import",
     imagePath: "/cards/heraclio_fournier",
+    imageExtension: "webp",
     theme: "classic",
     rarity: "legendary",
   }),
@@ -290,6 +216,7 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     description: "Catalan-style Spanish deck artwork with regional character",
     author: "Cartes Catalanes / local import",
     imagePath: "/cards/cartes_catalanes",
+    imageExtension: "webp",
     theme: "ornate",
     rarity: "rare",
   }),
@@ -299,6 +226,7 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
     description: "Modern Spanish deck artwork from the Mazoka Baraja Española set",
     author: "Mazoka / local import",
     imagePath: "/cards/mazoka_baraja_espanola",
+    imageExtension: "webp",
     theme: "modern",
     rarity: "rare",
   }),
@@ -404,7 +332,7 @@ export function getCardSkinDefinition(id: CardSkin | undefined): CardSkinDefinit
   ensureLoaded();
   if (id && customMap.has(id)) return customMap.get(id)!;
   if (id && BUILTIN_MAP.has(id)) return BUILTIN_MAP.get(id)!;
-  return BUILTIN_MAP.get("rocambor")!;
+  return BUILTIN_MAP.get(DEFAULT_BUILTIN_CARD_SKIN) ?? BUILTIN_MAP.get("rocambor")!;
 }
 
 export function isCustomCardSkin(id: string): boolean {

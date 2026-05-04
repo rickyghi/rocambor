@@ -29,7 +29,9 @@ function normalizeBaseUrl(value: string | undefined): string | null {
 }
 
 function authRedirectUrl(): string {
-  return `${window.location.origin}/`;
+  const configured = normalizeBaseUrl(import.meta.env.VITE_AUTH_REDIRECT_URL);
+  const origin = configured || window.location.origin;
+  return `${origin}/`;
 }
 
 function mapUser(user: User | null): AuthUserSnapshot | null {

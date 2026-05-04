@@ -48,7 +48,7 @@ export class GameControls {
     if (phase === "auction" && myTurn) {
       html = this.renderAuction();
       actionable = true;
-    } else if (phase === "contract_upgrade" && myTurn) {
+    } else if (phase === "contract_upgrade" && (myTurn || game.ombre === this.state.mySeat)) {
       html = this.renderContractUpgrade();
       actionable = true;
     } else if (phase === "penetro_choice" && myTurn) {

@@ -68,7 +68,7 @@ function trickSlotStyle(
         left: { x: "-214px", y: "18px", r: "-10deg" },
         across: { x: "0px", y: "-90px", r: "0deg" },
         right: { x: "214px", y: "18px", r: "10deg" },
-        self: { x: "0px", y: "110px", r: "0deg" },
+        self: { x: "0px", y: "58px", r: "0deg" },
       };
   const slot = map[position];
   return {
@@ -180,8 +180,9 @@ function resolveVolteoRevealCard(
 ): Card | null {
   const game = state.game;
   const canShowVolteoReveal =
-    game?.phase !== "play" &&
     game?.phase !== "scoring" &&
+    game?.phase !== "post_hand" &&
+    game?.phase !== "match_end" &&
     game?.phase !== "lobby";
   return (
     (canShowVolteoReveal ? game?.exchange?.revealedCard : null) ??

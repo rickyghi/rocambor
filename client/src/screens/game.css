@@ -1279,7 +1279,7 @@
   left: 18px;
   right: 18px;
   bottom: 0;
-  height: min(314px, 36vh);
+  height: min(260px, 32vh);
   border-radius: 34px 34px 0 0;
   border-top: 1px solid rgba(214, 166, 74, 0.18);
   background:
@@ -1323,12 +1323,12 @@
   width: min(100%, 1440px);
   max-width: 1440px;
   min-width: 0;
-  min-height: 248px;
+  min-height: 216px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   gap: 0;
-  padding: 6px 76px 8px;
+  padding: 4px 76px 6px;
   overflow-x: auto;
   overflow-y: visible;
   border: none;
@@ -1353,9 +1353,9 @@
 
 /* Play phase: taller hand row for larger cards covering lower third */
 .phase-play .hand-row {
-  min-height: 248px;
-  margin-top: -10px;
-  padding: 6px 76px 8px;
+  min-height: 216px;
+  margin-top: -6px;
+  padding: 4px 76px 6px;
 }
 
 .phase-play .game-hand-dock {
@@ -1363,8 +1363,8 @@
 }
 
 .hand-card-wrap {
-  width: var(--card-w, 164px);
-  height: var(--card-h, 236px);
+  width: var(--card-w, 140px);
+  height: var(--card-h, 201px);
   flex-shrink: 0;
   display: block;
   position: relative;
@@ -1375,7 +1375,7 @@
   line-height: 0;
   background: transparent;
   overflow: visible;
-  margin-left: -54px;
+  margin-left: -46px;
   transform: translate(var(--fan-x, 0px), var(--fan-y, 0px)) rotate(var(--fan-rot, 0deg));
   transform-origin: center bottom;
   transition:
@@ -1393,19 +1393,19 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%) scale(var(--card-scale, 1.708333));
+  transform: translate(-50%, -50%) scale(var(--card-scale, 1.458333));
   transform-origin: center center;
   transition: box-shadow 180ms var(--easeLuxe);
 }
 
 /* Phase-specific card sizes — play phase: larger cards covering lower third */
 .phase-play .hand-card-wrap {
-  width: var(--card-w-play, 196px);
-  height: var(--card-h-play, 282px);
-  margin-left: -54px;
+  width: var(--card-w-play, 140px);
+  height: var(--card-h-play, 201px);
+  margin-left: -46px;
 }
 .phase-play .hand-card-wrap .game-dom-card {
-  transform: translate(-50%, -50%) scale(var(--card-scale-play, 2.041667));
+  transform: translate(-50%, -50%) scale(var(--card-scale-play, 1.458333));
 }
 
 .hand-card-wrap:hover:not(:disabled) {
@@ -2428,8 +2428,7 @@
   .game-shell {
     padding-top: calc(82px + env(safe-area-inset-top, 0px)); /* clear the absolutely-positioned header */
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
   }
 
   .game-header {

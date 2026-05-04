@@ -130,8 +130,14 @@ function scoreStandard(
 ): HandScoreResult {
   const highest = Math.max(...defenders.map((s) => tricks[s]), ombreTricks);
   const leaders = [ombre, ...defenders].filter((seat) => tricks[seat] === highest);
+  const activeTricks = [ombre, ...defenders]
+    .map((seat) => tricks[seat] ?? 0)
+    .sort((a, b) => b - a);
+  const isPuestaPattern =
+    (activeTricks[0] === 4 && activeTricks[1] === 4 && activeTricks[2] === 1) ||
+    (activeTricks[0] === 3 && activeTricks[1] === 3 && activeTricks[2] === 3);
 
-  if (leaders.length > 1) {
+  if (leaders.length > 1 && isPuestaPattern) {
     const deltas: Partial<Record<SeatIndex, number>> = {};
     for (const d of defenders) deltas[d] = 1;
     return {

@@ -72,7 +72,7 @@ const DEFAULT_ACCOUNT_SETTINGS: PersistedPlayerSettings = {
   soundVolume: 0.7,
   colorblindMode: false,
   tableTheme: "classic",
-  cardSkin: "clasica",
+  cardSkin: "heraclio_fournier_vitoria",
   animationSpeed: "normal",
   reduceMotion: false,
 };
@@ -124,7 +124,18 @@ function normalizeTableTheme(
 }
 
 function normalizeCardSkin(value: unknown, fallback: string): string {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  if (!trimmed) return fallback;
+  if (
+    trimmed === "clasica" ||
+    trimmed === "spanish_deck" ||
+    trimmed === "classic" ||
+    trimmed === "minimal"
+  ) {
+    return fallback;
+  }
+  return trimmed;
 }
 
 function mapSettingsRow(row: Record<string, unknown>): PersistedPlayerSettings {

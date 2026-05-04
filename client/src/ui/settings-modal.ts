@@ -3,6 +3,7 @@ import type { SettingsManager } from "./settings";
 import { showToast } from "./toast";
 import { createTranslator } from "../i18n";
 import {
+  DEFAULT_BUILTIN_CARD_SKIN,
   getCardSkinDefinition,
   listCardSkins,
   type CardSkinDefinition,
@@ -39,7 +40,9 @@ export function openSettingsModal(
   const skins = listCardSkins();
   let selectedSkinId = settings.get("cardSkin");
   if (!skins.some((skin) => skin.id === selectedSkinId)) {
-    selectedSkinId = skins[0]?.id || "clasica";
+    selectedSkinId = skins.some((skin) => skin.id === DEFAULT_BUILTIN_CARD_SKIN)
+      ? DEFAULT_BUILTIN_CARD_SKIN
+      : skins[0]?.id || "rocambor";
   }
 
   const content = document.createElement("div");

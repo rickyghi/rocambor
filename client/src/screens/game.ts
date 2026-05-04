@@ -979,8 +979,9 @@ export class GameScreen {
     // Keep the volteo reveal visible from the trump-set event through exchange,
     // even if the contract/state patch arrives a tick later than the event.
     const canShowVolteoReveal =
-      game?.phase !== "play" &&
       game?.phase !== "scoring" &&
+      game?.phase !== "post_hand" &&
+      game?.phase !== "match_end" &&
       game?.phase !== "lobby";
     const reveal = canShowVolteoReveal ? game?.exchange?.revealedCard : null;
 

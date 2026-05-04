@@ -88,6 +88,28 @@ describe("scoring", () => {
     expect(result.award).toEqual([0]);
   });
 
+  it("does not score 4-2-3 as puesta", () => {
+    const ombreWin = calculateHandScore({
+      contract: "entrada",
+      ombre: 0 as SeatIndex,
+      activeSeats: [0, 1, 2] as SeatIndex[],
+      tricks: { 0: 4, 1: 2, 2: 3, 3: 0 } as Record<SeatIndex, number>,
+      trickWinners: [0, 1, 2, 0, 2, 0, 1, 2, 0] as SeatIndex[],
+    });
+    const defenderWin = calculateHandScore({
+      contract: "entrada",
+      ombre: 1 as SeatIndex,
+      activeSeats: [0, 1, 2] as SeatIndex[],
+      tricks: { 0: 4, 1: 2, 2: 3, 3: 0 } as Record<SeatIndex, number>,
+      trickWinners: [0, 1, 2, 0, 2, 0, 1, 2, 0] as SeatIndex[],
+    });
+
+    expect(ombreWin.result).toBe("sacada");
+    expect(ombreWin.award).toEqual([0]);
+    expect(defenderWin.result).toBe("codille");
+    expect(defenderWin.award).toEqual([0]);
+  });
+
   it("scores puesta when ombre ties for the highest trick total", () => {
     const result = calculateHandScore({
       contract: "entrada",

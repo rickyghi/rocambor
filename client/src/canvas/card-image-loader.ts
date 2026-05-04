@@ -71,7 +71,13 @@ export function preloadSkinImages(
       for (const rank of ranks) {
         const key = imageKey(suit, rank);
         tasks.push(
-          loadImageWithFallback([`${basePath}/${key}.png`, `${basePath}/${key}.svg`])
+          loadImageWithFallback([
+            `${basePath}/${key}.webp`,
+            `${basePath}/${key}.png`,
+            `${basePath}/${key}.svg`,
+            `${basePath}/${key}.jpg`,
+            `${basePath}/${key}.jpeg`,
+          ])
             .then((img) => { images.set(key, img); })
             .catch(() => { /* Missing card — procedural fallback */ })
         );
@@ -79,7 +85,13 @@ export function preloadSkinImages(
     }
 
     tasks.push(
-      loadImageWithFallback([`${basePath}/back.png`, `${basePath}/back.svg`])
+      loadImageWithFallback([
+        `${basePath}/back.webp`,
+        `${basePath}/back.png`,
+        `${basePath}/back.svg`,
+        `${basePath}/back.jpg`,
+        `${basePath}/back.jpeg`,
+      ])
         .then((img) => { backImg = img; })
         .catch(() => { /* Missing back — procedural fallback */ })
     );

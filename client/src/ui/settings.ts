@@ -1,5 +1,6 @@
 import type { TableTheme } from "../styles/design-tokens";
 import type { Locale } from "../i18n";
+import { DEFAULT_BUILTIN_CARD_SKIN, getCardSkinDefinition } from "../canvas/card-skin-registry";
 
 export interface Settings {
   locale: Locale;
@@ -14,7 +15,7 @@ export interface Settings {
 }
 
 const STORAGE_KEY = "rocambor_settings";
-const DEFAULT_CARD_SKIN = "clasica";
+const DEFAULT_CARD_SKIN = DEFAULT_BUILTIN_CARD_SKIN;
 
 const DEFAULTS: Settings = {
   locale: "es",
@@ -74,8 +75,14 @@ export class SettingsManager {
         }
         if (typeof merged.cardSkin !== "string" || !merged.cardSkin.trim()) {
           merged.cardSkin = DEFAULTS.cardSkin;
-        } else if (merged.cardSkin === "rocambor") {
-          // Migrate existing clients from the old default to the new imported deck.
+        } else if (
+          merged.cardSkin === "clasica" ||
+          merged.cardSkin === "spanish_deck" ||
+          merged.cardSkin === "classic" ||
+          merged.cardSkin === "minimal" ||
+          getCardSkinDefinition(merged.cardSkin).id !== merged.cardSkin
+        ) {
+          // Migrate removed/legacy deck ids to the new default.
           merged.cardSkin = DEFAULT_CARD_SKIN;
         }
         if (typeof merged.reduceMotion !== "boolean") {

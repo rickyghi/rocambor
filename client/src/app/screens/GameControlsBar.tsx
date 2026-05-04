@@ -777,7 +777,7 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
       });
     }
 
-    if (game.phase === "contract_upgrade" && state.isMyTurn) {
+    if (game.phase === "contract_upgrade" && (state.isMyTurn || game.ombre === state.mySeat)) {
       return renderContractUpgradeControls(settings.locale, game.auction.currentBid, actionLocked, (upgrade) => {
         lockAndSend({ type: "UPGRADE_CONTRACT", value: upgrade });
       });
