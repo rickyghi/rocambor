@@ -709,7 +709,7 @@ function attachPreRoomMessageHandler(
               return;
             }
             const { roomId, code, room } = router.createRoom(
-              quickStart ? "tresillo" : msg.mode,
+              msg.mode,
               id,
               stakeMode,
               msg.target,

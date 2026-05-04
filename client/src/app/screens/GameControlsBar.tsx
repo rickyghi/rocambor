@@ -599,6 +599,7 @@ function renderExchangeControls({
   max,
   canDefer,
   handSize,
+  isVolteoDiscard,
   actionLocked,
   onConfirm,
   onSkip,
@@ -610,6 +611,7 @@ function renderExchangeControls({
   max: number;
   canDefer: boolean;
   handSize: number;
+  isVolteoDiscard: boolean;
   actionLocked: boolean;
   onConfirm: () => void;
   onSkip: () => void;
@@ -620,18 +622,26 @@ function renderExchangeControls({
   const requireExactOne = min === 1 && maxExchange === 1;
   const canConfirm = requireExactOne ? selected === 1 : selected > 0 && selected <= maxExchange;
   const actionCount = 1 + (min > 0 ? 0 : 1) + (canDefer ? 1 : 0);
-  const hintText = requireExactOne
-    ? t("game.exchange.selectedSingle", { selected })
+  const hintText = isVolteoDiscard
+    ? selected > 0
+      ? t("game.exchange.selectedMany", { selected, max: maxExchange })
+      : t("game.exchange.volteoDiscardPrompt")
+    : requireExactOne
+      ? t("game.exchange.selectedSingle", { selected })
     : selected > 0
       ? t("game.exchange.selectedMany", { selected, max: maxExchange })
       : t("game.exchange.chooseUpTo", { count: maxExchange });
   const confirmLabel =
-    selected > 0 ? `${t("game.exchange.trade")} ${selected}` : t("game.exchange.trade");
+    selected > 0
+      ? `${isVolteoDiscard ? t("game.exchange.volteoConfirm") : t("game.exchange.trade")} ${selected}`
+      : isVolteoDiscard
+        ? t("game.exchange.volteoConfirm")
+        : t("game.exchange.trade");
 
   return (
     <AuctionPanel
       icon={<CardsIcon />}
-      title={t("game.exchange")}
+      title={isVolteoDiscard ? t("game.exchange.volteoTitle") : t("game.exchange")}
       status={hintText}
       kind="exchange"
       compact
@@ -804,6 +814,7 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
         max,
         canDefer: state.canDeferExchangeOrder,
         handSize: state.hand.length,
+        isVolteoDiscard: game.contract === "volteo" && state.mySeat === game.ombre,
         actionLocked,
         onConfirm: () => {
           if (actionLocked) return;

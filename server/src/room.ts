@@ -1247,6 +1247,13 @@ export class Room {
 
       const newContract = mapBidToContract(newBid);
       this.event("CONTRACT_UPGRADE", { seat, from: this.state.contract, to: newContract });
+      if (this.state.contract === "volteo" && newContract !== "volteo") {
+        this.state.trump = null;
+        this.state.exchange = {
+          ...this.state.exchange,
+          revealedCard: null,
+        };
+      }
       this.state.contract = newContract;
       this.state.auction.currentBid = newBid;
     }
@@ -1403,10 +1410,14 @@ export class Room {
 
     if (toDiscard.length < min || toDiscard.length > max) {
       if (min === 1 && max === 1) {
+        const message =
+          this.state.contract === "volteo" && seat === this.state.ombre
+            ? "Volteo requires choosing at least one card to discard"
+            : "Contrabola requires exchanging exactly one card";
         return this.errorSeat(
           seat,
           "BAD_EXCHANGE",
-          "Contrabola requires exchanging exactly one card"
+          message
         );
       }
       return this.errorSeat(
@@ -1424,7 +1435,12 @@ export class Room {
       if (k >= 0) hand.splice(k, 1);
     }
 
-    for (let i = 0; i < count; i++) {
+    const drawCount =
+      this.state.contract === "volteo" && seat === this.state.ombre
+        ? Math.max(0, count - 1)
+        : count;
+
+    for (let i = 0; i < drawCount; i++) {
       if (this.talon.length) hand.push(this.talon.shift()!);
     }
 

@@ -752,7 +752,9 @@ export class GameScreen {
     } else if (game.phase === "exchange") {
       sub =
         this.ctx.state.canExchangeNow
-          ? this.t("game.phaseBanner.selectExchange")
+          ? game.contract === "volteo" && game.ombre === this.ctx.state.mySeat
+            ? this.t("game.phaseBanner.volteoDiscard")
+            : this.t("game.phaseBanner.selectExchange")
           : game.exchange.current !== null
             ? this.t("game.phaseBanner.waitExchange", {
                 name: this.seatLabelForAnnouncements(game.exchange.current),

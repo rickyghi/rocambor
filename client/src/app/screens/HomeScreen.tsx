@@ -184,6 +184,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
         setQueuePosition(msg.position || 0);
       }),
       ctx.connection.on("ERROR", (msg: any) => {
+        setInQueue(false);
         quickGamePendingRef.current = false;
         showToast(msg.message || msg.code, "error");
       }),
@@ -197,23 +198,6 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
       unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
   }, [ctx]);
-
-  useEffect(() => {
-    if (ctx.profile.isComplete()) return;
-
-    const timer = window.setTimeout(() => {
-      openProfileModal(ctx.profile, {
-        force: true,
-        title: t("home.chooseNameAvatar"),
-        locale: settings.locale,
-        auth: ctx.auth,
-      });
-    }, 120);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [ctx.profile]);
 
   const firstName = profile.name.split(" ")[0] || "Player";
   const fallbackAvatar = ctx.profile.getFallbackAvatar();
@@ -434,18 +418,28 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 <button
                   className="home-action-row home-action-row--quick home-quick-btn"
                   type="button"
-                  disabled={!connected}
+                  disabled={!connected || stakedActionsDisabled}
                   onClick={() => {
-                    quickGamePendingRef.current = true;
-                    ctx.connection.send({
-                      type: "CREATE_ROOM",
-                      mode: "tresillo",
-                      stakeMode: "free",
-                      quickStart: true,
-                      rules: {
-                        espadaObligatoria: ctx.settings.get("espadaObligatoria"),
-                      },
-                    });
+                    if (stakeMode === "tokens") {
+                      quickGamePendingRef.current = false;
+                      setInQueue(true);
+                      ctx.connection.send({
+                        type: "QUICK_PLAY",
+                        mode: selectedMode,
+                        stakeMode,
+                      });
+                    } else {
+                      quickGamePendingRef.current = true;
+                      ctx.connection.send({
+                        type: "CREATE_ROOM",
+                        mode: selectedMode,
+                        stakeMode: "free",
+                        quickStart: true,
+                        rules: {
+                          espadaObligatoria: ctx.settings.get("espadaObligatoria"),
+                        },
+                      });
+                    }
                   }}
                 >
                   <span className="home-action-icon">

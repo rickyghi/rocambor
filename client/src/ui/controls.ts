@@ -288,8 +288,15 @@ export class GameControls {
       : selected > 0 && selected <= maxExchange;
     const needsSelectionHint = selected === 0 || (selected > maxExchange || selected < min);
     const canDefer = this.state.canDeferExchangeOrder;
+    const isVolteoDiscard =
+      this.state.game?.contract === "volteo" && this.state.mySeat === this.state.game.ombre;
 
-    const hintText = requireExactOne ? "Select exactly 1 card" : `Choose up to ${maxExchange} cards`;
+    const hintText = isVolteoDiscard
+      ? "Choose at least 1 card. First discard returns you to 9; extras exchange from talon"
+      : requireExactOne
+        ? "Select exactly 1 card"
+        : `Choose up to ${maxExchange} cards`;
+    const confirmLabel = isVolteoDiscard ? "Discard / Exchange" : "Exchange";
 
     const swapSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
     const crossSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
@@ -300,13 +307,13 @@ export class GameControls {
       <div class="auction-panel exchange-panel-compact">
         <div class="auction-panel-header">
           <span class="auction-header-icon">${cardsSvg}</span>
-          <span class="auction-header-title">Exchange</span>
+          <span class="auction-header-title">${isVolteoDiscard ? "Volteo discard" : "Exchange"}</span>
         </div>
         <div class="auction-panel-status">${hintText} \u2014 ${selected} / ${maxExchange}</div>
         <div class="auction-bid-grid">
           <button class="auction-bid exchange-btn" data-action="confirm" ${canConfirm ? "" : "disabled"}>
             <span class="auction-bid-icon">${swapSvg}</span>
-            <span class="auction-bid-name">Exchange</span>
+            <span class="auction-bid-name">${confirmLabel}</span>
           </button>
           ${min > 0 ? "" : `<button class="auction-bid exchange-btn pass-btn" data-action="skip">
             <span class="auction-bid-icon">${crossSvg}</span>

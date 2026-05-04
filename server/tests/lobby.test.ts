@@ -124,6 +124,77 @@ describe("Lobby", () => {
     expect(calls[0].rules).toEqual({ espadaObligatoria: true });
   });
 
+  it("quick play preserves token stake mode when matching a staked queue", async () => {
+    const calls: Array<{ stakeMode?: "free" | "tokens" }> = [];
+    const fakeRoom = {
+      conns: [] as any[],
+      allSeats: () => [0, 1, 2],
+      attach: (
+        ws: WebSocket,
+        clientId: string,
+        playerId: string,
+        authUserId: string | null
+      ) => {
+        const conn = { ws, id: clientId, playerId, authUserId, seat: null };
+        fakeRoom.conns.push(conn);
+        return conn;
+      },
+      handle: (conn: any, msg: any) => {
+        if (msg?.type === "TAKE_SEAT") {
+          conn.seat = msg.seat;
+        }
+      },
+      startGame: async () => true,
+    };
+    const router = {
+      createRoom: (
+        _mode: "tresillo" | "quadrille",
+        _creatorId: string,
+        stakeMode?: "free" | "tokens"
+      ) => {
+        calls.push({ stakeMode });
+        return {
+          roomId: "r1",
+          code: "ABC123",
+          room: fakeRoom as any,
+        };
+      },
+    } as unknown as RoomRouter;
+
+    const lobby = new Lobby(null, router);
+    const ws1 = makeFakeWs();
+    const ws2 = makeFakeWs();
+    const ws3 = makeFakeWs();
+
+    await lobby.joinQueue(
+      "c1",
+      "00000000-0000-4000-8000-000000000001",
+      "00000000-0000-4000-8000-000000000001",
+      ws1,
+      "tresillo",
+      "tokens"
+    );
+    await lobby.joinQueue(
+      "c2",
+      "00000000-0000-4000-8000-000000000002",
+      "00000000-0000-4000-8000-000000000002",
+      ws2,
+      "tresillo",
+      "tokens"
+    );
+    await lobby.joinQueue(
+      "c3",
+      "00000000-0000-4000-8000-000000000003",
+      "00000000-0000-4000-8000-000000000003",
+      ws3,
+      "tresillo",
+      "tokens"
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].stakeMode).toBe("tokens");
+  });
+
   it("quick play seats and notifies every matched player", async () => {
     const router = new RoomRouter();
     const lobby = new Lobby(null, router);

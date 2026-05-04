@@ -408,12 +408,14 @@ export function decideExchange(ctx: BotContext): string[] {
   const max = isOmbre
     ? isSolo
       ? 0
-      : isOros
-        ? 6
-        : 8
+      : isVolteo
+        ? Math.min(8, ctx.hand.length, ctx.talonLength + 1)
+        : isOros
+          ? 6
+          : 8
     : Math.min(ctx.hand.length, ctx.talonLength);
 
-  if (max === 0 || ctx.talonLength === 0 || ctx.hand.length === 0) return [];
+  if (max === 0 || (!isVolteo && ctx.talonLength === 0) || ctx.hand.length === 0) return [];
 
   const trump = ctx.trump;
   if (!trump) return [];
@@ -438,8 +440,8 @@ export function decideExchange(ctx: BotContext): string[] {
       (humanSignals.exchangePressure - 0.4) * 4 * persona.learningSensitivity
   );
   desired = clamp(desired + exchangeAdjustment, 0, max);
-  desired = Math.min(desired, ctx.talonLength);
-  if (isOmbre && isVolteo && desired <= 0 && ctx.talonLength > 0) {
+  desired = Math.min(desired, isVolteo ? ctx.talonLength + 1 : ctx.talonLength);
+  if (isOmbre && isVolteo && desired <= 0) {
     desired = 1;
   }
   if (desired <= 0) return [];

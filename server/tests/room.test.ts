@@ -620,6 +620,70 @@ describe("Room - exchange", () => {
     expect(msgs.some((m: any) => m.type === "ERROR" && m.code === "BAD_EXCHANGE")).toBe(true);
   });
 
+  it("volteo accepts the compulsory discard plus optional exchange cards", () => {
+    room.state.phase = "auction";
+    room.state.contract = "volteo";
+    room.state.ombre = 0;
+    room.talon = [
+      { s: "bastos", r: 5, id: "b5" },
+      { s: "copas", r: 6, id: "c6" },
+      { s: "copas", r: 7, id: "c7" },
+    ] as any;
+
+    (room as any).resolveContract();
+
+    const discardIds = room.hands[0].slice(0, 2).map((card) => card.id);
+    room.finishExchange(0 as SeatIndex, discardIds);
+
+    expect(room.hands[0]).toHaveLength(9);
+    expect(room.state.exchange.talonSize).toBe(1);
+    expect(room.state.exchange.completed).toContain(0 as SeatIndex);
+  });
+
+  it("volteo returns ombre to a 9-card hand after the required discard", () => {
+    room.state.phase = "auction";
+    room.state.contract = "volteo";
+    room.state.ombre = 0;
+    room.talon = [
+      { s: "bastos", r: 5, id: "b5" },
+      { s: "copas", r: 6, id: "c6" },
+      { s: "copas", r: 7, id: "c7" },
+    ] as any;
+
+    (room as any).resolveContract();
+
+    expect(room.hands[0]).toHaveLength(10);
+    const discardId = room.hands[0][0].id;
+    room.finishExchange(0 as SeatIndex, [discardId]);
+
+    expect(room.hands[0]).toHaveLength(9);
+    expect(room.state.handsCount[0]).toBe(9);
+    expect(room.state.exchange.completed).toContain(0 as SeatIndex);
+  });
+
+  it("volteo lets ombre choose the revealed card as the required discard", () => {
+    room.state.phase = "auction";
+    room.state.contract = "volteo";
+    room.state.ombre = 0;
+    room.talon = [
+      { s: "bastos", r: 5, id: "b5" },
+      { s: "copas", r: 6, id: "c6" },
+      { s: "copas", r: 7, id: "c7" },
+    ] as any;
+
+    (room as any).resolveContract();
+
+    expect(room.state.exchange.revealedCard?.id).toBe("b5");
+    expect(room.hands[0].some((card) => card.id === "b5")).toBe(true);
+
+    room.finishExchange(0 as SeatIndex, ["b5"]);
+
+    expect(room.hands[0]).toHaveLength(9);
+    expect(room.hands[0].some((card) => card.id === "b5")).toBe(false);
+    expect(room.state.exchange.talonSize).toBe(2);
+    expect(room.state.exchange.completed).toContain(0 as SeatIndex);
+  });
+
   it("non-ombre can exchange up to talon availability (not capped at 5)", () => {
     room.finishExchange(0 as SeatIndex, []);
 
@@ -1437,6 +1501,29 @@ describe("Room - contract_upgrade phase", () => {
     // Solo without a pre-declared suit requires trump_choice
     expect(room.state.phase).toBe("trump_choice");
     expect(room.state.turn).toBe(winner);
+  });
+
+  it("clears early volteo reveal state when upgrading away from volteo", () => {
+    const order = room.state.auction.order.slice();
+    const winner = order[0];
+    room.talon = [
+      { s: "bastos", r: 5, id: "b5" },
+      { s: "copas", r: 6, id: "c6" },
+    ] as any;
+
+    winAuctionWith(winner, "volteo");
+
+    expect(room.state.phase).toBe("contract_upgrade");
+    expect(room.state.contract).toBe("volteo");
+    expect(room.state.trump).toBe("bastos");
+    expect(room.state.exchange.revealedCard?.id).toBe("b5");
+
+    room.upgradeContract(winner, "solo");
+
+    expect(room.state.contract).toBe("solo");
+    expect(room.state.phase).toBe("trump_choice");
+    expect(room.state.trump).toBeNull();
+    expect(room.state.exchange.revealedCard).toBeNull();
   });
 
   it("rejects downgrade (same or lower bid)", () => {

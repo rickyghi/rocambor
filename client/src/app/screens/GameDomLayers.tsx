@@ -180,6 +180,7 @@ function resolveVolteoRevealCard(
 ): Card | null {
   const game = state.game;
   const canShowVolteoReveal =
+    game?.contract === "volteo" &&
     game?.phase !== "scoring" &&
     game?.phase !== "post_hand" &&
     game?.phase !== "match_end" &&
