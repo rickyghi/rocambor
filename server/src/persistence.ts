@@ -72,7 +72,7 @@ const DEFAULT_ACCOUNT_SETTINGS: PersistedPlayerSettings = {
   soundVolume: 0.7,
   colorblindMode: false,
   tableTheme: "classic",
-  cardSkin: "heraclio_fournier_vitoria",
+  cardSkin: "fournier_vitoria",
   animationSpeed: "normal",
   reduceMotion: false,
 };
@@ -131,7 +131,8 @@ function normalizeCardSkin(value: unknown, fallback: string): string {
     trimmed === "clasica" ||
     trimmed === "spanish_deck" ||
     trimmed === "classic" ||
-    trimmed === "minimal"
+    trimmed === "minimal" ||
+    trimmed === "heraclio_fournier_vitoria"
   ) {
     return fallback;
   }

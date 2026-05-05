@@ -342,3 +342,23 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 360px) {
+  .post-hand-card {
+    padding: 16px 12px;
+    border-radius: 20px;
+  }
+
+  .post-hand-card h2 {
+    font-size: 26px;
+  }
+
+  .detail-row {
+    min-height: 70px;
+    padding: 10px 12px;
+  }
+
+  .post-hand-hint {
+    font-size: 11px;
+  }
+}

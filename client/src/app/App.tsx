@@ -125,6 +125,30 @@ export function App(): ReactElement {
   }, [connection]);
 
   useEffect(() => {
+    const reconnectIfNeeded = (): void => {
+      if (!connection.connected) {
+        connection.connect();
+      }
+    };
+
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === "visible") {
+        reconnectIfNeeded();
+      }
+    };
+
+    window.addEventListener("online", reconnectIfNeeded);
+    window.addEventListener("pageshow", reconnectIfNeeded);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("online", reconnectIfNeeded);
+      window.removeEventListener("pageshow", reconnectIfNeeded);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [connection]);
+
+  useEffect(() => {
     ensureSpritesheetCss();
     void detectSpritesheetSupport();
   }, []);

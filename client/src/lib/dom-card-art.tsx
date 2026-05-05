@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { drawCard } from "../canvas/cards";
 import { getCardSkinDefinition, type CardSkin } from "../canvas/card-skin-registry";
 import type { Card } from "../protocol";
@@ -80,6 +80,13 @@ export function DomCardArt({
   colorblind?: boolean;
   faceDown?: boolean;
 }): ReactElement {
+  const [imageFailed, setImageFailed] = useState(false);
+  const imageSrc = imageCardSrc(skinId, card, faceDown);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [imageSrc]);
+
   if (skinUsesRocamborSprites(skinId)) {
     const className = faceDown || !card ? spriteBackClass() : spriteClassForCard(card);
     return (
@@ -91,8 +98,7 @@ export function DomCardArt({
     );
   }
 
-  const imageSrc = imageCardSrc(skinId, card, faceDown);
-  if (imageSrc) {
+  if (imageSrc && !imageFailed) {
     return (
       <img
         className="game-dom-card game-dom-card--image"
@@ -101,6 +107,7 @@ export function DomCardArt({
         alt=""
         draggable={false}
         aria-hidden="true"
+        onError={() => setImageFailed(true)}
       />
     );
   }

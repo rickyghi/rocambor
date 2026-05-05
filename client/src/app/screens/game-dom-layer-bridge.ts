@@ -106,6 +106,7 @@ export class GameDomLayerBridge {
   }
 
   pulseInvalidShake(): void {
+    navigator.vibrate?.([8, 50, 8]);
     this.snapshot.invalidShakeNonce += 1;
     this.notify();
   }

@@ -15,24 +15,9 @@ import type { AppContext } from "../../router";
 import type { ClientState } from "../../state";
 import { useClientState, useProfile, useSettings } from "../hooks";
 import type { GameDomLayerBridge } from "./game-dom-layer-bridge";
+import { activeSeatsForRole, nextActiveSeat } from "./game-seat-utils";
 import { seatAccentVars } from "./player-accent";
 import { useGameDomLayerSnapshot } from "./useGameDomLayerSnapshot";
-
-function activeSeatsForRole(state: ClientState): SeatIndex[] {
-  const game = state.game;
-  if (!game) return [0, 1, 2];
-  if (game.contract === "penetro") return [0, 1, 2, 3];
-  return ([0, 1, 2, 3] as SeatIndex[])
-    .filter((seat) => seat !== game.resting)
-    .slice(0, 3);
-}
-
-function nextActiveSeat(state: ClientState, seat: SeatIndex): SeatIndex {
-  const active = activeSeatsForRole(state);
-  const idx = active.indexOf(seat);
-  if (idx < 0) return active[0];
-  return active[(idx + 1) % active.length];
-}
 
 type PlatePosition = "self" | "left" | "across" | "right";
 
@@ -315,6 +300,11 @@ export function GameOpponentsStrip({
                       event.currentTarget.src = fallback;
                     }}
                   />
+                  {player && !player.connected ? (
+                    <span className="mob-opp-disconnected-badge" aria-label={locale === "es" ? "Desconectado" : "Disconnected"} title={locale === "es" ? "Desconectado" : "Disconnected"}>
+                      ⚡
+                    </span>
+                  ) : null}
                   {isOmbre ? (
                     <span
                       className="mob-opp-crown"
@@ -339,6 +329,7 @@ export function GameOpponentsStrip({
                     </span>
                   ) : null}
                   <span className="mob-stat mob-stat-tricks">{tricksLabel}</span>
+                  <span className="mob-stat mob-stat-score">{score} pts</span>
                 </div>
               </div>
             );

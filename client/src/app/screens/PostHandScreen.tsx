@@ -56,7 +56,12 @@ function getResultText(ctx: AppContext, game: GameState, locale: "en" | "es"): s
           : `${ombreName} failed Contrabola`;
   }
 
-  if (ombreTricks >= 5) {
+  const defenderTricks = Object.entries(game.tricks)
+    .filter(([seat]) => Number(seat) !== game.ombre && Number(seat) !== game.resting)
+    .map(([, tricks]) => tricks as number);
+  const maxDefenderTricks = defenderTricks.length > 0 ? Math.max(...defenderTricks) : 0;
+
+  if (ombreTricks > maxDefenderTricks) {
     return isOmbreSelf
       ? locale === "es"
         ? "¡Sacada! Has ganado"
@@ -66,11 +71,7 @@ function getResultText(ctx: AppContext, game: GameState, locale: "en" | "es"): s
         : `${ombreName} won (Sacada)`;
   }
 
-  const anyOpponentOver5 = Object.entries(game.tricks)
-    .filter(([seat]) => Number(seat) !== game.ombre && Number(seat) !== game.resting)
-    .some(([, tricks]) => (tricks as number) >= 5);
-
-  if (anyOpponentOver5) {
+  if (maxDefenderTricks > ombreTricks) {
     return isOmbreSelf
       ? locale === "es"
         ? "¡Codille! Has perdido"
@@ -115,7 +116,13 @@ function getResultClass(ctx: AppContext, game: GameState): string {
         : "result-win";
   }
 
-  if (ombreTricks >= 5) return isOmbreSelf ? "result-win" : "result-loss";
+  const defenderTricksForClass = Object.entries(game.tricks)
+    .filter(([seat]) => Number(seat) !== game.ombre && Number(seat) !== game.resting)
+    .map(([, tricks]) => tricks as number);
+  const maxDefenderTricksForClass = defenderTricksForClass.length > 0 ? Math.max(...defenderTricksForClass) : 0;
+
+  if (ombreTricks > maxDefenderTricksForClass) return isOmbreSelf ? "result-win" : "result-loss";
+  if (maxDefenderTricksForClass > ombreTricks) return isOmbreSelf ? "result-loss" : "result-win";
   return isOmbreSelf ? "result-loss" : "result-neutral";
 }
 
@@ -139,7 +146,7 @@ export function PostHandScreen({ ctx }: { ctx: AppContext }): ReactElement | nul
   }, [ctx.router, game]);
 
   useEffect(() => {
-    if (game) ctx.sounds.trickWin();
+    if (game?.phase === "post_hand") ctx.sounds.trickWin();
   }, [ctx.sounds, game?.handNo]);
 
   const activeRows = useMemo(() => {

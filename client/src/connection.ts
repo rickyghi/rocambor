@@ -5,6 +5,8 @@ import { ClientState } from "./state";
 
 type MessageHandler = (msg: S2CMessage) => void;
 
+const WS_TICKET_TIMEOUT_MS = 3500;
+
 export class ConnectionManager {
   private ws: WebSocket | null = null;
   private clientId: string | null;
@@ -315,6 +317,11 @@ export class ConnectionManager {
     const accessToken = await this.auth.getAccessToken();
     if (!accessToken) return null;
 
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      controller.abort();
+    }, WS_TICKET_TIMEOUT_MS);
+
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/auth/ws-ticket`, {
         method: "POST",
@@ -322,6 +329,7 @@ export class ConnectionManager {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ accessToken }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -333,6 +341,8 @@ export class ConnectionManager {
     } catch (error) {
       console.warn("[connection] WebSocket auth ticket request failed:", error);
       return null;
+    } finally {
+      window.clearTimeout(timeout);
     }
   }
 

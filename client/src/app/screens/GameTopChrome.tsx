@@ -21,6 +21,7 @@ import {
   useSettings,
 } from "../hooks";
 import type { GameDomLayerBridge } from "./game-dom-layer-bridge";
+import { activeSeatsForRole, nextActiveSeat } from "./game-seat-utils";
 import { useGameDomLayerSnapshot } from "./useGameDomLayerSnapshot";
 
 interface HudPill {
@@ -38,22 +39,6 @@ function suitIcon(suit: string): string {
     bastos: "♣",
   };
   return icons[suit] || "";
-}
-
-function activeSeatsForRole(state: ClientState): SeatIndex[] {
-  const game = state.game;
-  if (!game) return [0, 1, 2];
-  if (game.contract === "penetro") return [0, 1, 2, 3];
-  return ([0, 1, 2, 3] as SeatIndex[])
-    .filter((seat) => seat !== game.resting)
-    .slice(0, 3);
-}
-
-function nextActiveSeat(state: ClientState, seat: SeatIndex): SeatIndex {
-  const active = activeSeatsForRole(state);
-  const idx = active.indexOf(seat);
-  if (idx < 0) return active[0];
-  return active[(idx + 1) % active.length];
 }
 
 function roleLabelForSeat(state: ClientState, seat: SeatIndex, locale: "en" | "es"): string {
@@ -522,6 +507,11 @@ export function GameTopChrome({
           <span className="game-ping-chip" id="game-header-ping">
             {pingLabel}
           </span>
+          {state.roomCode ? (
+            <span className="game-room-code-chip" aria-label={`Room: ${state.roomCode}`}>
+              {state.roomCode}
+            </span>
+          ) : null}
           <button
             className="btn-secondary game-profile-btn"
             type="button"

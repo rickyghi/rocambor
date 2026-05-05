@@ -72,7 +72,7 @@ export interface CardSkinImportInput {
 }
 
 const STORAGE_KEY = "rocambor_custom_card_skins_v1";
-export const DEFAULT_BUILTIN_CARD_SKIN = "heraclio_fournier_vitoria";
+export const DEFAULT_BUILTIN_CARD_SKIN = "fournier_vitoria";
 
 const SPANISH_IMAGE_SKIN_BASE = {
   faceColor: "#F8F6F0",
@@ -120,7 +120,7 @@ function createSpanishImageSkin(input: {
 
 const BUILTIN_SKINS: CardSkinDefinition[] = [
   createSpanishImageSkin({
-    id: "heraclio_fournier_vitoria",
+    id: "fournier_kids",
     label: "Fournier Kids",
     description: "Playful Fournier-inspired Spanish deck artwork with classic linework",
     author: "Heraclio Fournier / local import",
@@ -295,12 +295,11 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
 const BUILTIN_IDS = new Set(BUILTIN_SKINS.map((skin) => skin.id));
 const BUILTIN_MAP = new Map(BUILTIN_SKINS.map((skin) => [skin.id, skin]));
 const BUILTIN_ALIASES = new Map<string, string>([
-  ["fournier_kids", "heraclio_fournier_vitoria"],
-  ["fournier-kids", "heraclio_fournier_vitoria"],
-  ["fournier kids", "heraclio_fournier_vitoria"],
-  ["Fournier Kids", "heraclio_fournier_vitoria"],
-  ["heraclio fournier vitoria", "heraclio_fournier_vitoria"],
-  ["Heraclio Fournier Vitoria", "heraclio_fournier_vitoria"],
+  ["fournier-kids", "fournier_kids"],
+  ["fournier kids", "fournier_kids"],
+  ["Fournier Kids", "fournier_kids"],
+  ["heraclio fournier vitoria", "fournier_kids"],
+  ["Heraclio Fournier Vitoria", "fournier_kids"],
 ]);
 
 let loaded = false;

@@ -835,6 +835,22 @@ export function GameControlsBar({ ctx }: { ctx: AppContext }): ReactElement | nu
       });
     }
 
+    if (game.phase === "exchange" && !state.canExchangeNow) {
+      const exchSeat = game.exchange.current;
+      const exchName =
+        exchSeat === null
+          ? t("game.waiting")
+          : exchSeat === state.mySeat
+            ? t("common.you")
+            : game.players[exchSeat]?.handle || (settings.locale === "es" ? `Asiento ${exchSeat}` : `Seat ${exchSeat}`);
+      return (
+        <div className="control-group exchange-waiting">
+          <span className="control-label">{t("game.exchange")}</span>
+          <span className="controls-hint">{t("game.exchanging", { name: exchName })}</span>
+        </div>
+      );
+    }
+
     if (game.phase === "play" && state.isMyTurn && state.canCloseHandNow) {
       return renderPlayControls(settings.locale, t, actionLocked, () => {
         lockAndSend({ type: "CLOSE_HAND" });

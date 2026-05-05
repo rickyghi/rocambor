@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactElement } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createTranslator, positionLabel } from "../../i18n";
 import { DomCardArt, skinUsesRocamborSprites } from "../../lib/dom-card-art";
 import type { Card, SeatIndex } from "../../protocol";
@@ -7,30 +7,17 @@ import type { AppContext } from "../../router";
 import type { ClientState } from "../../state";
 import { useClientState, useSettings } from "../hooks";
 import type { GameDomLayerBridge, GameDomLayerSnapshot } from "./game-dom-layer-bridge";
+import { activeSeatsForRole, nextActiveSeat } from "./game-seat-utils";
 import { seatAccentVars } from "./player-accent";
 import { useGameDomLayerSnapshot } from "./useGameDomLayerSnapshot";
+
+const TRICK_OVERLAY_LINGER_MS = 3200;
 
 type VarStyle = CSSProperties & Record<string, string>;
 
 function detectTouchConfirm(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(hover: none)").matches;
-}
-
-function activeSeatsForRole(state: ClientState): SeatIndex[] {
-  const game = state.game;
-  if (!game) return [0, 1, 2];
-  if (game.contract === "penetro") return [0, 1, 2, 3];
-  return ([0, 1, 2, 3] as SeatIndex[])
-    .filter((seat) => seat !== game.resting)
-    .slice(0, 3);
-}
-
-function nextActiveSeat(state: ClientState, seat: SeatIndex): SeatIndex {
-  const active = activeSeatsForRole(state);
-  const idx = active.indexOf(seat);
-  if (idx < 0) return active[0];
-  return active[(idx + 1) % active.length];
 }
 
 function trickActorLabel(state: ClientState, seat: number | undefined, locale: "en" | "es"): string {
@@ -118,7 +105,7 @@ export function GameTrickDomLayers({
       timerRef.current = setTimeout(() => {
         setStickyOverlay(null);
         timerRef.current = null;
-      }, 3200);
+      }, TRICK_OVERLAY_LINGER_MS);
     }
     // Don't cancel the timer when overlay goes null — that's exactly when
     // we need the sticky state to hold. Only cancel on unmount.
@@ -245,7 +232,7 @@ export function GameHandDock({
     startScrollLeft: 0,
     dragging: false,
   });
-  const touchConfirm = detectTouchConfirm();
+  const touchConfirm = useMemo(() => detectTouchConfirm(), []);
   const handSignature = state.hand.map((card) => card.id).join("|");
   const { t } = createTranslator(settings.locale);
   const usesSpriteSheet = skinUsesRocamborSprites(settings.cardSkin);
@@ -398,9 +385,16 @@ export function GameHandDock({
     <div className="game-hand-dock" id="game-hand-dock" aria-label={t("game.yourHandArea")} hidden={!showHandDock}>
       <div className="hand-dock-header" aria-hidden="true">
         <span className="hand-dock-title">{t("game.yourHand")}</span>
-        <span className="hand-dock-hint">
-          {snapshot.isMobilePortrait ? t("game.swipeHintMobile") : t("game.swipe")}
-        </span>
+        {touchConfirm && state.game?.phase === "play" && state.isMyTurn && snapshot.pendingPlayCard !== null && (
+          <span className="hand-dock-confirm-hint" aria-live="polite">
+            {t("game.tapToConfirm")}
+          </span>
+        )}
+        {(!snapshot.isMobilePortrait || state.hand.length > 6) && (
+          <span className="hand-dock-hint">
+            {snapshot.isMobilePortrait ? t("game.swipeHintMobile") : t("game.swipe")}
+          </span>
+        )}
       </div>
       <div
         key={snapshot.invalidShakeNonce}
@@ -430,6 +424,7 @@ export function GameHandDock({
               disabled={illegal}
               onClick={() => {
                 if (Date.now() < dragSuppressUntilRef.current) return;
+                navigator.vibrate?.(6);
                 bridge.interactWithCard(card.id, snapshot.isMobilePortrait ? false : touchConfirm);
               }}
             >

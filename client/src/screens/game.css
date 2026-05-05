@@ -398,6 +398,10 @@
   color: var(--tag-gold-text);
 }
 
+.game-room-code-chip {
+  display: none;
+}
+
 .game-ping-chip {
   display: none;
   min-height: 34px;
@@ -1111,14 +1115,15 @@
   isolation: isolate;
   --played-card-ring: var(--player-accent, rgba(214, 166, 74, 0.92));
   --played-card-ring-soft: var(--player-accent-glow, rgba(214, 166, 74, 0.36));
-  --played-card-ring-offset: 5px;
-  --played-card-ring-width: 3px;
+  --played-card-ring-offset: 0px;
+  --played-card-ring-width: 4.5px;
   --played-card-corner-radius: 14.6px;
   --played-card-ring-radius: calc(var(--played-card-corner-radius) + var(--played-card-ring-offset));
 }
 
 .trick-card-wrap::before {
   content: "";
+  display: none;
   position: absolute;
   inset: calc(-1 * var(--played-card-ring-offset));
   z-index: -1;
@@ -1139,6 +1144,13 @@
   z-index: 1;
   transform: scale(var(--trick-card-scale, 1.458333));
   transform-origin: top left;
+  border-radius: var(--played-card-corner-radius);
+  overflow: hidden;
+  box-shadow:
+    0 0 0 var(--played-card-ring-width) var(--played-card-ring),
+    0 0 0 calc(var(--played-card-ring-width) + 1px) rgba(248, 246, 240, 0.1),
+    0 0 14px var(--played-card-ring-soft),
+    0 0 30px var(--played-card-ring-soft);
   filter:
     drop-shadow(0 0 5px var(--player-accent-glow, rgba(214, 166, 74, 0.18)))
     drop-shadow(0 18px 30px rgba(0, 0, 0, 0.24));
@@ -1146,17 +1158,22 @@
 
 .trick-card-wrap.winner {
   box-shadow: none;
+  --played-card-ring-offset: 0px;
+  --played-card-ring-width: 6.75px;
 }
 
 .trick-card-wrap.winner .game-dom-card {
+  box-shadow:
+    0 0 0 var(--played-card-ring-width) var(--played-card-ring),
+    0 0 0 calc(var(--played-card-ring-width) + 1px) rgba(248, 246, 240, 0.14),
+    0 0 18px var(--played-card-ring-soft),
+    0 0 38px var(--played-card-ring-soft);
   filter:
     drop-shadow(0 0 7px var(--player-accent-glow, rgba(214, 166, 74, 0.42)))
     drop-shadow(0 10px 20px rgba(0, 0, 0, 0.28));
 }
 
 .trick-card-wrap.winner::before {
-  --played-card-ring-offset: 7px;
-  --played-card-ring-width: 4.5px;
   box-shadow:
     0 0 0 1px rgba(248, 246, 240, 0.14),
     0 0 14px var(--played-card-ring-soft),
@@ -1478,6 +1495,76 @@
 
 .game-controls-shell[data-actionable="true"] {
   display: flex;
+}
+
+/* ── Landscape rotate prompt (H3) ─────────────────────────────────────────── */
+.landscape-rotate-prompt {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgba(5, 10, 12, 0.97);
+  color: #e8d48a;
+  font-family: var(--font-body, sans-serif);
+  text-align: center;
+  padding: 32px;
+}
+
+.landscape-rotate-prompt__icon {
+  font-size: 52px;
+  animation: landscape-spin 2s ease-in-out infinite;
+}
+
+.landscape-rotate-prompt__title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.landscape-rotate-prompt__sub {
+  font-size: 13px;
+  opacity: 0.6;
+  margin: 0;
+}
+
+@keyframes landscape-spin {
+  0%, 100% { transform: rotate(0deg); }
+  40% { transform: rotate(90deg); }
+  60% { transform: rotate(90deg); }
+}
+
+/* ── Defer button visual separator (L3) ──────────────────────────────────── */
+.auction-bid-grid-exchange [data-action="defer"] {
+  position: relative;
+}
+
+.auction-bid-grid-exchange [data-action="defer"]::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Action-lock pulse on disabled bid buttons (M1) ──────────────────────── */
+@keyframes lock-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.65; }
+}
+
+.auction-bid-grid .bid-btn:disabled,
+.auction-bid-grid .exchange-btn:disabled,
+.auction-trump-grid .trump-btn:disabled,
+.auction-bid-grid .upgrade-btn:disabled {
+  animation: lock-pulse 0.9s ease-in-out infinite;
+  cursor: wait;
 }
 
 .game-controls-bar {
@@ -2540,6 +2627,10 @@
     letter-spacing: 0.1em;
   }
 
+  .hud-pill-active {
+    order: -1;
+  }
+
   .hud-pill + .hud-pill::before {
     left: -2px;
     height: 14px;
@@ -2600,6 +2691,18 @@
 
   .mobile-opponent.disconnected {
     opacity: 0.5;
+  }
+
+  .mob-opp-disconnected-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    font-size: 10px;
+    line-height: 1;
+    background: rgba(180, 40, 40, 0.85);
+    border-radius: 999px;
+    padding: 2px 4px;
+    pointer-events: none;
   }
 
   .mob-opp-top {
@@ -2709,6 +2812,22 @@
   }
 
   .mob-stat-tricks {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 18px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(214, 166, 74, 0.2);
+    background: rgba(7, 13, 16, 0.54);
+    color: rgba(248, 246, 240, 0.78);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .mob-stat-score {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -2960,8 +3079,8 @@
     height: auto;
     aspect-ratio: 96 / 138;
     box-shadow: none;
-    --played-card-ring-offset: 4px;
-    --played-card-ring-width: 3px;
+    --played-card-ring-offset: 0px;
+    --played-card-ring-width: 4.5px;
     --played-card-corner-radius: 8.8px;
   }
 
@@ -2985,6 +3104,7 @@
     width: 96px;
     box-shadow: none;
     --played-card-corner-radius: 10px;
+    --played-card-ring-width: 6.75px;
   }
 
   .trick-card-wrap.winner .game-dom-card {
@@ -2992,11 +3112,6 @@
     filter:
       drop-shadow(0 0 7px var(--player-accent-glow, rgba(214, 166, 74, 0.36)))
       drop-shadow(0 12px 22px rgba(0, 0, 0, 0.26));
-  }
-
-  .trick-card-wrap.winner::before {
-    --played-card-ring-offset: 6px;
-    --played-card-ring-width: 4.5px;
   }
 
   .trick-card-label {
@@ -3014,6 +3129,7 @@
     margin-top: 0;
     margin-bottom: -8px;
     padding-inline: 14px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 12;
     flex-shrink: 0;
   }
@@ -3866,6 +3982,27 @@
 
   .turn-lead-prompt { display: none; }
 
+  .game-room-code-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(214, 166, 74, 0.25);
+    background: rgba(7, 13, 16, 0.54);
+    color: rgba(248, 246, 240, 0.7);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+  .landscape-rotate-prompt {
+    display: flex;
+  }
 }
 
 @media (max-width: 360px) and (orientation: portrait) {

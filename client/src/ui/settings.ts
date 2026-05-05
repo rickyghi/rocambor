@@ -55,6 +55,7 @@ export class SettingsManager {
 
   hydrate(next: Partial<Settings>): void {
     this.settings = { ...this.settings, ...next };
+    this.settings.cardSkin = this.normalizeCardSkin(this.settings.cardSkin);
     this.saveToStorage();
     this.notify();
   }
@@ -73,20 +74,7 @@ export class SettingsManager {
         if (merged.locale !== "en" && merged.locale !== "es") {
           merged.locale = DEFAULTS.locale;
         }
-        if (typeof merged.cardSkin !== "string" || !merged.cardSkin.trim()) {
-          merged.cardSkin = DEFAULTS.cardSkin;
-        } else if (
-          merged.cardSkin === "clasica" ||
-          merged.cardSkin === "spanish_deck" ||
-          merged.cardSkin === "classic" ||
-          merged.cardSkin === "minimal" ||
-          getCardSkinDefinition(merged.cardSkin).id !== merged.cardSkin
-        ) {
-          // Migrate removed/legacy deck ids to the new default.
-          merged.cardSkin = DEFAULT_CARD_SKIN;
-        } else {
-          merged.cardSkin = normalizeCardSkinId(merged.cardSkin);
-        }
+        merged.cardSkin = this.normalizeCardSkin(merged.cardSkin);
         if (typeof merged.reduceMotion !== "boolean") {
           merged.reduceMotion = DEFAULTS.reduceMotion;
         }
@@ -99,6 +87,24 @@ export class SettingsManager {
       // Ignore parse errors
     }
     return { ...DEFAULTS };
+  }
+
+  private normalizeCardSkin(cardSkin: unknown): string {
+    if (typeof cardSkin !== "string" || !cardSkin.trim()) {
+      return DEFAULT_CARD_SKIN;
+    }
+    if (
+      cardSkin === "clasica" ||
+      cardSkin === "spanish_deck" ||
+      cardSkin === "classic" ||
+      cardSkin === "minimal" ||
+      cardSkin === "heraclio_fournier_vitoria" ||
+      getCardSkinDefinition(cardSkin).id !== cardSkin
+    ) {
+      // Migrate removed, renamed, or old-default deck ids to the new default.
+      return DEFAULT_CARD_SKIN;
+    }
+    return normalizeCardSkinId(cardSkin);
   }
 
   private saveToStorage(): void {
