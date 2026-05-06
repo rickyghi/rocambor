@@ -168,9 +168,12 @@ export class GameRenderer {
         this.dirty = true;
       }
 
-      if (this.dirty || this.animations.hasActive()) {
+      const hadActiveAnimations = this.animations.hasActive();
+      if (this.dirty || hadActiveAnimations) {
         this.render();
-        this.dirty = false;
+        // When the final animation frame is drawn, schedule one cleanup render
+        // so translucent canvas ghosts do not remain under the DOM card layer.
+        this.dirty = hadActiveAnimations && !this.animations.hasActive();
       }
       this.animationId = requestAnimationFrame(loop);
     };

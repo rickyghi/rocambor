@@ -398,7 +398,16 @@ export function listCardSkins(): CardSkinDefinition[] {
 export function getCardSkinDefinition(id: CardSkin | undefined): CardSkinDefinition {
   ensureLoaded();
   if (id && customMap.has(id)) return customMap.get(id)!;
-  const canonicalId = id && (BUILTIN_ALIASES.get(id) ?? BUILTIN_ALIASES.get(id.toLowerCase()) ?? id);
+  const normalizedId = typeof id === "string" ? id.trim().toLowerCase() : "";
+  const labelMatch = normalizedId
+    ? BUILTIN_SKINS.find((skin) => skin.label.toLowerCase() === normalizedId)
+    : undefined;
+  const canonicalId = id && (
+    BUILTIN_ALIASES.get(id) ??
+    BUILTIN_ALIASES.get(normalizedId) ??
+    labelMatch?.id ??
+    id
+  );
   if (canonicalId && BUILTIN_MAP.has(canonicalId)) return BUILTIN_MAP.get(canonicalId)!;
   return BUILTIN_MAP.get(DEFAULT_BUILTIN_CARD_SKIN) ?? BUILTIN_MAP.get("rocambor")!;
 }

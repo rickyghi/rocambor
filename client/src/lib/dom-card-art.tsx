@@ -81,10 +81,12 @@ export function DomCardArt({
   faceDown?: boolean;
 }): ReactElement {
   const [imageFailed, setImageFailed] = useState(false);
+  const [imageReady, setImageReady] = useState(false);
   const imageSrc = imageCardSrc(skinId, card, faceDown);
 
   useEffect(() => {
     setImageFailed(false);
+    setImageReady(false);
   }, [imageSrc]);
 
   if (skinUsesRocamborSprites(skinId)) {
@@ -99,16 +101,25 @@ export function DomCardArt({
   }
 
   if (imageSrc && !imageFailed) {
+    const fallbackSrc = proceduralCardDataUrl(skinId, card, colorblind, faceDown);
     return (
-      <img
+      <span
         className="game-dom-card game-dom-card--image"
         data-dom-card-kind="image"
-        src={imageSrc}
-        alt=""
-        draggable={false}
         aria-hidden="true"
-        onError={() => setImageFailed(true)}
-      />
+        style={{ backgroundImage: `url("${fallbackSrc}")` }}
+      >
+        <img
+          className="game-dom-card-image-el"
+          src={imageSrc}
+          alt=""
+          draggable={false}
+          aria-hidden="true"
+          style={{ opacity: imageReady ? 1 : 0 }}
+          onLoad={() => setImageReady(true)}
+          onError={() => setImageFailed(true)}
+        />
+      </span>
     );
   }
 

@@ -1101,6 +1101,12 @@
   box-shadow: none;
 }
 
+@media (min-width: 921px) {
+  .phase-play .trick-overlay-inner {
+    transform: translateY(-72px);
+  }
+}
+
 .trick-card-wrap {
   position: absolute;
   left: 50%;
@@ -1252,6 +1258,27 @@
 .game-dom-card--image,
 .game-dom-card--generated {
   object-fit: fill;
+}
+
+.game-dom-card--image {
+  position: relative;
+  overflow: hidden;
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.game-dom-card-image-el {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: fill;
+  transition: opacity 90ms var(--easeLuxe);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .trick-card-label {

@@ -55,7 +55,7 @@ function trickSlotStyle(
         left: { x: "-214px", y: "18px", r: "-10deg" },
         across: { x: "0px", y: "-90px", r: "0deg" },
         right: { x: "214px", y: "18px", r: "10deg" },
-        self: { x: "0px", y: "58px", r: "0deg" },
+        self: { x: "0px", y: "18px", r: "0deg" },
       };
   const slot = map[position];
   return {

@@ -93,18 +93,20 @@ export class SettingsManager {
     if (typeof cardSkin !== "string" || !cardSkin.trim()) {
       return DEFAULT_CARD_SKIN;
     }
+    const trimmed = cardSkin.trim();
     if (
-      cardSkin === "clasica" ||
-      cardSkin === "spanish_deck" ||
-      cardSkin === "classic" ||
-      cardSkin === "minimal" ||
-      cardSkin === "heraclio_fournier_vitoria" ||
-      getCardSkinDefinition(cardSkin).id !== cardSkin
+      trimmed === "clasica" ||
+      trimmed === "spanish_deck" ||
+      trimmed === "classic" ||
+      trimmed === "minimal" ||
+      trimmed === "heraclio_fournier_vitoria"
     ) {
-      // Migrate removed, renamed, or old-default deck ids to the new default.
+      // Migrate removed or old-default deck ids to the new default.
       return DEFAULT_CARD_SKIN;
     }
-    return normalizeCardSkinId(cardSkin);
+    const normalized = normalizeCardSkinId(trimmed);
+    const skin = getCardSkinDefinition(normalized);
+    return skin.id;
   }
 
   private saveToStorage(): void {
