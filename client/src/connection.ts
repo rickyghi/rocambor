@@ -25,6 +25,7 @@ export class ConnectionManager {
   private _latencyMs: number | null = null;
   private connectAttempt = 0;
   private identityRefreshPending = false;
+  private pendingMessages: C2SMessage[] = [];
 
   constructor(
     private state: ClientState,
@@ -97,6 +98,7 @@ export class ConnectionManager {
       }
       this.startHeartbeat();
       this.sendPing();
+      this.flushPendingMessages();
       this.emit("_connected", {} as any);
     };
 
@@ -156,6 +158,9 @@ export class ConnectionManager {
       }
     } else {
       console.warn("[connection] Not connected, cannot send");
+      if (this.queuePendingMessage(msg)) {
+        this.connect();
+      }
     }
   }
 
@@ -287,6 +292,54 @@ export class ConnectionManager {
     if (this.heartbeatTimer !== null) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
+    }
+  }
+
+  private queuePendingMessage(msg: C2SMessage): boolean {
+    const queueableTypes = new Set<C2SMessage["type"]>([
+      "CREATE_ROOM",
+      "JOIN_ROOM",
+      "QUICK_PLAY",
+      "SPECTATE",
+      "LEAVE_QUEUE",
+    ]);
+    if (!queueableTypes.has(msg.type)) {
+      return false;
+    }
+
+    const entryTypes = new Set<C2SMessage["type"]>([
+      "CREATE_ROOM",
+      "JOIN_ROOM",
+      "QUICK_PLAY",
+      "SPECTATE",
+    ]);
+    if (entryTypes.has(msg.type)) {
+      this.pendingMessages = this.pendingMessages.filter(
+        (pending) => !entryTypes.has(pending.type)
+      );
+    }
+
+    this.pendingMessages.push(msg);
+    if (this.pendingMessages.length > 10) {
+      this.pendingMessages = this.pendingMessages.slice(-10);
+    }
+    return true;
+  }
+
+  private flushPendingMessages(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || this.pendingMessages.length === 0) {
+      return;
+    }
+    const pending = this.pendingMessages;
+    this.pendingMessages = [];
+    for (const msg of pending) {
+      try {
+        this.ws.send(JSON.stringify(msg));
+      } catch (error) {
+        console.error("[connection] Failed to flush pending message:", error);
+        this.queuePendingMessage(msg);
+        break;
+      }
     }
   }
 

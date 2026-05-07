@@ -480,7 +480,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 <button
                   className="home-action-row home-action-row--create home-create-btn"
                   type="button"
-                  disabled={!connected || stakedActionsDisabled}
+                  disabled={stakedActionsDisabled}
                   onClick={() => openCreateRoomModal(ctx, selectedMode, stakeMode)}
                 >
                   <span className="home-action-icon">
@@ -494,7 +494,7 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 <button
                   className="home-action-row home-action-row--quick home-quick-btn"
                   type="button"
-                  disabled={!connected || stakedActionsDisabled}
+                  disabled={stakedActionsDisabled}
                   onClick={() => {
                     if (stakeMode === "tokens") {
                       quickGamePendingRef.current = false;
@@ -529,7 +529,6 @@ export function HomeScreen({ ctx }: { ctx: AppContext }): ReactElement {
                 <button
                   className="home-action-row home-action-row--join home-join-btn"
                   type="button"
-                  disabled={!connected}
                   onClick={() => openJoinRoomModal(ctx)}
                 >
                   <span className="home-action-icon">
