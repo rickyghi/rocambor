@@ -98,8 +98,7 @@ export class SettingsManager {
       trimmed === "clasica" ||
       trimmed === "spanish_deck" ||
       trimmed === "classic" ||
-      trimmed === "minimal" ||
-      trimmed === "heraclio_fournier_vitoria"
+      trimmed === "minimal"
     ) {
       // Migrate removed or old-default deck ids to the new default.
       return DEFAULT_CARD_SKIN;

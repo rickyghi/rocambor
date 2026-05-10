@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { drawCard } from "../canvas/cards";
 import { getCardSkinDefinition, type CardSkin } from "../canvas/card-skin-registry";
 import type { Card } from "../protocol";
@@ -6,6 +6,7 @@ import { spriteBackClass, spriteClassForCard } from "./card-sprites";
 
 const DOM_CARD_RENDER_WIDTH = 192;
 const DOM_CARD_RENDER_HEIGHT = 276;
+const IMAGE_EXTENSION_FALLBACKS = ["webp", "png", "svg", "jpg", "jpeg"] as const;
 
 const proceduralCache = new Map<string, string>();
 
@@ -15,10 +16,11 @@ function proceduralCacheKey(
   colorblind: boolean,
   faceDown: boolean
 ): string {
+  const skin = getCardSkinDefinition(skinId).id;
   if (faceDown || !card) {
-    return `${skinId || "rocambor"}|back|${colorblind ? "cb" : "std"}`;
+    return `${skin}|back|${colorblind ? "cb" : "std"}`;
   }
-  return `${skinId || "rocambor"}|${card.s}|${card.r}|${colorblind ? "cb" : "std"}`;
+  return `${skin}|${card.s}|${card.r}|${colorblind ? "cb" : "std"}`;
 }
 
 function proceduralCardDataUrl(
@@ -57,12 +59,20 @@ function proceduralCardDataUrl(
   return dataUrl;
 }
 
-function imageCardSrc(skinId: CardSkin | undefined, card: Card | null, faceDown: boolean): string | null {
+function imageCardSrcCandidates(
+  skinId: CardSkin | undefined,
+  card: Card | null,
+  faceDown: boolean
+): string[] {
   const skin = getCardSkinDefinition(skinId);
-  if (!skin.imageMode || !skin.imagePath) return null;
-  const ext = skin.imageExtension || "png";
+  if (!skin.imageMode || !skin.imagePath) return [];
+  const preferredExt = skin.imageExtension || "png";
+  const extensions = [
+    preferredExt,
+    ...IMAGE_EXTENSION_FALLBACKS.filter((ext) => ext !== preferredExt),
+  ];
   const fileName = faceDown || !card ? "back" : `${card.s}_${card.r}`;
-  return `${skin.imagePath}/${fileName}.${ext}`;
+  return extensions.map((ext) => `${skin.imagePath}/${fileName}.${ext}`);
 }
 
 export function skinUsesRocamborSprites(skinId: CardSkin | undefined): boolean {
@@ -80,14 +90,25 @@ export function DomCardArt({
   colorblind?: boolean;
   faceDown?: boolean;
 }): ReactElement {
-  const [imageFailed, setImageFailed] = useState(false);
+  const imageSrcCandidates = imageCardSrcCandidates(skinId, card, faceDown);
+  const imageKey = imageSrcCandidates.join("|");
+  const [imageCandidateIndex, setImageCandidateIndex] = useState(0);
   const [imageReady, setImageReady] = useState(false);
-  const imageSrc = imageCardSrc(skinId, card, faceDown);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const imageSrc = imageSrcCandidates[imageCandidateIndex];
 
   useEffect(() => {
-    setImageFailed(false);
-    setImageReady(false);
-  }, [imageSrc]);
+    setImageCandidateIndex(0);
+    // When src switches to a browser-cached URL, the load event may fire
+    // before this effect runs (or not at all on src reassignment), leaving
+    // imageReady permanently false. Detect already-loaded images synchronously.
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0) {
+      setImageReady(true);
+    } else {
+      setImageReady(false);
+    }
+  }, [imageKey]);
 
   if (skinUsesRocamborSprites(skinId)) {
     const className = faceDown || !card ? spriteBackClass() : spriteClassForCard(card);
@@ -100,7 +121,7 @@ export function DomCardArt({
     );
   }
 
-  if (imageSrc && !imageFailed) {
+  if (imageSrc) {
     const fallbackSrc = proceduralCardDataUrl(skinId, card, colorblind, faceDown);
     return (
       <span
@@ -110,6 +131,7 @@ export function DomCardArt({
         style={{ backgroundImage: `url("${fallbackSrc}")` }}
       >
         <img
+          ref={imgRef}
           className="game-dom-card-image-el"
           src={imageSrc}
           alt=""
@@ -117,7 +139,10 @@ export function DomCardArt({
           aria-hidden="true"
           style={{ opacity: imageReady ? 1 : 0 }}
           onLoad={() => setImageReady(true)}
-          onError={() => setImageFailed(true)}
+          onError={() => {
+            setImageReady(false);
+            setImageCandidateIndex((index) => index + 1);
+          }}
         />
       </span>
     );

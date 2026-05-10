@@ -295,11 +295,22 @@ const BUILTIN_SKINS: CardSkinDefinition[] = [
 const BUILTIN_IDS = new Set(BUILTIN_SKINS.map((skin) => skin.id));
 const BUILTIN_MAP = new Map(BUILTIN_SKINS.map((skin) => [skin.id, skin]));
 const BUILTIN_ALIASES = new Map<string, string>([
+  ["fournier_kids", "fournier_kids"],
   ["fournier-kids", "fournier_kids"],
   ["fournier kids", "fournier_kids"],
   ["Fournier Kids", "fournier_kids"],
+  ["heraclio_fournier_vitoria", "fournier_kids"],
+  ["heraclio-fournier-vitoria", "fournier_kids"],
   ["heraclio fournier vitoria", "fournier_kids"],
   ["Heraclio Fournier Vitoria", "fournier_kids"],
+  ["fournier vitoria", "fournier_vitoria"],
+  ["fournier-vitoria", "fournier_vitoria"],
+  ["maestros naiperos espanoles", "maestros_naiperos_espanoles"],
+  ["mazoka baraja espanola", "mazoka_baraja_espanola"],
+  ["ronda morocco", "parchment"],
+  ["ronda-morocco", "parchment"],
+  ["fournier 8-bit", "rocambor"],
+  ["fournier-8-bit", "rocambor"],
 ]);
 
 let loaded = false;
@@ -397,16 +408,15 @@ export function listCardSkins(): CardSkinDefinition[] {
 
 export function getCardSkinDefinition(id: CardSkin | undefined): CardSkinDefinition {
   ensureLoaded();
-  if (id && customMap.has(id)) return customMap.get(id)!;
   const normalizedId = typeof id === "string" ? id.trim().toLowerCase() : "";
+  if (normalizedId && customMap.has(normalizedId)) return customMap.get(normalizedId)!;
   const labelMatch = normalizedId
     ? BUILTIN_SKINS.find((skin) => skin.label.toLowerCase() === normalizedId)
     : undefined;
-  const canonicalId = id && (
-    BUILTIN_ALIASES.get(id) ??
+  const canonicalId = normalizedId && (
     BUILTIN_ALIASES.get(normalizedId) ??
     labelMatch?.id ??
-    id
+    normalizedId
   );
   if (canonicalId && BUILTIN_MAP.has(canonicalId)) return BUILTIN_MAP.get(canonicalId)!;
   return BUILTIN_MAP.get(DEFAULT_BUILTIN_CARD_SKIN) ?? BUILTIN_MAP.get("rocambor")!;

@@ -77,6 +77,43 @@ const DEFAULT_ACCOUNT_SETTINGS: PersistedPlayerSettings = {
   reduceMotion: false,
 };
 
+const REMOVED_CARD_SKINS = new Set([
+  "clasica",
+  "spanish_deck",
+  "classic",
+  "minimal",
+]);
+
+const CARD_SKIN_ALIASES = new Map<string, string>([
+  ["fournier-kids", "fournier_kids"],
+  ["fournier kids", "fournier_kids"],
+  ["heraclio_fournier_vitoria", "fournier_kids"],
+  ["heraclio-fournier-vitoria", "fournier_kids"],
+  ["heraclio fournier vitoria", "fournier_kids"],
+  ["fournier vitoria", "fournier_vitoria"],
+  ["fournier-vitoria", "fournier_vitoria"],
+  ["maestros naiperos españoles", "maestros_naiperos_espanoles"],
+  ["maestros-naiperos-españoles", "maestros_naiperos_espanoles"],
+  ["maestros naiperos espanoles", "maestros_naiperos_espanoles"],
+  ["cartes catalanes", "cartes_catalanes"],
+  ["cartes-catalanes", "cartes_catalanes"],
+  ["mazoka baraja española", "mazoka_baraja_espanola"],
+  ["mazoka-baraja-española", "mazoka_baraja_espanola"],
+  ["mazoka baraja espanola", "mazoka_baraja_espanola"],
+  ["cartes espagnoles", "cartes_espagnoles"],
+  ["cartes-espagnoles", "cartes_espagnoles"],
+  ["fournier cocina", "fournier_cocina"],
+  ["fournier-cocina", "fournier_cocina"],
+  ["fournier france", "fournier_france"],
+  ["fournier-france", "fournier_france"],
+  ["baraja virreynal", "baraja_virreynal"],
+  ["baraja-virreynal", "baraja_virreynal"],
+  ["ronda morocco", "parchment"],
+  ["ronda-morocco", "parchment"],
+  ["fournier 8-bit", "rocambor"],
+  ["fournier-8-bit", "rocambor"],
+]);
+
 export const FRIENDLY_TOKEN_ANTE = 100;
 export const FRIENDLY_TOKEN_STARTER_BALANCE = 1000;
 export const FRIENDLY_TOKEN_RESCUE_THRESHOLD = 100;
@@ -125,18 +162,12 @@ function normalizeTableTheme(
 
 function normalizeCardSkin(value: unknown, fallback: string): string {
   if (typeof value !== "string") return fallback;
-  const trimmed = value.trim();
+  const trimmed = value.trim().toLowerCase();
   if (!trimmed) return fallback;
-  if (
-    trimmed === "clasica" ||
-    trimmed === "spanish_deck" ||
-    trimmed === "classic" ||
-    trimmed === "minimal" ||
-    trimmed === "heraclio_fournier_vitoria"
-  ) {
+  if (REMOVED_CARD_SKINS.has(trimmed)) {
     return fallback;
   }
-  return trimmed;
+  return CARD_SKIN_ALIASES.get(trimmed) ?? trimmed;
 }
 
 function mapSettingsRow(row: Record<string, unknown>): PersistedPlayerSettings {
